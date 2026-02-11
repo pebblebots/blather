@@ -84,86 +84,158 @@ export function MainPage() {
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWs);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-cream text-secondary font-mono">Loading...</div>;
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#C0C0C0' }}>
+        ⏳ Loading...
+      </div>
+    );
   }
 
   return (
-    <div className="h-screen flex bg-cream font-mono">
-      {/* Sidebar */}
-      <div className="w-60 bg-surface flex flex-col border-r border-border shrink-0">
-        {/* User header */}
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className={`w-2 h-2 ${wsConnected ? 'bg-accent' : 'bg-error'}`} title={wsConnected ? 'Connected' : 'Disconnected'} />
-            <span className="text-sm truncate">{user?.displayName}</span>
-            {user?.isAgent && <span className="text-xs text-secondary">[agent]</span>}
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#C0C0C0', padding: 4 }}>
+      {/* Outer window */}
+      <div className="win-raised" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Main title bar */}
+        <div className="win-titlebar">
+          <span>BLATHER v0.1 — {selectedWorkspace?.name?.toUpperCase() || 'NO WORKSPACE'}</span>
+          <div style={{ display: 'flex', gap: 2 }}>
+            <button className="win-titlebar-btn">_</button>
+            <button className="win-titlebar-btn">□</button>
+            <button className="win-titlebar-btn">╳</button>
           </div>
-          <button onClick={logout} className="text-xs text-secondary hover:text-ink">logout</button>
         </div>
 
-        {/* Workspaces */}
-        <div className="px-2 pt-3 pb-1">
-          <div className="flex items-center justify-between px-2 mb-2">
-            <span className="text-xs text-secondary uppercase tracking-widest">workspaces</span>
-            <button onClick={() => setShowCreateWs(true)} className="text-secondary hover:text-ink text-sm leading-none" title="Create workspace">+</button>
-          </div>
-          {workspaces.map((ws) => (
-            <button
-              key={ws.id}
-              onClick={() => setSelectedWs(ws.id)}
-              className={`w-full text-left px-2 py-1.5 text-sm truncate ${ws.id === selectedWs ? 'text-accent border-l-2 border-accent bg-cream' : 'text-ink hover:bg-cream'}`}
-            >
-              {ws.name}
-            </button>
-          ))}
-          {workspaces.length === 0 && <p className="text-xs text-secondary px-2">no workspaces</p>}
-        </div>
-
-        {/* Channels */}
-        {selectedWs && (
-          <div className="px-2 pt-2 flex-1 overflow-y-auto border-t border-border mt-2">
-            <div className="flex items-center justify-between px-2 mb-2 pt-2">
-              <span className="text-xs text-secondary uppercase tracking-widest">channels</span>
-              <button onClick={() => setShowCreateCh(true)} className="text-secondary hover:text-ink text-sm leading-none" title="Create channel">+</button>
+        {/* Main body: sidebar + chat */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {/* Sidebar - Explorer panel */}
+          <div className="win-raised" style={{ width: 220, display: 'flex', flexDirection: 'column', margin: 2, flexShrink: 0 }}>
+            <div className="win-titlebar" style={{ fontSize: 11 }}>
+              <span>EXPLORER</span>
             </div>
-            {channels.map((ch) => (
-              <button
-                key={ch.id}
-                onClick={() => setSelectedCh(ch.id)}
-                className={`w-full text-left px-2 py-1.5 text-sm truncate ${ch.id === selectedCh ? 'text-accent border-l-2 border-accent bg-cream' : 'text-secondary hover:text-ink hover:bg-cream'}`}
-              >
-                # {ch.name}
-              </button>
-            ))}
-            {channels.length === 0 && <p className="text-xs text-secondary px-2">no channels</p>}
-          </div>
-        )}
-      </div>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Channel header */}
-        <div className="h-12 border-b border-border flex items-center px-4 shrink-0 bg-surface">
-          {selectedChannel ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium"># {selectedChannel.name}</span>
-              {selectedChannel.topic && <span className="text-xs text-secondary">— {selectedChannel.topic}</span>}
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              {/* Workspaces */}
+              <div style={{ padding: '6px 4px 2px 4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, padding: '0 4px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>WORKSPACES</span>
+                  <button
+                    className="win-titlebar-btn"
+                    style={{ width: 14, height: 14, fontSize: 10 }}
+                    onClick={() => setShowCreateWs(true)}
+                    title="Create workspace"
+                  >+</button>
+                </div>
+                {workspaces.map((ws) => (
+                  <div
+                    key={ws.id}
+                    onClick={() => setSelectedWs(ws.id)}
+                    style={{
+                      padding: '2px 6px',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      background: ws.id === selectedWs ? '#000000' : 'transparent',
+                      color: ws.id === selectedWs ? '#FFFFFF' : '#000000',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    📁 {ws.name}
+                  </div>
+                ))}
+                {workspaces.length === 0 && (
+                  <div style={{ padding: '2px 6px', fontSize: 11, color: '#808080' }}>NO WORKSPACES</div>
+                )}
+              </div>
+
+              <hr className="win-separator" />
+
+              {/* Channels */}
+              {selectedWs && (
+                <div style={{ padding: '2px 4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, padding: '0 4px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>CHANNELS</span>
+                    <button
+                      className="win-titlebar-btn"
+                      style={{ width: 14, height: 14, fontSize: 10 }}
+                      onClick={() => setShowCreateCh(true)}
+                      title="Create channel"
+                    >+</button>
+                  </div>
+                  {channels.map((ch) => (
+                    <div
+                      key={ch.id}
+                      onClick={() => setSelectedCh(ch.id)}
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        background: ch.id === selectedCh ? '#000000' : 'transparent',
+                        color: ch.id === selectedCh ? '#FFFFFF' : '#000000',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      📄 # {ch.name}
+                    </div>
+                  ))}
+                  {channels.length === 0 && (
+                    <div style={{ padding: '2px 6px', fontSize: 11, color: '#808080' }}>NO CHANNELS</div>
+                  )}
+                </div>
+              )}
             </div>
-          ) : (
-            <span className="text-secondary text-sm">select a channel</span>
-          )}
+          </div>
+
+          {/* Chat panel */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', margin: '2px 2px 2px 0', overflow: 'hidden' }}>
+            {/* Channel title bar */}
+            <div className="win-raised" style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="win-titlebar" style={{ fontSize: 11 }}>
+                <span>
+                  {selectedChannel
+                    ? `# ${selectedChannel.name.toUpperCase()}${selectedChannel.topic ? ` — ${selectedChannel.topic}` : ''}`
+                    : 'SELECT A CHANNEL'}
+                </span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <button className="win-titlebar-btn">_</button>
+                  <button className="win-titlebar-btn">╳</button>
+                </div>
+              </div>
+            </div>
+
+            {selectedCh ? (
+              <>
+                <MessageList messages={messages} usersMap={usersMap} />
+                <MessageInput onSend={handleSend} disabled={!selectedCh} />
+              </>
+            ) : (
+              <div className="win-sunken" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#808080', margin: '0' }}>
+                {selectedWs ? '> SELECT OR CREATE A CHANNEL' : '> SELECT OR CREATE A WORKSPACE'}
+              </div>
+            )}
+          </div>
         </div>
 
-        {selectedCh ? (
-          <>
-            <MessageList messages={messages} usersMap={usersMap} />
-            <MessageInput onSend={handleSend} disabled={!selectedCh} />
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-secondary text-sm">
-            {selectedWs ? '> select or create a channel_' : '> select or create a workspace_'}
+        {/* Status bar */}
+        <div className="win-statusbar">
+          <div className="win-statusbar-field" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ color: wsConnected ? '#000000' : '#808080' }}>{wsConnected ? '■' : '□'}</span>
+            <span>{wsConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
           </div>
-        )}
+          <div className="win-statusbar-field" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{user?.displayName}</span>
+            {user?.isAgent && <span style={{ fontWeight: 'bold' }}>[BOT]</span>}
+          </div>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={logout}
+            style={{ background: 'none', border: 'none', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}
+          >
+            LOGOUT
+          </button>
+        </div>
       </div>
 
       {/* Modals */}

@@ -29,7 +29,11 @@ export default function App() {
   };
 
   if (checking) {
-    return <div className="min-h-screen flex items-center justify-center bg-cream text-secondary font-mono">Loading...</div>;
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#C0C0C0', fontFamily: "'W95FA', 'IBM Plex Mono', monospace" }}>
+        ⏳ Loading...
+      </div>
+    );
   }
 
   return (

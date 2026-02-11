@@ -19,26 +19,24 @@ export function MessageInput({ onSend, disabled }: { onSend: (content: string) =
   };
 
   return (
-    <form onSubmit={handleSubmit} className="px-4 pb-4 pt-2 border-t border-border">
-      <div className="flex gap-0 items-center border border-border bg-surface">
-        <span className="pl-3 text-accent font-mono text-sm select-none">&gt;</span>
-        <input
-          className="flex-1 bg-transparent px-2 py-2.5 text-sm font-mono focus:outline-none placeholder-secondary"
-          placeholder="type a message..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-        />
-        <span className="cursor-blink text-accent font-mono mr-1">▌</span>
-        <button
-          type="submit"
-          disabled={disabled || !text.trim()}
-          className="px-4 py-2.5 bg-accent hover:bg-accent-light text-surface disabled:opacity-30 text-sm font-mono border-l border-border transition-colors"
-        >
-          SEND
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} style={{ padding: 4, display: 'flex', gap: 4, alignItems: 'center' }}>
+      <input
+        className="win-input"
+        style={{ flex: 1, fontSize: 12 }}
+        placeholder="TYPE A MESSAGE..."
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+      />
+      <button
+        type="submit"
+        disabled={disabled || !text.trim()}
+        className="win-btn"
+        style={{ minWidth: 60 }}
+      >
+        SEND
+      </button>
     </form>
   );
 }

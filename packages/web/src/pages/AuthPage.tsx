@@ -30,82 +30,104 @@ export function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cream">
-      <div className="w-full max-w-sm border border-border bg-surface p-8">
-        <pre className="text-center text-sm text-secondary mb-2">┌─────────────────────┐</pre>
-        <h1 className="text-xl font-bold text-center mb-1 font-mono tracking-tight">BLATHER</h1>
-        <pre className="text-center text-sm text-secondary mb-4">└─────────────────────┘</pre>
-        <p className="text-secondary text-center text-sm mb-6 font-mono">
-          {isRegister ? '> create account_' : '> authenticate_'}
-        </p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#C0C0C0' }}>
+      {/* Win98 dialog window */}
+      <div className="win-raised" style={{ width: 380 }}>
+        {/* Title bar */}
+        <div className="win-titlebar">
+          <span>BLATHER v0.1 — AUTHENTICATE</span>
+          <div style={{ display: 'flex', gap: 2 }}>
+            <button className="win-titlebar-btn">_</button>
+            <button className="win-titlebar-btn">╳</button>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {isRegister && (
-            <div>
-              <label className="block text-xs text-secondary mb-1 font-mono">display_name:</label>
+        {/* Content */}
+        <div style={{ padding: 20 }}>
+          {/* Icon area */}
+          <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 28 }}>
+            🔑
+          </div>
+          <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#808080' }}>
+            {isRegister ? 'CREATE A NEW ACCOUNT' : 'ENTER YOUR CREDENTIALS'}
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            {isRegister && (
+              <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ width: 90, textAlign: 'right', fontSize: 12 }}>DISPLAY NAME:</label>
+                <input
+                  className="win-input"
+                  style={{ flex: 1 }}
+                  placeholder="your name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ width: 90, textAlign: 'right', fontSize: 12 }}>EMAIL:</label>
               <input
-                className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
-                placeholder="your name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                className="win-input"
+                style={{ flex: 1 }}
+                type="email"
+                placeholder="user@domain.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
-          )}
-          <div>
-            <label className="block text-xs text-secondary mb-1 font-mono">email:</label>
-            <input
-              className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
-              type="email"
-              placeholder="user@domain.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-secondary mb-1 font-mono">password:</label>
-            <input
-              className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {isRegister && (
-            <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer font-mono">
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ width: 90, textAlign: 'right', fontSize: 12 }}>PASSWORD:</label>
               <input
-                type="checkbox"
-                checked={isAgent}
-                onChange={(e) => setIsAgent(e.target.checked)}
-                className="accent-accent"
+                className="win-input"
+                style={{ flex: 1 }}
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
-              <span>[agent] this is an AI agent account</span>
-            </label>
-          )}
+            </div>
 
-          {error && <p className="text-error text-sm font-mono">ERR: {error}</p>}
+            {isRegister && (
+              <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, marginLeft: 98 }}>
+                <input
+                  type="checkbox"
+                  checked={isAgent}
+                  onChange={(e) => setIsAgent(e.target.checked)}
+                />
+                <span style={{ fontSize: 12 }}>[BOT] THIS IS AN AI AGENT ACCOUNT</span>
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 bg-accent hover:bg-accent-light text-surface disabled:opacity-50 font-mono text-sm border border-accent transition-colors"
-          >
-            {loading ? '...' : isRegister ? '[ REGISTER ]' : '[ LOGIN ]'}
-          </button>
-        </form>
+            {error && (
+              <div style={{ marginBottom: 8, marginLeft: 98, fontSize: 12, color: '#000000', fontWeight: 'bold' }}>
+                ⚠ ERR: {error}
+              </div>
+            )}
 
-        <p className="mt-4 text-center text-sm text-secondary font-mono">
-          {isRegister ? 'have an account?' : 'need an account?'}{' '}
-          <button
-            className="text-accent hover:text-accent-light underline"
-            onClick={() => { setIsRegister(!isRegister); setError(''); }}
-          >
-            {isRegister ? 'login' : 'register'}
-          </button>
-        </p>
+            <hr className="win-separator" style={{ margin: '12px 0' }} />
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+              <button type="submit" disabled={loading} className="win-btn">
+                {loading ? '⏳...' : isRegister ? 'REGISTER' : 'OK'}
+              </button>
+              <button
+                type="button"
+                className="win-btn"
+                onClick={() => { setIsRegister(!isRegister); setError(''); }}
+              >
+                {isRegister ? 'LOGIN' : 'REGISTER'}
+              </button>
+            </div>
+          </form>
+
+          <div style={{ textAlign: 'center', marginTop: 12, fontSize: 11, color: '#808080' }}>
+            {isRegister ? 'Already have an account? Click LOGIN' : 'Need an account? Click REGISTER'}
+          </div>
+        </div>
       </div>
     </div>
   );

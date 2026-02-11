@@ -21,22 +21,25 @@ export function MessageList({ messages, usersMap }: { messages: Msg[]; usersMap:
   }, [messages.length]);
 
   if (messages.length === 0) {
-    return <div className="flex-1 flex items-center justify-center text-secondary text-sm font-mono">&gt; no messages yet. start the conversation_</div>;
+    return (
+      <div className="win-sunken" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#808080' }}>
+        &gt; NO MESSAGES YET. START THE CONVERSATION.
+      </div>
+    );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-3 font-mono">
+    <div className="win-sunken" style={{ flex: 1, overflowY: 'auto', padding: 4, fontSize: 12 }}>
       {messages.map((msg) => {
         const user = usersMap.get(msg.userId) || { displayName: msg.userId.slice(0, 8), isAgent: false };
         return (
-          <div key={msg.id} className="py-1.5 hover:bg-cream-dark px-2 flex gap-0 text-sm leading-relaxed">
-            <span className="text-secondary shrink-0">[{formatTime(msg.createdAt)}]</span>
-            <span className="shrink-0 ml-2">
-              <span className="text-accent font-medium">{user.displayName}</span>
-              {user.isAgent && <span className="text-secondary ml-1">[agent]</span>}
-              <span className="text-secondary">:</span>
-            </span>
-            <span className="ml-2 break-words min-w-0">{msg.content}</span>
+          <div key={msg.id} style={{ padding: '1px 2px', lineHeight: 1.5 }}>
+            <span style={{ color: '#808080' }}>[{formatTime(msg.createdAt)}]</span>
+            {' '}
+            <span style={{ fontWeight: 'bold' }}>&lt;{user.displayName}&gt;</span>
+            {user.isAgent && <span style={{ fontWeight: 'bold' }}> [BOT]</span>}
+            {' '}
+            <span>{msg.content}</span>
           </div>
         );
       })}

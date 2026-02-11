@@ -1,26 +1,223 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
 
-@theme {
-  --font-mono: 'IBM Plex Mono', 'SF Mono', 'Monaco', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
-
-  --color-cream: #F5F2EB;
-  --color-cream-dark: #EBE7DE;
-  --color-ink: #1A1A1A;
-  --color-border: #D1CBC0;
-  --color-accent: #4A7C59;
-  --color-accent-light: #5A9C6D;
-  --color-secondary: #8B8378;
-  --color-error: #C44D4D;
-  --color-surface: #FFFDF8;
+@font-face {
+  font-family: 'W95FA';
+  src: url('https://cdn.jsdelivr.net/gh/AidanGaney/Pix-Serif@master/w95fa.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/AidanGaney/Pix-Serif@master/w95fa.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border); }
-::-webkit-scrollbar-thumb:hover { background: var(--color-secondary); }
+@theme {
+  --font-mono: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
 
-body { margin: 0; }
+  --color-win-white: #FFFFFF;
+  --color-win-black: #000000;
+  --color-win-silver: #C0C0C0;
+  --color-win-gray: #808080;
+  --color-win-darkgray: #404040;
+}
+
+* {
+  cursor: default;
+  image-rendering: pixelated;
+}
+
+input, textarea {
+  cursor: text;
+}
+
+button, a, [role="button"] {
+  cursor: pointer;
+}
+
+body {
+  margin: 0;
+  background: #C0C0C0;
+  font-family: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
+  font-size: 13px;
+  color: #000000;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+}
+
+/* Win98 scrollbar */
+::-webkit-scrollbar { width: 16px; }
+::-webkit-scrollbar-track {
+  background: #C0C0C0;
+  border-left: 1px solid #808080;
+}
+::-webkit-scrollbar-thumb {
+  background: #C0C0C0;
+  border-top: 2px solid #FFFFFF;
+  border-left: 2px solid #FFFFFF;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D0D0D0;
+}
+::-webkit-scrollbar-button {
+  background: #C0C0C0;
+  border-top: 2px solid #FFFFFF;
+  border-left: 2px solid #FFFFFF;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  height: 16px;
+}
+
+/* Win98 3D raised border (outset) */
+.win-raised {
+  border-top: 2px solid #FFFFFF;
+  border-left: 2px solid #FFFFFF;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  background: #C0C0C0;
+}
+
+/* Win98 3D sunken border (inset) */
+.win-sunken {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-bottom: 2px solid #FFFFFF;
+  border-right: 2px solid #FFFFFF;
+  background: #FFFFFF;
+}
+
+/* Win98 title bar */
+.win-titlebar {
+  background: #000000;
+  color: #FFFFFF;
+  padding: 2px 4px;
+  font-weight: bold;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Win98 button */
+.win-btn {
+  background: #C0C0C0;
+  border-top: 2px solid #FFFFFF;
+  border-left: 2px solid #FFFFFF;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  padding: 4px 16px;
+  font-family: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
+  font-size: 12px;
+  color: #000000;
+  cursor: pointer;
+  text-transform: uppercase;
+  min-width: 75px;
+  text-align: center;
+}
+.win-btn:hover {
+  background: #D4D0C8;
+}
+.win-btn:active, .win-btn.pressed {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-bottom: 2px solid #FFFFFF;
+  border-right: 2px solid #FFFFFF;
+  padding: 5px 15px 3px 17px;
+}
+.win-btn:disabled {
+  color: #808080;
+}
+
+/* Win98 titlebar button (close/min/max) */
+.win-titlebar-btn {
+  background: #C0C0C0;
+  border-top: 2px solid #FFFFFF;
+  border-left: 2px solid #FFFFFF;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  width: 16px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: bold;
+  cursor: pointer;
+  color: #000000;
+  padding: 0;
+  line-height: 1;
+}
+.win-titlebar-btn:active {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-bottom: 2px solid #FFFFFF;
+  border-right: 2px solid #FFFFFF;
+}
+
+/* Win98 input field (sunken) */
+.win-input {
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-bottom: 2px solid #FFFFFF;
+  border-right: 2px solid #FFFFFF;
+  background: #FFFFFF;
+  padding: 3px 4px;
+  font-family: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
+  font-size: 12px;
+  color: #000000;
+  outline: none;
+}
+
+/* Win98 checkbox */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-bottom: 2px solid #FFFFFF;
+  border-right: 2px solid #FFFFFF;
+  background: #FFFFFF;
+  cursor: pointer;
+  position: relative;
+}
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 1px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #000000;
+}
+
+/* Status bar */
+.win-statusbar {
+  background: #C0C0C0;
+  border-top: 2px solid #808080;
+  padding: 2px 4px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.win-statusbar-field {
+  border-top: 1px solid #808080;
+  border-left: 1px solid #808080;
+  border-bottom: 1px solid #FFFFFF;
+  border-right: 1px solid #FFFFFF;
+  padding: 1px 6px;
+}
+
+/* Dotted separator */
+.win-separator {
+  border: none;
+  border-top: 1px dotted #808080;
+  margin: 4px 0;
+}
 
 /* Blinking cursor animation */
 @keyframes blink {

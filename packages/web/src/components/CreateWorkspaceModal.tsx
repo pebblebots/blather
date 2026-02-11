@@ -25,11 +25,12 @@ export function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => vo
 
   return (
     <Modal title="Create Workspace" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <label className="block text-xs text-secondary mb-1">name:</label>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>NAME:</label>
           <input
-            className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
+            className="win-input"
+            style={{ flex: 1 }}
             placeholder="workspace name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -37,11 +38,14 @@ export function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => vo
             autoFocus
           />
         </div>
-        {error && <p className="text-error text-sm">ERR: {error}</p>}
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-secondary hover:text-ink border border-border">cancel</button>
-          <button type="submit" disabled={loading} className="px-4 py-2 bg-accent hover:bg-accent-light text-surface disabled:opacity-50 text-sm font-mono border border-accent">
-            {loading ? '...' : '[ CREATE ]'}
+        {error && (
+          <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold' }}>⚠ ERR: {error}</div>
+        )}
+        <hr className="win-separator" style={{ margin: '12px 0' }} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" onClick={onClose} className="win-btn">CANCEL</button>
+          <button type="submit" disabled={loading} className="win-btn">
+            {loading ? '⏳...' : 'CREATE'}
           </button>
         </div>
       </form>
