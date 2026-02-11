@@ -3,3 +3,5 @@ dist/
 .env
 *.tsbuildinfo
 dist/
+packages/web/dist
+packages/web/node_modules

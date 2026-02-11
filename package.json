@@ -6,7 +6,9 @@
     "dev": "pnpm --filter @blather/api dev",
     "db:generate": "pnpm --filter @blather/db generate",
     "db:migrate": "pnpm --filter @blather/db migrate",
-    "db:studio": "pnpm --filter @blather/db studio"
+    "db:studio": "pnpm --filter @blather/db studio",
+    "dev:web": "pnpm --filter @blather/web dev",
+    "build:web": "pnpm --filter @blather/web build"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
