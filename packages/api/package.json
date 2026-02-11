@@ -16,12 +16,14 @@
     "drizzle-orm": "^0.38.4",
     "hono": "^4.7.0",
     "jsonwebtoken": "^9.0.2",
-    "postgres": "^3.4.8"
+    "postgres": "^3.4.8",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^25.2.3",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

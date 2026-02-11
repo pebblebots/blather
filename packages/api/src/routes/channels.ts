@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
-import { messages, reactions } from '@blather/db';
+import { messages, reactions, channels } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { emitEvent } from '../ws/events.js';
 
 export const channelRoutes = new Hono<Env>();
 channelRoutes.use('*', authMiddleware);
@@ -35,6 +36,25 @@ channelRoutes.post('/:id/messages', async (c) => {
     threadId: body.threadId ?? null,
   }).returning();
 
+  // Look up channel to get workspaceId
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (channel) {
+    await emitEvent(db, {
+      workspaceId: channel.workspaceId,
+      channelId,
+      userId,
+      type: 'message.created',
+      payload: {
+        id: msg.id,
+        channelId: msg.channelId,
+        userId: msg.userId,
+        content: msg.content,
+        threadId: msg.threadId,
+        createdAt: msg.createdAt.toISOString(),
+      },
+    });
+  }
+
   return c.json(msg, 201);
 });
 
@@ -42,6 +62,7 @@ channelRoutes.post('/:id/messages', async (c) => {
 channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
+  const channelId = c.req.param('channelId');
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();
 
@@ -50,6 +71,24 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
     userId,
     emoji: body.emoji,
   }).returning();
+
+  // Look up channel to get workspaceId
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (channel) {
+    await emitEvent(db, {
+      workspaceId: channel.workspaceId,
+      channelId,
+      userId,
+      type: 'reaction.added',
+      payload: {
+        id: reaction.id,
+        messageId,
+        userId,
+        emoji: body.emoji,
+        createdAt: reaction.createdAt.toISOString(),
+      },
+    });
+  }
 
   return c.json(reaction, 201);
 });

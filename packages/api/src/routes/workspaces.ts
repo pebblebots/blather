@@ -4,6 +4,7 @@ import { workspaces, workspaceMembers, channels, channelMembers } from '@blather
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 import type { CreateWorkspaceRequest, CreateChannelRequest } from '@blather/types';
+import { emitEvent } from '../ws/events.js';
 
 export const workspaceRoutes = new Hono<Env>();
 workspaceRoutes.use('*', authMiddleware);
@@ -71,6 +72,22 @@ workspaceRoutes.post('/:id/channels', async (c) => {
 
   // Auto-join creator
   await db.insert(channelMembers).values({ channelId: ch.id, userId });
+
+  await emitEvent(db, {
+    workspaceId,
+    channelId: ch.id,
+    userId,
+    type: 'channel.created',
+    payload: {
+      id: ch.id,
+      name: ch.name,
+      slug: ch.slug,
+      isPrivate: ch.isPrivate,
+      topic: ch.topic,
+      createdBy: ch.createdBy,
+      createdAt: ch.createdAt.toISOString(),
+    },
+  });
 
   return c.json(ch, 201);
 });
