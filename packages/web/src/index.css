@@ -1,13 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', 'Monaco', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+
+  --color-cream: #F5F2EB;
+  --color-cream-dark: #EBE7DE;
+  --color-ink: #1A1A1A;
+  --color-border: #D1CBC0;
+  --color-accent: #4A7C59;
+  --color-accent-light: #5A9C6D;
+  --color-secondary: #8B8378;
+  --color-error: #C44D4D;
+  --color-surface: #FFFDF8;
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+::-webkit-scrollbar-thumb { background: var(--color-border); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-secondary); }
 
 body { margin: 0; }
+
+/* Blinking cursor animation */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}

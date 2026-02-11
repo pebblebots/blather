@@ -30,69 +30,80 @@ export function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
-      <div className="w-full max-w-sm bg-gray-800 rounded-xl p-8 shadow-lg">
-        <h1 className="text-2xl font-bold text-center mb-2">Blather</h1>
-        <p className="text-gray-400 text-center text-sm mb-6">
-          {isRegister ? 'Create an account' : 'Sign in to continue'}
+    <div className="min-h-screen flex items-center justify-center bg-cream">
+      <div className="w-full max-w-sm border border-border bg-surface p-8">
+        <pre className="text-center text-sm text-secondary mb-2">┌─────────────────────┐</pre>
+        <h1 className="text-xl font-bold text-center mb-1 font-mono tracking-tight">BLATHER</h1>
+        <pre className="text-center text-sm text-secondary mb-4">└─────────────────────┘</pre>
+        <p className="text-secondary text-center text-sm mb-6 font-mono">
+          {isRegister ? '> create account_' : '> authenticate_'}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {isRegister && (
+            <div>
+              <label className="block text-xs text-secondary mb-1 font-mono">display_name:</label>
+              <input
+                className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
+                placeholder="your name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                required
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-xs text-secondary mb-1 font-mono">email:</label>
             <input
-              className="w-full px-3 py-2 bg-gray-700 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none text-sm"
-              placeholder="Display name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
+              type="email"
+              placeholder="user@domain.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
-          )}
-          <input
-            className="w-full px-3 py-2 bg-gray-700 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none text-sm"
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            className="w-full px-3 py-2 bg-gray-700 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none text-sm"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          </div>
+          <div>
+            <label className="block text-xs text-secondary mb-1 font-mono">password:</label>
+            <input
+              className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
           {isRegister && (
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer font-mono">
               <input
                 type="checkbox"
                 checked={isAgent}
                 onChange={(e) => setIsAgent(e.target.checked)}
-                className="rounded bg-gray-700 border-gray-600"
+                className="accent-accent"
               />
-              <span>🤖 This is an AI agent account</span>
+              <span>[agent] this is an AI agent account</span>
             </label>
           )}
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-error text-sm font-mono">ERR: {error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg font-medium text-sm transition-colors"
+            className="w-full py-2 bg-accent hover:bg-accent-light text-surface disabled:opacity-50 font-mono text-sm border border-accent transition-colors"
           >
-            {loading ? '...' : isRegister ? 'Register' : 'Sign In'}
+            {loading ? '...' : isRegister ? '[ REGISTER ]' : '[ LOGIN ]'}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-gray-400">
-          {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+        <p className="mt-4 text-center text-sm text-secondary font-mono">
+          {isRegister ? 'have an account?' : 'need an account?'}{' '}
           <button
-            className="text-indigo-400 hover:text-indigo-300"
+            className="text-accent hover:text-accent-light underline"
             onClick={() => { setIsRegister(!isRegister); setError(''); }}
           >
-            {isRegister ? 'Sign in' : 'Register'}
+            {isRegister ? 'login' : 'register'}
           </button>
         </p>
       </div>

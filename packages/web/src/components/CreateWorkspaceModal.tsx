@@ -26,19 +26,22 @@ export function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => vo
   return (
     <Modal title="Create Workspace" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <input
-          className="w-full px-3 py-2 bg-gray-700 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none text-sm"
-          placeholder="Workspace name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          autoFocus
-        />
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200">Cancel</button>
-          <button type="submit" disabled={loading} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-sm font-medium">
-            {loading ? '...' : 'Create'}
+        <div>
+          <label className="block text-xs text-secondary mb-1">name:</label>
+          <input
+            className="w-full px-3 py-2 bg-cream border border-border focus:border-accent focus:outline-none text-sm font-mono"
+            placeholder="workspace name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoFocus
+          />
+        </div>
+        {error && <p className="text-error text-sm">ERR: {error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-secondary hover:text-ink border border-border">cancel</button>
+          <button type="submit" disabled={loading} className="px-4 py-2 bg-accent hover:bg-accent-light text-surface disabled:opacity-50 text-sm font-mono border border-accent">
+            {loading ? '...' : '[ CREATE ]'}
           </button>
         </div>
       </form>

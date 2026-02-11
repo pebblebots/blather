@@ -20,7 +20,6 @@ export function MainPage() {
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
 
-  // Load workspaces
   useEffect(() => {
     api.getWorkspaces().then((ws) => {
       setWorkspaces(ws);
@@ -28,7 +27,6 @@ export function MainPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // Load channels when workspace changes
   useEffect(() => {
     if (!selectedWs) { setChannels([]); return; }
     api.getChannels(selectedWs).then((chs) => {
@@ -38,7 +36,6 @@ export function MainPage() {
     }).catch(() => {});
   }, [selectedWs]);
 
-  // Load messages when channel changes
   useEffect(() => {
     if (!selectedCh) { setMessages([]); return; }
     api.getMessages(selectedCh).then((msgs) => {
@@ -46,7 +43,6 @@ export function MainPage() {
     }).catch(() => {});
   }, [selectedCh]);
 
-  // Track user info from messages
   const addUserInfo = useCallback((userId: string, displayName: string, isAgent: boolean) => {
     setUsersMap((prev) => {
       if (prev.has(userId)) return prev;
@@ -56,12 +52,10 @@ export function MainPage() {
     });
   }, []);
 
-  // Add current user to map
   useEffect(() => {
     if (user) addUserInfo(user.id, user.displayName, user.isAgent);
   }, [user, addUserInfo]);
 
-  // WebSocket
   const onWsEvent = useCallback((event: any) => {
     if (event.type === 'message.created' && event.payload) {
       const p = event.payload;
@@ -80,7 +74,6 @@ export function MainPage() {
     if (!selectedCh) return;
     try {
       const msg = await api.sendMessage(selectedCh, content);
-      // Optimistic: add if not already from WS
       setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
     } catch {}
   };
@@ -88,60 +81,61 @@ export function MainPage() {
   const logout = () => { clearToken(); setUser(null); };
 
   const selectedChannel = channels.find((c) => c.id === selectedCh);
+  const selectedWorkspace = workspaces.find((w) => w.id === selectedWs);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-cream text-secondary font-mono">Loading...</div>;
   }
 
   return (
-    <div className="h-screen flex">
+    <div className="h-screen flex bg-cream font-mono">
       {/* Sidebar */}
-      <div className="w-64 bg-gray-800 flex flex-col border-r border-gray-700 shrink-0">
+      <div className="w-60 bg-surface flex flex-col border-r border-border shrink-0">
         {/* User header */}
-        <div className="p-3 border-b border-gray-700 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400' : 'bg-red-400'}`} title={wsConnected ? 'Connected' : 'Disconnected'} />
-            <span className="text-sm font-medium truncate">{user?.displayName}</span>
-            {user?.isAgent && <span className="text-xs">🤖</span>}
+            <div className={`w-2 h-2 ${wsConnected ? 'bg-accent' : 'bg-error'}`} title={wsConnected ? 'Connected' : 'Disconnected'} />
+            <span className="text-sm truncate">{user?.displayName}</span>
+            {user?.isAgent && <span className="text-xs text-secondary">[agent]</span>}
           </div>
-          <button onClick={logout} className="text-xs text-gray-400 hover:text-gray-200">Logout</button>
+          <button onClick={logout} className="text-xs text-secondary hover:text-ink">logout</button>
         </div>
 
         {/* Workspaces */}
-        <div className="p-2">
-          <div className="flex items-center justify-between px-2 mb-1">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Workspaces</span>
-            <button onClick={() => setShowCreateWs(true)} className="text-gray-400 hover:text-gray-200 text-lg leading-none" title="Create workspace">+</button>
+        <div className="px-2 pt-3 pb-1">
+          <div className="flex items-center justify-between px-2 mb-2">
+            <span className="text-xs text-secondary uppercase tracking-widest">workspaces</span>
+            <button onClick={() => setShowCreateWs(true)} className="text-secondary hover:text-ink text-sm leading-none" title="Create workspace">+</button>
           </div>
           {workspaces.map((ws) => (
             <button
               key={ws.id}
               onClick={() => setSelectedWs(ws.id)}
-              className={`w-full text-left px-2 py-1.5 rounded text-sm truncate ${ws.id === selectedWs ? 'bg-indigo-600/30 text-indigo-300' : 'text-gray-300 hover:bg-gray-700'}`}
+              className={`w-full text-left px-2 py-1.5 text-sm truncate ${ws.id === selectedWs ? 'text-accent border-l-2 border-accent bg-cream' : 'text-ink hover:bg-cream'}`}
             >
               {ws.name}
             </button>
           ))}
-          {workspaces.length === 0 && <p className="text-xs text-gray-500 px-2">No workspaces yet</p>}
+          {workspaces.length === 0 && <p className="text-xs text-secondary px-2">no workspaces</p>}
         </div>
 
         {/* Channels */}
         {selectedWs && (
-          <div className="p-2 flex-1 overflow-y-auto">
-            <div className="flex items-center justify-between px-2 mb-1">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Channels</span>
-              <button onClick={() => setShowCreateCh(true)} className="text-gray-400 hover:text-gray-200 text-lg leading-none" title="Create channel">+</button>
+          <div className="px-2 pt-2 flex-1 overflow-y-auto border-t border-border mt-2">
+            <div className="flex items-center justify-between px-2 mb-2 pt-2">
+              <span className="text-xs text-secondary uppercase tracking-widest">channels</span>
+              <button onClick={() => setShowCreateCh(true)} className="text-secondary hover:text-ink text-sm leading-none" title="Create channel">+</button>
             </div>
             {channels.map((ch) => (
               <button
                 key={ch.id}
                 onClick={() => setSelectedCh(ch.id)}
-                className={`w-full text-left px-2 py-1.5 rounded text-sm truncate ${ch.id === selectedCh ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-gray-200'}`}
+                className={`w-full text-left px-2 py-1.5 text-sm truncate ${ch.id === selectedCh ? 'text-accent border-l-2 border-accent bg-cream' : 'text-secondary hover:text-ink hover:bg-cream'}`}
               >
                 # {ch.name}
               </button>
             ))}
-            {channels.length === 0 && <p className="text-xs text-gray-500 px-2">No channels yet</p>}
+            {channels.length === 0 && <p className="text-xs text-secondary px-2">no channels</p>}
           </div>
         )}
       </div>
@@ -149,14 +143,14 @@ export function MainPage() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Channel header */}
-        <div className="h-12 border-b border-gray-700 flex items-center px-4 shrink-0">
+        <div className="h-12 border-b border-border flex items-center px-4 shrink-0 bg-surface">
           {selectedChannel ? (
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm"># {selectedChannel.name}</span>
-              {selectedChannel.topic && <span className="text-xs text-gray-500 truncate">— {selectedChannel.topic}</span>}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium"># {selectedChannel.name}</span>
+              {selectedChannel.topic && <span className="text-xs text-secondary">— {selectedChannel.topic}</span>}
             </div>
           ) : (
-            <span className="text-gray-500 text-sm">Select a channel</span>
+            <span className="text-secondary text-sm">select a channel</span>
           )}
         </div>
 
@@ -166,8 +160,8 @@ export function MainPage() {
             <MessageInput onSend={handleSend} disabled={!selectedCh} />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
-            {selectedWs ? 'Select or create a channel to get started' : 'Select or create a workspace'}
+          <div className="flex-1 flex items-center justify-center text-secondary text-sm">
+            {selectedWs ? '> select or create a channel_' : '> select or create a workspace_'}
           </div>
         )}
       </div>

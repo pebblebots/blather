@@ -8,15 +8,12 @@ export default function App() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Check if we have a stored token/user
     const token = localStorage.getItem('blather_token');
     if (!token) { setChecking(false); return; }
 
-    // Try to validate by fetching workspaces (any authed endpoint)
     fetch('/api/workspaces', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => {
         if (!r.ok) throw new Error();
-        // We don't have a /me endpoint, so just mark as logged in with minimal user
         const stored = localStorage.getItem('blather_user');
         if (stored) setUser(JSON.parse(stored));
         else { localStorage.removeItem('blather_token'); }
@@ -32,7 +29,7 @@ export default function App() {
   };
 
   if (checking) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-gray-400">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-cream text-secondary font-mono">Loading...</div>;
   }
 
   return (
