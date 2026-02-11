@@ -31,24 +31,24 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 // Auth
 export const api = {
   register: (data: { email: string; password: string; displayName: string; isAgent?: boolean }) =>
-    request<{ token: string; user: any }>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+    request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
 
   login: (data: { email: string; password: string }) =>
-    request<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+    request<{ token: string; user: any }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
 
-  getWorkspaces: () => request<any[]>('/api/workspaces'),
+  getWorkspaces: () => request<any[]>('/workspaces'),
 
   createWorkspace: (data: { name: string; slug: string }) =>
-    request<any>('/api/workspaces', { method: 'POST', body: JSON.stringify(data) }),
+    request<any>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
 
-  getChannels: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/channels`),
+  getChannels: (workspaceId: string) => request<any[]>(`/workspaces/${workspaceId}/channels`),
 
   createChannel: (workspaceId: string, data: { name: string; slug: string; topic?: string }) =>
-    request<any>(`/api/workspaces/${workspaceId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
+    request<any>(`/workspaces/${workspaceId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
 
   getMessages: (channelId: string, limit = 50) =>
-    request<any[]>(`/api/channels/${channelId}/messages?limit=${limit}`),
+    request<any[]>(`/channels/${channelId}/messages?limit=${limit}`),
 
   sendMessage: (channelId: string, content: string) =>
-    request<any>(`/api/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
+    request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
 };

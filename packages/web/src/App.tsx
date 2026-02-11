@@ -11,7 +11,7 @@ export default function App() {
     const token = localStorage.getItem('blather_token');
     if (!token) { setChecking(false); return; }
 
-    fetch('/api/workspaces', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${import.meta.env.VITE_API_URL || ''}/workspaces`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => {
         if (!r.ok) throw new Error();
         const stored = localStorage.getItem('blather_user');
