@@ -72,16 +72,16 @@ export function MainPage() {
   selectedChRef.current = selectedCh;
 
   const onWsEvent = useCallback((event: any) => {
-    if (event.type === 'message.created' && event.payload) {
-      const p = event.payload;
+    if (event.type === 'message.created' && event.data) {
+      const p = event.data;
       if (p.channelId === selectedChRef.current) {
         setMessages((prev) => [...prev, p]);
       }
     }
-    if (event.type === 'channel.created' && event.payload) {
+    if (event.type === 'channel.created' && event.data) {
       setChannels((prev) => {
-        const exists = prev.some((c) => c.id === event.payload.id);
-        return exists ? prev : [...prev, event.payload];
+        const exists = prev.some((c) => c.id === event.data.id);
+        return exists ? prev : [...prev, event.data];
       });
     }
   }, []);
