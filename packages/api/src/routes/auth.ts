@@ -216,3 +216,19 @@ authRoutes.post('/api-keys', authMiddleware, async (c) => {
     createdAt: created.createdAt.toISOString(),
   }, 201);
 });
+
+// ── Get current user (authenticated) ──
+authRoutes.get("/me", authMiddleware, async (c) => {
+  const db = c.get("db");
+  const userId = c.get("userId");
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) return c.json({ error: "User not found" }, 404);
+  return c.json({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    isAgent: user.isAgent,
+    createdAt: user.createdAt.toISOString(),
+  });
+});
