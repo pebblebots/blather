@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
 import { clearToken } from '../lib/api';
 import { useApp } from '../lib/store';
@@ -67,17 +67,24 @@ export function MainPage() {
     if (user) addUserInfo(user.id, user.displayName, user.isAgent);
   }, [user, addUserInfo]);
 
+  // Use refs for values needed in WS callback to avoid reconnecting on every selection change
+  const selectedChRef = useRef(selectedCh);
+  selectedChRef.current = selectedCh;
+
   const onWsEvent = useCallback((event: any) => {
     if (event.type === 'message.created' && event.payload) {
       const p = event.payload;
-      if (p.channelId === selectedCh) {
+      if (p.channelId === selectedChRef.current) {
         setMessages((prev) => [...prev, p]);
       }
     }
-    if (event.type === 'channel.created' && event.payload && selectedWs) {
-      setChannels((prev) => [...prev, event.payload]);
+    if (event.type === 'channel.created' && event.payload) {
+      setChannels((prev) => {
+        const exists = prev.some((c) => c.id === event.payload.id);
+        return exists ? prev : [...prev, event.payload];
+      });
     }
-  }, [selectedCh, selectedWs]);
+  }, []);
 
   const wsConnected = useWebSocket(selectedWs, onWsEvent);
 

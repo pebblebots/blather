@@ -63,12 +63,31 @@ workspaceRoutes.post('/', async (c) => {
   return c.json(ws, 201);
 });
 
-// List channels in workspace
+// List channels in workspace (public/private + DMs the user belongs to)
 workspaceRoutes.get('/:id/channels', async (c) => {
   const db = c.get('db');
+  const userId = c.get('userId');
   const workspaceId = c.req.param('id');
 
-  const result = await db.select().from(channels).where(eq(channels.workspaceId, workspaceId));
+  // Get all non-DM channels
+  const publicChannels = await db.select().from(channels).where(
+    and(eq(channels.workspaceId, workspaceId), or(eq(channels.channelType, 'public'), eq(channels.channelType, 'private')))
+  );
+
+  // Get DM channels the user is a member of
+  const dmChannelRows = await db
+    .select({ channel: channels })
+    .from(channelMembers)
+    .innerJoin(channels, eq(channels.id, channelMembers.channelId))
+    .where(
+      and(
+        eq(channelMembers.userId, userId),
+        eq(channels.workspaceId, workspaceId),
+        eq(channels.channelType, 'dm')
+      )
+    );
+
+  const result = [...publicChannels, ...dmChannelRows.map(r => r.channel)];
   return c.json(result);
 });
 
@@ -173,6 +192,25 @@ workspaceRoutes.post('/:id/dm', async (c) => {
     { channelId: dmChannel.id, userId },
     { channelId: dmChannel.id, userId: body.userId },
   ]);
+
+  // Emit channel.created so the other user's UI picks it up
+  await emitEvent(db, {
+    workspaceId,
+    channelId: dmChannel.id,
+    userId,
+    type: 'channel.created',
+    payload: {
+      id: dmChannel.id,
+      workspaceId,
+      name: dmChannel.name,
+      slug: dmChannel.slug,
+      channelType: dmChannel.channelType,
+      isDefault: dmChannel.isDefault,
+      topic: dmChannel.topic,
+      createdBy: dmChannel.createdBy,
+      createdAt: dmChannel.createdAt?.toISOString?.() ?? null,
+    },
+  });
 
   return c.json(dmChannel, 201);
 });
