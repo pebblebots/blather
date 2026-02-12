@@ -28,9 +28,9 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: { worksp
     <Modal title="Create Channel" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>NAME:</label>
+          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Name:</label>
           <input
-            className="win-input"
+            className="mac-input"
             style={{ flex: 1 }}
             placeholder="channel name"
             value={name}
@@ -40,9 +40,9 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: { worksp
           />
         </div>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>TOPIC:</label>
+          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Topic:</label>
           <input
-            className="win-input"
+            className="mac-input"
             style={{ flex: 1 }}
             placeholder="optional"
             value={topic}
@@ -50,13 +50,13 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: { worksp
           />
         </div>
         {error && (
-          <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold' }}>⚠ ERR: {error}</div>
+          <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold', color: '#CC0000' }}>⚠ {error}</div>
         )}
-        <hr className="win-separator" style={{ margin: '12px 0' }} />
+        <hr className="mac-separator" style={{ margin: '12px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="button" onClick={onClose} className="win-btn">CANCEL</button>
-          <button type="submit" disabled={loading} className="win-btn">
-            {loading ? '⏳...' : 'CREATE'}
+          <button type="button" onClick={onClose} className="mac-btn">Cancel</button>
+          <button type="submit" disabled={loading} className="mac-btn-primary">
+            {loading ? '⏳...' : 'Create'}
           </button>
         </div>
       </form>

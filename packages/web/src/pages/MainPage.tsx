@@ -85,42 +85,53 @@ export function MainPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#C0C0C0' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#DDDDDD', fontSize: 12 }}>
         ⏳ Loading...
       </div>
     );
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#C0C0C0', padding: 4 }}>
-      {/* Outer window */}
-      <div className="win-raised" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#DDDDDD' }}>
+      {/* Menu bar */}
+      <div className="mac-menubar">
+        <span style={{ fontSize: 14 }}>🍎</span>
+        <span>File</span>
+        <span>Edit</span>
+        <span>View</span>
+        <span>Window</span>
+        <span>Help</span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontWeight: 'normal', fontSize: 11 }}>⌘</span>
+      </div>
+
+      {/* Main window */}
+      <div className="mac-window" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: 4, borderRadius: 0 }}>
         {/* Main title bar */}
-        <div className="win-titlebar">
-          <span>BLATHER v0.1 — {selectedWorkspace?.name?.toUpperCase() || 'NO WORKSPACE'}</span>
-          <div style={{ display: 'flex', gap: 2 }}>
-            <button className="win-titlebar-btn">_</button>
-            <button className="win-titlebar-btn">□</button>
-            <button className="win-titlebar-btn">╳</button>
+        <div className="mac-titlebar">
+          <div className="mac-close-box" />
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            Blather — {selectedWorkspace?.name || 'No Workspace'}
           </div>
         </div>
 
         {/* Main body: sidebar + chat */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {/* Sidebar - Explorer panel */}
-          <div className="win-raised" style={{ width: 220, display: 'flex', flexDirection: 'column', margin: 2, flexShrink: 0 }}>
-            <div className="win-titlebar" style={{ fontSize: 11 }}>
-              <span>EXPLORER</span>
+          {/* Sidebar - Finder-style navigator */}
+          <div style={{ width: 210, display: 'flex', flexDirection: 'column', borderRight: '1px solid #999999', background: '#FFFFFF', flexShrink: 0 }}>
+            <div className="mac-titlebar" style={{ fontSize: 11 }}>
+              <div className="mac-close-box" style={{ width: 10, height: 10 }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>📁 Navigator</div>
             </div>
 
-            <div style={{ flex: 1, overflow: 'auto' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: 4 }}>
               {/* Workspaces */}
-              <div style={{ padding: '6px 4px 2px 4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, padding: '0 4px' }}>
-                  <span style={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>WORKSPACES</span>
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 'bold' }}>Workspaces</span>
                   <button
-                    className="win-titlebar-btn"
-                    style={{ width: 14, height: 14, fontSize: 10 }}
+                    className="mac-btn"
+                    style={{ minWidth: 0, padding: '0 4px', fontSize: 10, borderRadius: 3 }}
                     onClick={() => setShowCreateWs(true)}
                     title="Create workspace"
                   >+</button>
@@ -133,8 +144,9 @@ export function MainPage() {
                       padding: '2px 6px',
                       fontSize: 12,
                       cursor: 'pointer',
-                      background: ws.id === selectedWs ? '#000000' : 'transparent',
+                      background: ws.id === selectedWs ? '#3366CC' : 'transparent',
                       color: ws.id === selectedWs ? '#FFFFFF' : '#000000',
+                      borderRadius: 2,
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -144,20 +156,20 @@ export function MainPage() {
                   </div>
                 ))}
                 {workspaces.length === 0 && (
-                  <div style={{ padding: '2px 6px', fontSize: 11, color: '#808080' }}>NO WORKSPACES</div>
+                  <div style={{ padding: '2px 6px', fontSize: 11, color: '#999999' }}>No workspaces</div>
                 )}
               </div>
 
-              <hr className="win-separator" />
+              <hr className="mac-separator" />
 
               {/* Channels */}
               {selectedWs && (
-                <div style={{ padding: '2px 4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, padding: '0 4px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1 }}>CHANNELS</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 'bold' }}>Channels</span>
                     <button
-                      className="win-titlebar-btn"
-                      style={{ width: 14, height: 14, fontSize: 10 }}
+                      className="mac-btn"
+                      style={{ minWidth: 0, padding: '0 4px', fontSize: 10, borderRadius: 3 }}
                       onClick={() => setShowCreateCh(true)}
                       title="Create channel"
                     >+</button>
@@ -167,21 +179,22 @@ export function MainPage() {
                       key={ch.id}
                       onClick={() => setSelectedCh(ch.id)}
                       style={{
-                        padding: '2px 6px',
+                        padding: '2px 6px 2px 14px',
                         fontSize: 12,
                         cursor: 'pointer',
-                        background: ch.id === selectedCh ? '#000000' : 'transparent',
+                        background: ch.id === selectedCh ? '#3366CC' : 'transparent',
                         color: ch.id === selectedCh ? '#FFFFFF' : '#000000',
+                        borderRadius: 2,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                       }}
                     >
-                      📄 # {ch.name}
+                      💬 # {ch.name}
                     </div>
                   ))}
                   {channels.length === 0 && (
-                    <div style={{ padding: '2px 6px', fontSize: 11, color: '#808080' }}>NO CHANNELS</div>
+                    <div style={{ padding: '2px 6px', fontSize: 11, color: '#999999' }}>No channels</div>
                   )}
                 </div>
               )}
@@ -189,19 +202,14 @@ export function MainPage() {
           </div>
 
           {/* Chat panel */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', margin: '2px 2px 2px 0', overflow: 'hidden' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
             {/* Channel title bar */}
-            <div className="win-raised" style={{ display: 'flex', flexDirection: 'column' }}>
-              <div className="win-titlebar" style={{ fontSize: 11 }}>
-                <span>
-                  {selectedChannel
-                    ? `# ${selectedChannel.name.toUpperCase()}${selectedChannel.topic ? ` — ${selectedChannel.topic}` : ''}`
-                    : 'SELECT A CHANNEL'}
-                </span>
-                <div style={{ display: 'flex', gap: 2 }}>
-                  <button className="win-titlebar-btn">_</button>
-                  <button className="win-titlebar-btn">╳</button>
-                </div>
+            <div className="mac-titlebar" style={{ fontSize: 11 }}>
+              <div className="mac-close-box" style={{ width: 10, height: 10 }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                {selectedChannel
+                  ? `# ${selectedChannel.name}${selectedChannel.topic ? ' — ' + selectedChannel.topic : ''}`
+                  : 'Select a Channel'}
               </div>
             </div>
 
@@ -211,29 +219,30 @@ export function MainPage() {
                 <MessageInput onSend={handleSend} disabled={!selectedCh} />
               </>
             ) : (
-              <div className="win-sunken" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#808080', margin: '0' }}>
-                {selectedWs ? '> SELECT OR CREATE A CHANNEL' : '> SELECT OR CREATE A WORKSPACE'}
+              <div className="mac-inset" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#999999', margin: 4 }}>
+                {selectedWs ? 'Select or create a channel' : 'Select or create a workspace'}
               </div>
             )}
           </div>
         </div>
 
         {/* Status bar */}
-        <div className="win-statusbar">
-          <div className="win-statusbar-field" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ color: wsConnected ? '#000000' : '#808080' }}>{wsConnected ? '■' : '□'}</span>
-            <span>{wsConnected ? 'CONNECTED' : 'DISCONNECTED'}</span>
+        <div className="mac-statusbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ color: wsConnected ? '#009900' : '#999999', fontSize: 8 }}>●</span>
+            <span>{wsConnected ? 'Connected' : 'Disconnected'}</span>
           </div>
-          <div className="win-statusbar-field" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{user?.displayName}</span>
-            {user?.isAgent && <span style={{ fontWeight: 'bold' }}>[BOT]</span>}
+            {user?.isAgent && <span style={{ fontWeight: 'bold', fontSize: 10 }}>[BOT]</span>}
           </div>
           <div style={{ flex: 1 }} />
           <button
             onClick={logout}
-            style={{ background: 'none', border: 'none', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}
+            className="mac-btn"
+            style={{ minWidth: 0, padding: '1px 8px', fontSize: 10, borderRadius: 3 }}
           >
-            LOGOUT
+            Logout
           </button>
         </div>
       </div>

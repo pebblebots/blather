@@ -30,7 +30,7 @@ export default function App() {
 
   if (checking) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#C0C0C0', fontFamily: "'W95FA', 'IBM Plex Mono', monospace" }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#DDDDDD', fontFamily: "'Geneva', 'Helvetica Neue', system-ui, sans-serif", fontSize: 12 }}>
         ⏳ Loading...
       </div>
     );

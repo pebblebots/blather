@@ -19,11 +19,11 @@ export function MessageInput({ onSend, disabled }: { onSend: (content: string) =
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: 4, display: 'flex', gap: 4, alignItems: 'center' }}>
+    <form onSubmit={handleSubmit} style={{ padding: 4, display: 'flex', gap: 4, alignItems: 'center', borderTop: '1px solid #CCCCCC' }}>
       <input
-        className="win-input"
-        style={{ flex: 1, fontSize: 12 }}
-        placeholder="TYPE A MESSAGE..."
+        className="mac-input"
+        style={{ flex: 1, fontSize: 12, fontFamily: "'Monaco', 'IBM Plex Mono', monospace" }}
+        placeholder="Type a message..."
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -32,10 +32,10 @@ export function MessageInput({ onSend, disabled }: { onSend: (content: string) =
       <button
         type="submit"
         disabled={disabled || !text.trim()}
-        className="win-btn"
+        className="mac-btn-primary"
         style={{ minWidth: 60 }}
       >
-        SEND
+        Send
       </button>
     </form>
   );

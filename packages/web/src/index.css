@@ -1,27 +1,20 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
 
-@font-face {
-  font-family: 'W95FA';
-  src: url('https://cdn.jsdelivr.net/gh/AidanGaney/Pix-Serif@master/w95fa.woff2') format('woff2'),
-       url('https://cdn.jsdelivr.net/gh/AidanGaney/Pix-Serif@master/w95fa.woff') format('woff');
-  font-weight: normal;
-  font-style: normal;
-}
-
 @theme {
-  --font-mono: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
+  --font-ui: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: 'Monaco', 'IBM Plex Mono', 'Courier New', monospace;
 
-  --color-win-white: #FFFFFF;
-  --color-win-black: #000000;
-  --color-win-silver: #C0C0C0;
-  --color-win-gray: #808080;
-  --color-win-darkgray: #404040;
+  --color-mac-white: #FFFFFF;
+  --color-mac-black: #000000;
+  --color-mac-platinum: #DDDDDD;
+  --color-mac-gray: #999999;
+  --color-mac-darkgray: #666666;
+  --color-mac-highlight: #3366CC;
 }
 
 * {
   cursor: default;
-  image-rendering: pixelated;
 }
 
 input, textarea {
@@ -34,152 +27,178 @@ button, a, [role="button"] {
 
 body {
   margin: 0;
-  background: #C0C0C0;
-  font-family: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
-  font-size: 13px;
+  background: #DDDDDD;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
+  font-size: 12px;
   color: #000000;
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: unset;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Win98 scrollbar */
-::-webkit-scrollbar { width: 16px; }
+/* Mac OS scrollbar */
+::-webkit-scrollbar { width: 15px; }
 ::-webkit-scrollbar-track {
-  background: #C0C0C0;
-  border-left: 1px solid #808080;
+  background: #EEEEEE;
+  border-left: 1px solid #999999;
 }
 ::-webkit-scrollbar-thumb {
-  background: #C0C0C0;
-  border-top: 2px solid #FFFFFF;
-  border-left: 2px solid #FFFFFF;
-  border-bottom: 2px solid #808080;
-  border-right: 2px solid #808080;
+  background: #CCCCCC;
+  border: 1px solid #999999;
+  border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #D0D0D0;
+  background: #BBBBBB;
 }
 ::-webkit-scrollbar-button {
-  background: #C0C0C0;
-  border-top: 2px solid #FFFFFF;
-  border-left: 2px solid #FFFFFF;
-  border-bottom: 2px solid #808080;
-  border-right: 2px solid #808080;
-  height: 16px;
+  background: #DDDDDD;
+  border: 1px solid #999999;
+  height: 15px;
 }
 
-/* Win98 3D raised border (outset) */
-.win-raised {
-  border-top: 2px solid #FFFFFF;
-  border-left: 2px solid #FFFFFF;
-  border-bottom: 2px solid #808080;
-  border-right: 2px solid #808080;
-  background: #C0C0C0;
+/* Mac OS window */
+.mac-window {
+  border: 1px solid #999999;
+  background: #FFFFFF;
+  box-shadow: 2px 2px 4px rgba(0,0,0,0.15);
+  border-radius: 0;
 }
 
-/* Win98 3D sunken border (inset) */
-.win-sunken {
-  border-top: 2px solid #808080;
-  border-left: 2px solid #808080;
-  border-bottom: 2px solid #FFFFFF;
-  border-right: 2px solid #FFFFFF;
+/* Mac OS inset panel */
+.mac-inset {
+  border: 1px solid #999999;
+  box-shadow: inset 1px 1px 0px rgba(0,0,0,0.1);
   background: #FFFFFF;
 }
 
-/* Win98 title bar */
-.win-titlebar {
-  background: #000000;
-  color: #FFFFFF;
-  padding: 2px 4px;
+/* Mac OS title bar with pinstripes */
+.mac-titlebar {
+  background: repeating-linear-gradient(
+    to bottom,
+    #EEEEEE 0px,
+    #EEEEEE 1px,
+    #DDDDDD 1px,
+    #DDDDDD 2px
+  );
+  color: #000000;
+  padding: 3px 6px;
   font-weight: bold;
   font-size: 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   user-select: none;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border-bottom: 1px solid #999999;
+  min-height: 20px;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
 }
 
-/* Win98 button */
-.win-btn {
-  background: #C0C0C0;
-  border-top: 2px solid #FFFFFF;
-  border-left: 2px solid #FFFFFF;
-  border-bottom: 2px solid #808080;
-  border-right: 2px solid #808080;
+.mac-titlebar-inactive {
+  background: #EEEEEE;
+  color: #999999;
+  padding: 3px 6px;
+  font-weight: bold;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  border-bottom: 1px solid #999999;
+  min-height: 20px;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
+}
+
+/* Mac close box — small square, top-left */
+.mac-close-box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #000000;
+  background: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-right: 8px;
+  flex-shrink: 0;
+  font-size: 0;
+  line-height: 1;
+}
+.mac-close-box:hover {
+  background: #000000;
+}
+.mac-close-box:hover::after {
+  content: '';
+}
+
+/* Mac OS button */
+.mac-btn {
+  background: #EEEEEE;
+  border: 1px solid #999999;
+  border-radius: 4px;
   padding: 4px 16px;
-  font-family: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
   font-size: 12px;
   color: #000000;
   cursor: pointer;
-  text-transform: uppercase;
   min-width: 75px;
   text-align: center;
 }
-.win-btn:hover {
-  background: #D4D0C8;
+.mac-btn:hover {
+  background: #E0E0E0;
 }
-.win-btn:active, .win-btn.pressed {
-  border-top: 2px solid #808080;
-  border-left: 2px solid #808080;
-  border-bottom: 2px solid #FFFFFF;
-  border-right: 2px solid #FFFFFF;
-  padding: 5px 15px 3px 17px;
+.mac-btn:active {
+  background: #CCCCCC;
 }
-.win-btn:disabled {
-  color: #808080;
+.mac-btn:disabled {
+  color: #999999;
 }
 
-/* Win98 titlebar button (close/min/max) */
-.win-titlebar-btn {
-  background: #C0C0C0;
-  border-top: 2px solid #FFFFFF;
-  border-left: 2px solid #FFFFFF;
-  border-bottom: 2px solid #808080;
-  border-right: 2px solid #808080;
-  width: 16px;
-  height: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: bold;
-  cursor: pointer;
+/* Mac primary button — thick black border */
+.mac-btn-primary {
+  background: #EEEEEE;
+  border: 2px solid #000000;
+  border-radius: 4px;
+  padding: 3px 15px;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
+  font-size: 12px;
   color: #000000;
-  padding: 0;
-  line-height: 1;
+  cursor: pointer;
+  min-width: 75px;
+  text-align: center;
+  font-weight: bold;
 }
-.win-titlebar-btn:active {
-  border-top: 2px solid #808080;
-  border-left: 2px solid #808080;
-  border-bottom: 2px solid #FFFFFF;
-  border-right: 2px solid #FFFFFF;
+.mac-btn-primary:hover {
+  background: #E0E0E0;
+}
+.mac-btn-primary:active {
+  background: #CCCCCC;
+}
+.mac-btn-primary:disabled {
+  color: #999999;
+  border-color: #999999;
 }
 
-/* Win98 input field (sunken) */
-.win-input {
-  border-top: 2px solid #808080;
-  border-left: 2px solid #808080;
-  border-bottom: 2px solid #FFFFFF;
-  border-right: 2px solid #FFFFFF;
+/* Mac OS input field */
+.mac-input {
+  border: 1px solid #999999;
+  box-shadow: inset 1px 1px 0px rgba(0,0,0,0.08);
   background: #FFFFFF;
-  padding: 3px 4px;
-  font-family: 'W95FA', 'IBM Plex Mono', 'Courier New', monospace;
+  padding: 3px 5px;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
   font-size: 12px;
   color: #000000;
   outline: none;
+  border-radius: 2px;
+}
+.mac-input:focus {
+  border-color: #3366CC;
 }
 
-/* Win98 checkbox */
+/* Mac OS checkbox */
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
-  width: 13px;
-  height: 13px;
-  border-top: 2px solid #808080;
-  border-left: 2px solid #808080;
-  border-bottom: 2px solid #FFFFFF;
-  border-right: 2px solid #FFFFFF;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #999999;
+  border-radius: 2px;
   background: #FFFFFF;
   cursor: pointer;
   position: relative;
@@ -187,7 +206,7 @@ input[type="checkbox"] {
 input[type="checkbox"]:checked::after {
   content: '✓';
   position: absolute;
-  top: -2px;
+  top: -3px;
   left: 1px;
   font-size: 11px;
   font-weight: bold;
@@ -195,28 +214,48 @@ input[type="checkbox"]:checked::after {
 }
 
 /* Status bar */
-.win-statusbar {
-  background: #C0C0C0;
-  border-top: 2px solid #808080;
-  padding: 2px 4px;
+.mac-statusbar {
+  background: #EEEEEE;
+  border-top: 1px solid #999999;
+  padding: 2px 6px;
   font-size: 11px;
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-.win-statusbar-field {
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
-  border-bottom: 1px solid #FFFFFF;
-  border-right: 1px solid #FFFFFF;
-  padding: 1px 6px;
+  gap: 12px;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
 }
 
-/* Dotted separator */
-.win-separator {
+/* Separator */
+.mac-separator {
   border: none;
-  border-top: 1px dotted #808080;
-  margin: 4px 0;
+  border-top: 1px solid #CCCCCC;
+  margin: 6px 0;
+}
+
+/* Menu bar */
+.mac-menubar {
+  background: #EEEEEE;
+  border-bottom: 1px solid #999999;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'Geneva', 'Helvetica Neue', system-ui, sans-serif;
+  user-select: none;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.mac-menubar span {
+  cursor: default;
+  padding: 0 4px;
+}
+
+.mac-menubar span:hover {
+  background: #3366CC;
+  color: #FFFFFF;
 }
 
 /* Blinking cursor animation */
