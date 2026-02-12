@@ -24,6 +24,8 @@ export function MainPage() {
     api.getWorkspaces().then((ws) => {
       setWorkspaces(ws);
       if (ws.length > 0 && !selectedWs) setSelectedWs(ws[0].id);
+      // Auto-show create workspace if user has none
+      if (ws.length === 0) setShowCreateWs(true);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 

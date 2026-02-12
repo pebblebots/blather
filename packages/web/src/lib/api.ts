@@ -44,7 +44,7 @@ export const api = {
 
   getWorkspaces: () => request<any[]>('/workspaces'),
 
-  createWorkspace: (data: { name: string; slug: string }) =>
+  createWorkspace: (data: { name: string; slug: string; allowedDomains?: string[] }) =>
     request<any>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
 
   getChannels: (workspaceId: string) => request<any[]>(`/workspaces/${workspaceId}/channels`),
