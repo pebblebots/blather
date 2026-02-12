@@ -44,12 +44,14 @@ export interface UserPublic {
 export interface CreateWorkspaceRequest {
   name: string;
   slug: string;
+  allowedDomains?: string[];
 }
 
 export interface Workspace {
   id: string;
   name: string;
   slug: string;
+  allowedDomains: string[];
   createdAt: string;
 }
 

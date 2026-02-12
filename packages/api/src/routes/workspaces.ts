@@ -34,6 +34,7 @@ workspaceRoutes.post('/', async (c) => {
   const [ws] = await db.insert(workspaces).values({
     name: body.name,
     slug: body.slug,
+    allowedDomains: body.allowedDomains ?? [],
   }).returning();
 
   await db.insert(workspaceMembers).values({

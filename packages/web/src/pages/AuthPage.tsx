@@ -1,29 +1,56 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api, setToken } from '../lib/api';
 import { useApp } from '../lib/store';
 
+type Step = 'email' | 'check-inbox' | 'verify';
+
 export function AuthPage() {
   const { setUser } = useApp();
-  const [isRegister, setIsRegister] = useState(false);
+  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [isAgent, setIsAgent] = useState(false);
+  const [devToken, setDevToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Check URL for magic token on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      verifyToken(token);
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const requestMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const res = isRegister
-        ? await api.register({ email, password, displayName, isAgent })
-        : await api.login({ email, password });
+      const res = await api.requestMagicLink(email);
+      // In dev mode, we get the token back
+      if (res._dev?.token) {
+        setDevToken(res._dev.token);
+      }
+      setStep('check-inbox');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyToken = async (token: string) => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.verifyMagicLink(token);
       setToken(res.token);
       setUser(res.user);
     } catch (err: any) {
       setError(err.message);
+      setStep('email');
     } finally {
       setLoading(false);
     }
@@ -41,99 +68,95 @@ export function AuthPage() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {/* Mac OS dialog window */}
         <div className="mac-window" style={{ width: 380 }}>
-          {/* Title bar — close box on LEFT */}
           <div className="mac-titlebar">
             <div className="mac-close-box" />
             <div style={{ flex: 1, textAlign: 'center' }}>Blather — Sign In</div>
           </div>
 
-          {/* Content */}
           <div style={{ padding: 20 }}>
-            {/* Icon area */}
-            <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 28 }}>
-              🔑
-            </div>
-            <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#666666' }}>
-              {isRegister ? 'Create a new account' : 'Enter your credentials'}
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              {isRegister && (
-                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label style={{ width: 90, textAlign: 'right', fontSize: 12 }}>Display Name:</label>
-                  <input
-                    className="mac-input"
-                    style={{ flex: 1 }}
-                    placeholder="your name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    required
-                  />
+            {step === 'email' && (
+              <>
+                <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 28 }}>✉️</div>
+                <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#666666' }}>
+                  Enter your email to receive a magic sign-in link
                 </div>
-              )}
-              <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ width: 90, textAlign: 'right', fontSize: 12 }}>Email:</label>
-                <input
-                  className="mac-input"
-                  style={{ flex: 1 }}
-                  type="email"
-                  placeholder="user@domain.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ width: 90, textAlign: 'right', fontSize: 12 }}>Password:</label>
-                <input
-                  className="mac-input"
-                  style={{ flex: 1 }}
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
 
-              {isRegister && (
-                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, marginLeft: 98 }}>
-                  <input
-                    type="checkbox"
-                    checked={isAgent}
-                    onChange={(e) => setIsAgent(e.target.checked)}
-                  />
-                  <span style={{ fontSize: 12 }}>[BOT] This is an AI agent account</span>
+                <form onSubmit={requestMagicLink}>
+                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Email:</label>
+                    <input
+                      className="mac-input"
+                      style={{ flex: 1 }}
+                      type="email"
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  {error && (
+                    <div style={{ marginBottom: 8, marginLeft: 68, fontSize: 12, color: '#CC0000', fontWeight: 'bold' }}>
+                      ⚠ {error}
+                    </div>
+                  )}
+
+                  <hr className="mac-separator" style={{ margin: '12px 0' }} />
+
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <button type="submit" disabled={loading} className="mac-btn-primary">
+                      {loading ? '⏳...' : 'Send Magic Link'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {step === 'check-inbox' && (
+              <>
+                <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 28 }}>📬</div>
+                <div style={{ textAlign: 'center', marginBottom: 12, fontSize: 12 }}>
+                  Check your inbox for <strong>{email}</strong>
                 </div>
-              )}
-
-              {error && (
-                <div style={{ marginBottom: 8, marginLeft: 98, fontSize: 12, color: '#CC0000', fontWeight: 'bold' }}>
-                  ⚠ {error}
+                <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#666666' }}>
+                  Click the link in the email to sign in.
                 </div>
-              )}
 
-              <hr className="mac-separator" style={{ margin: '12px 0' }} />
+                {/* Dev mode: show clickable verify button */}
+                {devToken && (
+                  <>
+                    <hr className="mac-separator" style={{ margin: '12px 0' }} />
+                    <div style={{ textAlign: 'center', fontSize: 10, color: '#999', marginBottom: 8 }}>
+                      🛠 DEV MODE
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <button
+                        className="mac-btn-primary"
+                        onClick={() => verifyToken(devToken)}
+                        disabled={loading}
+                      >
+                        {loading ? '⏳...' : 'Verify (Dev)'}
+                      </button>
+                    </div>
+                  </>
+                )}
 
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
-                <button
-                  type="button"
-                  className="mac-btn"
-                  onClick={() => { setIsRegister(!isRegister); setError(''); }}
-                >
-                  {isRegister ? 'Login' : 'Register'}
-                </button>
-                <button type="submit" disabled={loading} className="mac-btn-primary">
-                  {loading ? '⏳...' : isRegister ? 'Register' : 'OK'}
-                </button>
-              </div>
-            </form>
+                <hr className="mac-separator" style={{ margin: '12px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <button className="mac-btn" onClick={() => { setStep('email'); setError(''); }}>
+                    ← Back
+                  </button>
+                </div>
 
-            <div style={{ textAlign: 'center', marginTop: 12, fontSize: 11, color: '#666666' }}>
-              {isRegister ? 'Already have an account? Click Login' : 'Need an account? Click Register'}
-            </div>
+                {error && (
+                  <div style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: '#CC0000', fontWeight: 'bold' }}>
+                    ⚠ {error}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

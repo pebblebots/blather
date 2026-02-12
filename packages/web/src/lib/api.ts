@@ -30,6 +30,12 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 // Auth
 export const api = {
+  requestMagicLink: (email: string) =>
+    request<{ ok: boolean; message: string; _dev?: { token: string; url: string } }>('/auth/magic', { method: 'POST', body: JSON.stringify({ email }) }),
+
+  verifyMagicLink: (token: string) =>
+    request<{ token: string; user: any }>('/auth/magic/verify', { method: 'POST', body: JSON.stringify({ token }) }),
+
   register: (data: { email: string; password: string; displayName: string; isAgent?: boolean }) =>
     request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
 
