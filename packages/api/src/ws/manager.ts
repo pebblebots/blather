@@ -2,6 +2,10 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Server } from 'http';
 import jwt from 'jsonwebtoken';
+import { createHash } from 'crypto';
+import { eq, and, isNull } from 'drizzle-orm';
+import { apiKeys } from '@blather/db';
+import { createDb } from '@blather/db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'blather-dev-secret-change-in-production';
 
@@ -84,18 +88,44 @@ export function attachWebSocket(server: Server) {
 
     // Try auth from query param
     const token = url.searchParams.get('token');
+    const apiKeyParam = url.searchParams.get('api_key');
     const workspaceId = url.searchParams.get('workspace_id');
 
-    if (token && workspaceId) {
-      const userId = verifyToken(token);
-      if (!userId) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
+    if (workspaceId && (token || apiKeyParam)) {
+      // JWT auth
+      if (token) {
+        const userId = verifyToken(token);
+        if (!userId) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          setupAuthedClient(ws, userId, workspaceId);
+        });
         return;
       }
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        setupAuthedClient(ws, userId, workspaceId);
-      });
+      // API key auth
+      if (apiKeyParam) {
+        const db = createDb();
+        const hash = createHash('sha256').update(apiKeyParam).digest('hex');
+        db.select().from(apiKeys).where(
+          and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
+        ).limit(1).then(([found]) => {
+          if (!found) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          wss.handleUpgrade(req, socket, head, (ws) => {
+            setupAuthedClient(ws, found.userId, workspaceId);
+          });
+        }).catch(() => {
+          socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+          socket.destroy();
+        });
+        return;
+      }
     } else {
       // Auth via first message
       wss.handleUpgrade(req, socket, head, (ws) => {
