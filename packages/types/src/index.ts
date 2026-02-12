@@ -56,13 +56,27 @@ export interface Workspace {
 }
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member';
+export type ChannelType = 'public' | 'private' | 'dm';
+
+export interface WorkspaceMember {
+  id: string;
+  displayName: string;
+  email: string;
+  isAgent: boolean;
+  avatarUrl: string | null;
+}
+
+export interface CreateDMRequest {
+  userId: string;
+}
 
 // ── Channels ──
 
 export interface CreateChannelRequest {
   name: string;
   slug: string;
-  isPrivate?: boolean;
+  channelType?: ChannelType;
+  isDefault?: boolean;
   topic?: string;
 }
 
@@ -71,7 +85,8 @@ export interface Channel {
   workspaceId: string;
   name: string;
   slug: string;
-  isPrivate: boolean;
+  channelType: ChannelType;
+  isDefault: boolean;
   topic: string | null;
   createdBy: string;
   createdAt: string;

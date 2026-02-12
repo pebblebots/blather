@@ -14,7 +14,7 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: { worksp
     setError('');
     try {
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const ch = await api.createChannel(workspaceId, { name, slug, topic: topic || undefined });
+      const ch = await api.createChannel(workspaceId, { name, slug, topic: topic || undefined, channelType: 'public' });
       onCreated(ch);
       onClose();
     } catch (err: any) {

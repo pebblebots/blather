@@ -16,6 +16,7 @@ export function MainPage() {
   const [selectedCh, setSelectedCh] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [usersMap, setUsersMap] = useState<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
+  const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
@@ -30,11 +31,19 @@ export function MainPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedWs) { setChannels([]); return; }
+    if (!selectedWs) { 
+      setChannels([]);
+      setWorkspaceMembers([]);
+      return; 
+    }
     api.getChannels(selectedWs).then((chs) => {
       setChannels(chs);
       if (chs.length > 0) setSelectedCh(chs[0].id);
       else setSelectedCh(null);
+    }).catch(() => {});
+
+    api.getWorkspaceMembers(selectedWs).then((members) => {
+      setWorkspaceMembers(members);
     }).catch(() => {});
   }, [selectedWs]);
 
@@ -81,6 +90,21 @@ export function MainPage() {
   };
 
   const logout = () => { clearToken(); setUser(null); };
+
+  const handleUserClick = async (targetUserId: string) => {
+    if (!selectedWs) return;
+    try {
+      const dmChannel = await api.getOrCreateDM(selectedWs, targetUserId);
+      // Add to channels list if not already there
+      setChannels((prev) => {
+        const exists = prev.some((c) => c.id === dmChannel.id);
+        return exists ? prev : [...prev, dmChannel];
+      });
+      setSelectedCh(dmChannel.id);
+    } catch (error) {
+      console.error('Failed to create/open DM:', error);
+    }
+  };
 
   const selectedChannel = channels.find((c) => c.id === selectedCh);
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWs);
@@ -176,7 +200,7 @@ export function MainPage() {
                       title="Create channel"
                     >+</button>
                   </div>
-                  {channels.map((ch) => (
+                  {channels.filter(ch => ch.channelType !== 'dm').map((ch) => (
                     <div
                       key={ch.id}
                       onClick={() => setSelectedCh(ch.id)}
@@ -192,12 +216,43 @@ export function MainPage() {
                         textOverflow: 'ellipsis',
                       }}
                     >
-                      💬 # {ch.name}
+                      💬 # {ch.name} {ch.channelType === 'private' && '🔒'}
                     </div>
                   ))}
-                  {channels.length === 0 && (
+                  {channels.filter(ch => ch.channelType !== 'dm').length === 0 && (
                     <div style={{ padding: '2px 6px', fontSize: 11, color: '#999999' }}>No channels</div>
                   )}
+                </div>
+              )}
+
+              {/* Users */}
+              {selectedWs && workspaceMembers.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <hr className="mac-separator" />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 'bold' }}>Users</span>
+                  </div>
+                  {workspaceMembers.filter(member => member.id !== user?.id).map((member) => (
+                    <div
+                      key={member.id}
+                      onClick={() => handleUserClick(member.id)}
+                      style={{
+                        padding: '2px 6px 2px 14px',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        background: 'transparent',
+                        color: '#000000',
+                        borderRadius: 2,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      onMouseEnter={(e) => (e.target as HTMLElement).style.background = '#EEEEEE'}
+                      onMouseLeave={(e) => (e.target as HTMLElement).style.background = 'transparent'}
+                    >
+                      👤 {member.displayName} {member.isAgent && '[BOT]'}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -209,9 +264,17 @@ export function MainPage() {
             <div className="mac-titlebar" style={{ fontSize: 11 }}>
               <div className="mac-close-box" style={{ width: 10, height: 10 }} />
               <div style={{ flex: 1, textAlign: 'center' }}>
-                {selectedChannel
-                  ? `# ${selectedChannel.name}${selectedChannel.topic ? ' — ' + selectedChannel.topic : ''}`
-                  : 'Select a Channel'}
+                {selectedChannel ? (() => {
+                  if (selectedChannel.channelType === 'dm') {
+                    // For DMs, show the other user's display name
+                    const otherUserId = selectedChannel.slug.replace('dm-', '').split('-').find((id: string) => id !== user?.id);
+                    const otherUser = workspaceMembers.find(member => member.id === otherUserId);
+                    return `💬 ${otherUser?.displayName || 'Unknown User'}`;
+                  } else {
+                    // For regular channels, show channel name and topic
+                    return `# ${selectedChannel.name}${selectedChannel.topic ? ' — ' + selectedChannel.topic : ''}`;
+                  }
+                })() : 'Select a Channel'}
               </div>
             </div>
 

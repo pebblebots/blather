@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import { eq } from 'drizzle-orm';
-import { workspaces, workspaceMembers, channels, channelMembers } from '@blather/db';
+import { eq, and, or } from 'drizzle-orm';
+import { workspaces, workspaceMembers, channels, channelMembers, users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
-import type { CreateWorkspaceRequest, CreateChannelRequest } from '@blather/types';
+import type { CreateWorkspaceRequest, CreateChannelRequest, CreateDMRequest } from '@blather/types';
 import { emitEvent } from '../ws/events.js';
 
 export const workspaceRoutes = new Hono<Env>();
@@ -43,6 +43,23 @@ workspaceRoutes.post('/', async (c) => {
     role: 'owner',
   });
 
+  // Auto-create #general channel with is_default=true
+  const [generalChannel] = await db.insert(channels).values({
+    workspaceId: ws.id,
+    name: 'general',
+    slug: 'general',
+    channelType: 'public',
+    isDefault: true,
+    topic: 'General discussion for the workspace',
+    createdBy: userId,
+  }).returning();
+
+  // Auto-join creator to #general
+  await db.insert(channelMembers).values({
+    channelId: generalChannel.id,
+    userId,
+  });
+
   return c.json(ws, 201);
 });
 
@@ -66,7 +83,8 @@ workspaceRoutes.post('/:id/channels', async (c) => {
     workspaceId,
     name: body.name,
     slug: body.slug,
-    isPrivate: body.isPrivate ?? false,
+    channelType: body.channelType ?? 'public',
+    isDefault: body.isDefault ?? false,
     topic: body.topic ?? null,
     createdBy: userId,
   }).returning();
@@ -83,7 +101,8 @@ workspaceRoutes.post('/:id/channels', async (c) => {
       id: ch.id,
       name: ch.name,
       slug: ch.slug,
-      isPrivate: ch.isPrivate,
+      channelType: ch.channelType,
+      isDefault: ch.isDefault,
       topic: ch.topic,
       createdBy: ch.createdBy,
       createdAt: ch.createdAt.toISOString(),
@@ -91,4 +110,69 @@ workspaceRoutes.post('/:id/channels', async (c) => {
   });
 
   return c.json(ch, 201);
+});
+
+// Get workspace members
+workspaceRoutes.get('/:id/members', async (c) => {
+  const db = c.get('db');
+  const workspaceId = c.req.param('id');
+
+  const members = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      email: users.email,
+      isAgent: users.isAgent,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(workspaceMembers)
+    .innerJoin(users, eq(workspaceMembers.userId, users.id))
+    .where(eq(workspaceMembers.workspaceId, workspaceId));
+
+  return c.json(members);
+});
+
+// Create or get DM channel
+workspaceRoutes.post('/:id/dm', async (c) => {
+  const body = await c.req.json<CreateDMRequest>();
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const workspaceId = c.req.param('id');
+
+  // Sort user IDs to ensure consistent slug
+  const userIds = [userId, body.userId].sort();
+  const dmSlug = `dm-${userIds.join('-')}`;
+
+  // Try to find existing DM channel
+  const existingChannels = await db
+    .select()
+    .from(channels)
+    .where(and(
+      eq(channels.workspaceId, workspaceId),
+      eq(channels.slug, dmSlug),
+      eq(channels.channelType, 'dm')
+    ));
+
+  if (existingChannels.length > 0) {
+    return c.json(existingChannels[0]);
+  }
+
+  // Create new DM channel
+  const [dmChannel] = await db.insert(channels).values({
+    workspaceId,
+    name: '', // DM channels have empty names
+    slug: dmSlug,
+    channelType: 'dm',
+    isDefault: false,
+    topic: null,
+    createdBy: userId,
+  }).returning();
+
+  // Add both users to the channel
+  await db.insert(channelMembers).values([
+    { channelId: dmChannel.id, userId },
+    { channelId: dmChannel.id, userId: body.userId },
+  ]);
+
+  return c.json(dmChannel, 201);
 });

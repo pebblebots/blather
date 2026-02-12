@@ -1,6 +1,7 @@
 import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
 
 export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member']);
+export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm']);
 
 // ── Users ──
 
@@ -64,7 +65,8 @@ export const channels = pgTable('channels', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull(),
-  isPrivate: boolean('is_private').notNull().default(false),
+  channelType: channelTypeEnum('channel_type').notNull().default('public'),
+  isDefault: boolean('is_default').notNull().default(false),
   topic: text('topic'),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

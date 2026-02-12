@@ -49,7 +49,7 @@ export const api = {
 
   getChannels: (workspaceId: string) => request<any[]>(`/workspaces/${workspaceId}/channels`),
 
-  createChannel: (workspaceId: string, data: { name: string; slug: string; topic?: string }) =>
+  createChannel: (workspaceId: string, data: { name: string; slug: string; topic?: string; channelType?: string; isDefault?: boolean }) =>
     request<any>(`/workspaces/${workspaceId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
 
   getMessages: (channelId: string, limit = 50) =>
@@ -57,4 +57,10 @@ export const api = {
 
   sendMessage: (channelId: string, content: string) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
+
+  getWorkspaceMembers: (workspaceId: string) =>
+    request<any[]>(`/workspaces/${workspaceId}/members`),
+
+  getOrCreateDM: (workspaceId: string, userId: string) =>
+    request<any>(`/workspaces/${workspaceId}/dm`, { method: 'POST', body: JSON.stringify({ userId }) }),
 };

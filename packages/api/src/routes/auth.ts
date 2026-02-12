@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { eq, and, isNull, gt } from 'drizzle-orm';
-import { users, apiKeys, magicTokens, workspaces, workspaceMembers } from '@blather/db';
+import { users, apiKeys, magicTokens, workspaces, workspaceMembers, channels, channelMembers } from '@blather/db';
 import type { Env } from '../app.js';
 import { signToken, hashApiKey, authMiddleware } from '../middleware/auth.js';
 import type { RegisterRequest, LoginRequest, CreateApiKeyRequest } from '@blather/types';
@@ -35,6 +35,29 @@ async function autoJoinDomainWorkspaces(db: any, userId: string, email: string) 
           userId,
           role: 'member',
         });
+
+        // Auto-join to default channels in this workspace
+        const defaultChannels = await db.select().from(channels)
+          .where(and(
+            eq(channels.workspaceId, ws.id),
+            eq(channels.isDefault, true)
+          ));
+
+        for (const channel of defaultChannels) {
+          // Check if already a member of this channel
+          const existingChannelMember = await db.select().from(channelMembers)
+            .where(and(
+              eq(channelMembers.channelId, channel.id),
+              eq(channelMembers.userId, userId)
+            )).limit(1);
+          
+          if (existingChannelMember.length === 0) {
+            await db.insert(channelMembers).values({
+              channelId: channel.id,
+              userId,
+            });
+          }
+        }
       }
     }
   }
