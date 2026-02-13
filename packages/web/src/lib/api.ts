@@ -67,6 +67,9 @@ export const api = {
   inviteMember: (channelId: string, userId: string) =>
     request<any>(`/channels/${channelId}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
 
+  deleteChannel: (channelId: string) =>
+    request<any>(`/channels/${channelId}`, { method: 'DELETE' }),
+
   archiveChannel: (channelId: string) =>
     request<any>(`/channels/${channelId}/archive`, { method: 'PATCH' }),
 

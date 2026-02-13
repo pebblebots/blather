@@ -8,6 +8,8 @@ import { MessageList } from '../components/MessageList';
 import { MessageInput } from '../components/MessageInput';
 import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
 import { CreateChannelModal } from '../components/CreateChannelModal';
+import { ChannelContextMenu } from '../components/ChannelContextMenu';
+import { InviteMemberModal } from '../components/InviteMemberModal';
 import { TypingIndicator } from '../components/TypingIndicator';
 
 export function MainPage() {
@@ -24,6 +26,8 @@ export function MainPage() {
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{x: number; y: number; channel: any} | null>(null);
+  const [inviteChannelId, setInviteChannelId] = useState<string | null>(null);
   const usersMapRef = useRef<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [presence, setPresence] = useState<Map<string, string>>(new Map());
@@ -166,6 +170,11 @@ export function MainPage() {
         return exists ? prev : [...prev, event.data];
       });
     }
+    if (event.type === 'channel.deleted' && event.data) {
+      const deletedId = event.data.id;
+      setChannels((prev) => prev.filter((c) => c.id !== deletedId));
+      setSelectedCh((prev) => prev === deletedId ? null : prev);
+    }
     if (event.type === 'member.joined' && event.data) {
       const m = event.data;
       setWorkspaceMembers((prev) => {
@@ -201,6 +210,28 @@ export function MainPage() {
     } catch (error) {
       console.error('Failed to create/open DM:', error);
     }
+  };
+
+  const handleArchiveChannel = async (channelId: string) => {
+    try {
+      await api.archiveChannel(channelId);
+      setChannels((prev) => prev.filter((c) => c.id !== channelId));
+      if (selectedCh === channelId) setSelectedCh(null);
+    } catch (e: any) { alert(e.message || 'Failed to archive'); }
+  };
+
+  const handleDeleteChannel = async (channelId: string) => {
+    if (!confirm('Are you sure you want to delete this channel? All messages will be lost.')) return;
+    try {
+      await api.deleteChannel(channelId);
+      setChannels((prev) => prev.filter((c) => c.id !== channelId));
+      if (selectedCh === channelId) setSelectedCh(null);
+    } catch (e: any) { alert(e.message || 'Failed to delete'); }
+  };
+
+  const handleChannelContextMenu = (e: React.MouseEvent, ch: any) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, channel: ch });
   };
 
   const selectedChannel = channels.find((c) => c.id === selectedCh);
@@ -301,6 +332,7 @@ export function MainPage() {
                     <div
                       key={ch.id}
                       onClick={() => setSelectedCh(ch.id)}
+                      onContextMenu={(e) => handleChannelContextMenu(e, ch)}
                       style={{
                         padding: '2px 6px 2px 14px',
                         fontSize: 12,
@@ -442,6 +474,24 @@ export function MainPage() {
         <CreateWorkspaceModal
           onClose={() => setShowCreateWs(false)}
           onCreated={(ws) => { setWorkspaces((prev) => [...prev, ws]); setSelectedWs(ws.id); }}
+        />
+      )}
+      {contextMenu && (
+        <ChannelContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          channel={contextMenu.channel}
+          onClose={() => setContextMenu(null)}
+          onArchive={handleArchiveChannel}
+          onDelete={handleDeleteChannel}
+          onInvite={(id) => setInviteChannelId(id)}
+        />
+      )}
+      {inviteChannelId && (
+        <InviteMemberModal
+          channelId={inviteChannelId}
+          workspaceMembers={workspaceMembers}
+          onClose={() => setInviteChannelId(null)}
         />
       )}
       {showCreateCh && selectedWs && (

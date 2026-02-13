@@ -226,3 +226,28 @@ channelRoutes.get('/:id/members', async (c) => {
 
   return c.json(members);
 });
+
+// Delete channel
+channelRoutes.delete('/:id', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = c.req.param('id');
+
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
+  // Delete channel members, messages, then channel
+  await db.delete(channelMembers).where(eq(channelMembers.channelId, channelId));
+  await db.delete(messages).where(eq(messages.channelId, channelId));
+  await db.delete(channels).where(eq(channels.id, channelId));
+
+  await emitEvent(db, {
+    workspaceId: channel.workspaceId,
+    channelId,
+    userId,
+    type: 'channel.deleted',
+    payload: { id: channelId },
+  });
+
+  return c.json({ ok: true });
+});
