@@ -1,12 +1,16 @@
 interface TypingIndicatorProps {
-  typingUsers: Map<string, number>;
+  typingUsers: Map<string, { timestamp: number; channelId: string }>;
   usersMap: Map<string, { displayName: string; isAgent: boolean }>;
   currentUserId?: string;
   selectedChannelId: string | null;
 }
 
-export function TypingIndicator({ typingUsers, usersMap, currentUserId }: TypingIndicatorProps) {
-  const others = Array.from(typingUsers.keys()).filter(id => id !== currentUserId);
+export function TypingIndicator({ typingUsers, usersMap, currentUserId, selectedChannelId }: TypingIndicatorProps) {
+  // Filter typing users to only those in the selected channel, and extract userId from composite key
+  const others = Array.from(typingUsers.entries())
+    .filter(([key, val]) => val.channelId === selectedChannelId)
+    .map(([key]) => key.split(':')[1])
+    .filter(id => id !== currentUserId);
   if (others.length === 0) return <div style={{ height: 18, padding: '0 10px', fontSize: 11 }} />;
 
   const names = others.map(id => {

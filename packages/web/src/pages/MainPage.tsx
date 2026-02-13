@@ -20,7 +20,7 @@ export function MainPage() {
   const [usersMap, setUsersMap] = useState<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
   const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [typingUsers, setTypingUsers] = useState<Map<string, number>>(new Map());
+  const [typingUsers, setTypingUsers] = useState<Map<string, { timestamp: number; channelId: string }>>(new Map());
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
@@ -115,11 +115,12 @@ export function MainPage() {
       const p = event.data;
       if (p.channelId === selectedChRef.current) {
         setMessages((prev) => [...prev, p]);
-        // Clear typing indicator for this user
+        // Clear typing indicator for this user in this channel
         setTypingUsers((prev) => {
-          if (!prev.has(p.userId)) return prev;
+          const key = `${p.channelId}:${p.userId}`;
+          if (!prev.has(key)) return prev;
           const next = new Map(prev);
-          next.delete(p.userId);
+          next.delete(key);
           return next;
         });
       } else {
@@ -129,24 +130,25 @@ export function MainPage() {
     }
     if (event.type === 'typing.started' && event.data) {
       const p = event.data;
+      const typingKey = `${p.channelId}:${p.userId}`;
       setTypingUsers((prev) => {
         const next = new Map(prev);
-        next.set(p.userId, Date.now());
+        next.set(typingKey, { timestamp: Date.now(), channelId: p.channelId });
         return next;
       });
-      const existing = typingTimers.current.get(p.userId);
+      const existing = typingTimers.current.get(typingKey);
       if (existing) clearTimeout(existing);
       // For agents, no timeout - indicator stays until their message arrives
       const userInfo = usersMapRef.current.get(p.userId);
       const isAgent = userInfo?.isAgent ?? false;
       if (!isAgent) {
-        typingTimers.current.set(p.userId, setTimeout(() => {
+        typingTimers.current.set(typingKey, setTimeout(() => {
           setTypingUsers((prev) => {
             const next = new Map(prev);
-            next.delete(p.userId);
+            next.delete(typingKey);
             return next;
           });
-          typingTimers.current.delete(p.userId);
+          typingTimers.current.delete(typingKey);
         }, 30000));
       }
     }
