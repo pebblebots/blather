@@ -9,32 +9,27 @@ interface Msg {
   user?: { displayName: string; isAgent: boolean };
 }
 
-// Warm, retro-friendly palette that works on cream backgrounds
 const NICK_COLORS = [
-  '#b91c1c', // red
-  '#0369a1', // blue
-  '#15803d', // green
+  '#c41e3a', // crimson
+  '#0057b7', // blue
+  '#16a34a', // green
   '#9333ea', // purple
-  '#c2410c', // orange
-  '#0e7490', // teal
-  '#a21caf', // magenta
-  '#854d0e', // amber
+  '#d97706', // amber
+  '#0891b2', // cyan
+  '#c026d3', // magenta
+  '#854d0e', // brown
   '#4338ca', // indigo
-  '#be185d', // pink
-  '#166534', // dark green
-  '#7e22ce', // violet
+  '#dc2626', // red
+  '#059669', // emerald
+  '#db2777', // pink
+  '#1d4ed8', // royal blue
 ];
 
-function hashUserId(id: string): number {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-}
-
 function getNickColor(userId: string): string {
-  return NICK_COLORS[hashUserId(userId) % NICK_COLORS.length];
+  // Use last 8 hex chars of UUID — high entropy in v4 UUIDs
+  const hex = userId.replace(/-/g, '').slice(-8);
+  const num = parseInt(hex, 16) >>> 0;
+  return NICK_COLORS[num % NICK_COLORS.length];
 }
 
 function formatTime(iso: string) {
