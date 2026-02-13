@@ -63,16 +63,30 @@ workspaceRoutes.post('/', async (c) => {
   return c.json(ws, 201);
 });
 
-// List channels in workspace (public/private + DMs the user belongs to)
+// List channels in workspace (public + private user is member of + DMs)
 workspaceRoutes.get('/:id/channels', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
   const workspaceId = c.req.param('id');
 
-  // Get all non-DM channels
+  // Get public non-archived channels
   const publicChannels = await db.select().from(channels).where(
-    and(eq(channels.workspaceId, workspaceId), or(eq(channels.channelType, 'public'), eq(channels.channelType, 'private')))
+    and(eq(channels.workspaceId, workspaceId), eq(channels.channelType, 'public'), eq(channels.archived, false))
   );
+
+  // Get private channels the user is a member of (non-archived)
+  const privateChannelRows = await db
+    .select({ channel: channels })
+    .from(channelMembers)
+    .innerJoin(channels, eq(channels.id, channelMembers.channelId))
+    .where(
+      and(
+        eq(channelMembers.userId, userId),
+        eq(channels.workspaceId, workspaceId),
+        eq(channels.channelType, 'private'),
+        eq(channels.archived, false)
+      )
+    );
 
   // Get DM channels the user is a member of
   const dmChannelRows = await db
@@ -87,7 +101,7 @@ workspaceRoutes.get('/:id/channels', async (c) => {
       )
     );
 
-  const result = [...publicChannels, ...dmChannelRows.map(r => r.channel)];
+  const result = [...publicChannels, ...privateChannelRows.map(r => r.channel), ...dmChannelRows.map(r => r.channel)];
   return c.json(result);
 });
 

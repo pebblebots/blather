@@ -154,3 +154,75 @@ channelRoutes.post('/:id/read', async (c) => {
 
   return c.json({ ok: true });
 });
+
+
+// Invite user to channel (only existing members can invite)
+channelRoutes.post('/:id/members', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = c.req.param('id');
+  const body = await c.req.json<{ userId: string }>();
+
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
+  // Only members can invite
+  const [membership] = await db.select().from(channelMembers)
+    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+    .limit(1);
+  if (!membership) return c.json({ error: 'You are not a member of this channel' }, 403);
+
+  // Check if target already a member
+  const [existing] = await db.select().from(channelMembers)
+    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, body.userId)))
+    .limit(1);
+  if (existing) return c.json({ error: 'User is already a member' }, 409);
+
+  await db.insert(channelMembers).values({ channelId, userId: body.userId });
+
+  await emitEvent(db, {
+    workspaceId: channel.workspaceId,
+    channelId,
+    userId,
+    type: 'channel.created',
+    payload: { channelId, invitedUserId: body.userId },
+  });
+
+  return c.json({ ok: true }, 201);
+});
+
+// Archive channel
+channelRoutes.patch('/:id/archive', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = c.req.param('id');
+
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+  if (channel.isDefault) return c.json({ error: 'Cannot archive the default channel' }, 400);
+
+  // Only members can archive
+  const [membership] = await db.select().from(channelMembers)
+    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+    .limit(1);
+  if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
+
+  const [updated] = await db.update(channels).set({ archived: true }).where(eq(channels.id, channelId)).returning();
+
+  return c.json(updated);
+});
+
+// Get channel members
+channelRoutes.get('/:id/members', async (c) => {
+  const db = c.get('db');
+  const channelId = c.req.param('id');
+
+  const { users } = await import('@blather/db');
+  const members = await db
+    .select({ id: users.id, displayName: users.displayName, email: users.email })
+    .from(channelMembers)
+    .innerJoin(users, eq(channelMembers.userId, users.id))
+    .where(eq(channelMembers.channelId, channelId));
+
+  return c.json(members);
+});

@@ -70,6 +70,7 @@ export const channels = pgTable('channels', {
   topic: text('topic'),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  archived: boolean('archived').notNull().default(false),
 });
 
 // ── Channel Members ──

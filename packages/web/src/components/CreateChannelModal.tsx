@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 export function CreateChannelModal({ workspaceId, onClose, onCreated }: { workspaceId: string; onClose: () => void; onCreated: (ch: any) => void }) {
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -14,7 +15,7 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: { worksp
     setError('');
     try {
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const ch = await api.createChannel(workspaceId, { name, slug, topic: topic || undefined, channelType: 'public' });
+      const ch = await api.createChannel(workspaceId, { name, slug, topic: topic || undefined, channelType: isPrivate ? 'private' : 'public' });
       onCreated(ch);
       onClose();
     } catch (err: any) {
@@ -38,6 +39,11 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: { worksp
             required
             autoFocus
           />
+        </div>
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Private:</label>
+          <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+          <span style={{ fontSize: 11, color: '#666' }}>🔒 Only invited members can see this channel</span>
         </div>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
           <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Topic:</label>

@@ -90,6 +90,7 @@ export interface Channel {
   topic: string | null;
   createdBy: string;
   createdAt: string;
+  archived: boolean;
 }
 
 // ── Messages ──
@@ -134,6 +135,8 @@ export type EventType =
   | 'channel.created'
   | 'member.joined'
   | 'member.left'
+  | 'channel.updated'
+  | 'channel.member.added'
   | 'presence.changed';
 
 export interface WsEvent {

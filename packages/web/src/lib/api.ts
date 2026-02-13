@@ -63,6 +63,15 @@ export const api = {
 
   getOrCreateDM: (workspaceId: string, userId: string) =>
     request<any>(`/workspaces/${workspaceId}/dm`, { method: 'POST', body: JSON.stringify({ userId }) }),
+
+  inviteMember: (channelId: string, userId: string) =>
+    request<any>(`/channels/${channelId}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
+
+  archiveChannel: (channelId: string) =>
+    request<any>(`/channels/${channelId}/archive`, { method: 'PATCH' }),
+
+  getChannelMembers: (channelId: string) =>
+    request<any[]>(`/channels/${channelId}/members`),
 };
 
 // Unread tracking
