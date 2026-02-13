@@ -21,7 +21,7 @@ export async function emitEvent(
     payload: params.payload,
   }).returning();
 
-  publishEvent(params.workspaceId, {
+  await publishEvent(params.workspaceId, {
     id: evt.id,
     type: params.type,
     workspace_id: params.workspaceId,

@@ -7,6 +7,7 @@ import { MessageList } from '../components/MessageList';
 import { MessageInput } from '../components/MessageInput';
 import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
 import { CreateChannelModal } from '../components/CreateChannelModal';
+import { TypingIndicator } from '../components/TypingIndicator';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -18,6 +19,8 @@ export function MainPage() {
   const [usersMap, setUsersMap] = useState<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
   const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [typingUsers, setTypingUsers] = useState<Map<string, number>>(new Map());
+  const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
 
@@ -67,6 +70,12 @@ export function MainPage() {
     if (user) addUserInfo(user.id, user.displayName, user.isAgent);
   }, [user, addUserInfo]);
 
+
+  useEffect(() => {
+    for (const member of workspaceMembers) {
+      addUserInfo(member.id, member.displayName, member.isAgent);
+    }
+  }, [workspaceMembers, addUserInfo]);
   // Use refs for values needed in WS callback to avoid reconnecting on every selection change
   const selectedChRef = useRef(selectedCh);
   selectedChRef.current = selectedCh;
@@ -76,7 +85,32 @@ export function MainPage() {
       const p = event.data;
       if (p.channelId === selectedChRef.current) {
         setMessages((prev) => [...prev, p]);
+        // Clear typing indicator for this user
+        setTypingUsers((prev) => {
+          if (!prev.has(p.userId)) return prev;
+          const next = new Map(prev);
+          next.delete(p.userId);
+          return next;
+        });
       }
+    }
+    if (event.type === 'typing.started' && event.data) {
+      const p = event.data;
+      setTypingUsers((prev) => {
+        const next = new Map(prev);
+        next.set(p.userId, Date.now());
+        return next;
+      });
+      const existing = typingTimers.current.get(p.userId);
+      if (existing) clearTimeout(existing);
+      typingTimers.current.set(p.userId, setTimeout(() => {
+        setTypingUsers((prev) => {
+          const next = new Map(prev);
+          next.delete(p.userId);
+          return next;
+        });
+        typingTimers.current.delete(p.userId);
+      }, 5000));
     }
     if (event.type === 'channel.created' && event.data) {
       setChannels((prev) => {
@@ -274,7 +308,7 @@ export function MainPage() {
                 {selectedChannel ? (() => {
                   if (selectedChannel.channelType === 'dm') {
                     // For DMs, show the other user's display name
-                    const otherUserId = selectedChannel.slug.replace('dm-', '').split('-').find((id: string) => id !== user?.id);
+                    const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; const otherUserId = uuids.find((id: string) => id !== user?.id);
                     const otherUser = workspaceMembers.find(member => member.id === otherUserId);
                     return `💬 ${otherUser?.displayName || 'Unknown User'}`;
                   } else {
@@ -288,6 +322,7 @@ export function MainPage() {
             {selectedCh ? (
               <>
                 <MessageList messages={messages} usersMap={usersMap} />
+                <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} disabled={!selectedCh} />
               </>
             ) : (
@@ -330,7 +365,7 @@ export function MainPage() {
         <CreateChannelModal
           workspaceId={selectedWs}
           onClose={() => setShowCreateCh(false)}
-          onCreated={(ch) => { setChannels((prev) => [...prev, ch]); setSelectedCh(ch.id); }}
+          onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); }}
         />
       )}
     </div>

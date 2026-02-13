@@ -6,6 +6,14 @@ import { users, apiKeys, magicTokens, workspaces, workspaceMembers, channels, ch
 import type { Env } from '../app.js';
 import { signToken, hashApiKey, authMiddleware } from '../middleware/auth.js';
 import type { RegisterRequest, LoginRequest, CreateApiKeyRequest } from '@blather/types';
+import { Resend } from 'resend';
+
+let _resend: Resend | null = null;
+function getResend(): Resend | null {
+  if (!process.env.RESEND_API_KEY) return null;
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+}
 
 export const authRoutes = new Hono<Env>();
 
@@ -81,15 +89,27 @@ authRoutes.post('/magic', async (c) => {
     expiresAt,
   });
 
-  // In production, send an email. For now, log + return it in response (dev mode).
   const magicUrl = `${c.req.header('origin') || 'http://localhost:8080'}/auth/verify?token=${token}`;
   console.log(`[MAGIC LINK] ${email} → ${magicUrl}`);
 
+  // Send the magic link email
+  const resend = getResend();
+  if (resend) {
+    try {
+      await resend.emails.send({
+        from: process.env.RESEND_FROM || 'Blather <admin@pbd.bot>',
+        to: email.toLowerCase(),
+        subject: 'Your Blather login link',
+        html: `<p>Click the link below to log in to Blather:</p><p><a href="${magicUrl}">${magicUrl}</a></p><p>This link expires in 15 minutes.</p>`,
+      });
+    } catch (err) {
+      console.error('[MAGIC LINK] Email send failed:', err);
+    }
+  }
+
   return c.json({
     ok: true,
-    message: 'Magic link sent (check console in dev mode)',
-    // DEV ONLY — remove in production:
-    _dev: { token, url: magicUrl },
+    message: 'Magic link sent! Check your email.',
   });
 });
 

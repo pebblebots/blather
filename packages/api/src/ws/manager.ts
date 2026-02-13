@@ -4,7 +4,7 @@ import type { Server } from 'http';
 import jwt from 'jsonwebtoken';
 import { createHash } from 'crypto';
 import { eq, and, isNull } from 'drizzle-orm';
-import { apiKeys } from '@blather/db';
+import { apiKeys, channels, channelMembers } from '@blather/db';
 import { createDb } from '@blather/db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'blather-dev-secret-change-in-production';
@@ -38,15 +38,63 @@ function removeClient(client: AuthedClient) {
   }
 }
 
-/** Broadcast an event to all WS clients in a workspace */
-export function publishEvent(workspaceId: string, event: object) {
+/** Broadcast an event to all WS clients in a workspace, respecting channel privacy */
+export async function publishEvent(workspaceId: string, event: Record<string, unknown> & { channel_id?: string | null }) {
   const set = workspaceClients.get(workspaceId);
   if (!set) return;
+
+  let allowedUserIds: Set<string> | null = null;
+
+  // If event is for a specific channel, check if it's private/dm
+  if (event.channel_id) {
+    const db = createDb();
+    const [ch] = await db.select({ channelType: channels.channelType })
+      .from(channels)
+      .where(eq(channels.id, event.channel_id))
+      .limit(1);
+
+    if (ch && (ch.channelType === 'dm' || ch.channelType === 'private')) {
+      const members = await db.select({ userId: channelMembers.userId })
+        .from(channelMembers)
+        .where(eq(channelMembers.channelId, event.channel_id));
+      allowedUserIds = new Set(members.map(m => m.userId));
+    }
+  }
+
   const data = JSON.stringify(event);
   for (const client of set) {
-    if (client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(data);
-    }
+    if (client.ws.readyState !== WebSocket.OPEN) continue;
+    // If channel is private/dm, only send to members
+    if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
+    client.ws.send(data);
+  }
+}
+
+/** Broadcast an ephemeral event (no DB write) — respects channel privacy */
+export async function publishEphemeralEvent(workspaceId: string, channelId: string, event: Record<string, unknown>) {
+  const set = workspaceClients.get(workspaceId);
+  if (!set) return;
+
+  let allowedUserIds: Set<string> | null = null;
+
+  const db = createDb();
+  const [ch] = await db.select({ channelType: channels.channelType })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+
+  if (ch && (ch.channelType === "dm" || ch.channelType === "private")) {
+    const members = await db.select({ userId: channelMembers.userId })
+      .from(channelMembers)
+      .where(eq(channelMembers.channelId, channelId));
+    allowedUserIds = new Set(members.map(m => m.userId));
+  }
+
+  const data = JSON.stringify(event);
+  for (const client of set) {
+    if (client.ws.readyState !== WebSocket.OPEN) continue;
+    if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
+    client.ws.send(data);
   }
 }
 

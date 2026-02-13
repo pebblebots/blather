@@ -17,6 +17,7 @@
     "hono": "^4.7.0",
     "jsonwebtoken": "^9.0.2",
     "postgres": "^3.4.8",
+    "resend": "^6.9.2",
     "ws": "^8.19.0"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import { MarkdownText } from './MarkdownText';
 import { useEffect, useRef } from 'react';
 
 interface Msg {
@@ -39,7 +40,7 @@ export function MessageList({ messages, usersMap }: { messages: Msg[]; usersMap:
             <span style={{ fontWeight: 'bold' }}>&lt;{user.displayName}&gt;</span>
             {user.isAgent && <span style={{ fontWeight: 'bold', color: '#666666' }}> [BOT]</span>}
             {' '}
-            <span>{msg.content}</span>
+            <MarkdownText text={msg.content} />
           </div>
         );
       })}
