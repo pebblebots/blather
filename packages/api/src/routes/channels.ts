@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { messages, reactions, channels, channelMembers } from '@blather/db';
+import { messages, reactions, channels, channelMembers, channelReads, events } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { emitEvent } from '../ws/events.js';
@@ -236,11 +236,7 @@ channelRoutes.delete('/:id', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
-  // Delete channel members, messages, then channel
-  await db.delete(channelMembers).where(eq(channelMembers.channelId, channelId));
-  await db.delete(messages).where(eq(messages.channelId, channelId));
-  await db.delete(channels).where(eq(channels.id, channelId));
-
+  // Emit event before deleting (channel must still exist for FK)
   await emitEvent(db, {
     workspaceId: channel.workspaceId,
     channelId,
@@ -248,6 +244,20 @@ channelRoutes.delete('/:id', async (c) => {
     type: 'channel.deleted',
     payload: { id: channelId },
   });
+
+  // Delete dependent rows then channel
+  await db.delete(channelReads).where(eq(channelReads.channelId, channelId));
+  await db.delete(channelMembers).where(eq(channelMembers.channelId, channelId));
+  const channelMessages = await db.select({ id: messages.id }).from(messages).where(eq(messages.channelId, channelId));
+  if (channelMessages.length > 0) {
+    const msgIds = channelMessages.map(m => m.id);
+    for (const msgId of msgIds) {
+      await db.delete(reactions).where(eq(reactions.messageId, msgId));
+    }
+  }
+  await db.delete(messages).where(eq(messages.channelId, channelId));
+  await db.delete(events).where(eq(events.channelId, channelId));
+  await db.delete(channels).where(eq(channels.id, channelId));
 
   return c.json({ ok: true });
 });
