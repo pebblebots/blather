@@ -73,6 +73,9 @@ export const api = {
   archiveChannel: (channelId: string) =>
     request<any>(`/channels/${channelId}/archive`, { method: 'PATCH' }),
 
+  sendTyping: (channelId: string) =>
+    request<{ ok: boolean }>(`/channels/${channelId}/typing`, { method: 'POST' }),
+
   getChannelMembers: (channelId: string) =>
     request<any[]>(`/channels/${channelId}/members`),
 };

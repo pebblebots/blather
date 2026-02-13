@@ -1,7 +1,25 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
-export function MessageInput({ onSend, disabled }: { onSend: (content: string) => void; disabled?: boolean }) {
+interface MessageInputProps {
+  onSend: (content: string) => void;
+  onTyping?: () => void;
+  disabled?: boolean;
+}
+
+export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) {
   const [text, setText] = useState('');
+  const lastTypingSent = useRef(0);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value);
+    if (onTyping && e.target.value.length > 0) {
+      const now = Date.now();
+      if (now - lastTypingSent.current > 3000) {
+        lastTypingSent.current = now;
+        onTyping();
+      }
+    }
+  }, [onTyping]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +43,7 @@ export function MessageInput({ onSend, disabled }: { onSend: (content: string) =
         style={{ flex: 1, fontSize: 12, fontFamily: "'Monaco', 'IBM Plex Mono', monospace" }}
         placeholder="Type a message..."
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
         disabled={disabled}
       />

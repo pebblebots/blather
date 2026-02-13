@@ -212,6 +212,11 @@ export function MainPage() {
     }
   };
 
+  const handleTyping = useCallback(() => {
+    if (!selectedCh) return;
+    api.sendTyping(selectedCh).catch(() => {});
+  }, [selectedCh]);
+
   const handleArchiveChannel = async (channelId: string) => {
     try {
       await api.archiveChannel(channelId);
@@ -438,7 +443,7 @@ export function MainPage() {
               <>
                 <MessageList messages={messages} usersMap={usersMap} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
-                <MessageInput onSend={handleSend} disabled={!selectedCh} />
+                <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>
             ) : (
               <div className="mac-inset" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#999999', margin: 4 }}>
