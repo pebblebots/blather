@@ -133,7 +133,8 @@ export type EventType =
   | 'reaction.removed'
   | 'channel.created'
   | 'member.joined'
-  | 'member.left';
+  | 'member.left'
+  | 'presence.changed';
 
 export interface WsEvent {
   id: string;
@@ -143,4 +144,14 @@ export interface WsEvent {
   type: EventType;
   payload: Record<string, unknown>;
   createdAt: string;
+}
+
+
+// ── Presence ──
+
+export type PresenceStatus = 'online' | 'idle' | 'offline';
+
+export interface PresenceInfo {
+  userId: string;
+  status: PresenceStatus;
 }

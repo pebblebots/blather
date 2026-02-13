@@ -1,3 +1,4 @@
+import { unreadApi, presenceApi } from '../lib/api';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
 import { clearToken } from '../lib/api';
@@ -23,6 +24,9 @@ export function MainPage() {
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
+  const usersMapRef = useRef<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [presence, setPresence] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     api.getWorkspaces().then((ws) => {
@@ -50,12 +54,38 @@ export function MainPage() {
     }).catch(() => {});
   }, [selectedWs]);
 
+  // Fetch unread counts when workspace changes
+  useEffect(() => {
+    if (!selectedWs) return;
+    unreadApi.getUnreadCounts(selectedWs).then(setUnreadCounts).catch(() => {});
+    presenceApi.getPresence(selectedWs).then((data) => {
+      const map = new Map<string, string>();
+      for (const p of data) map.set(p.userId, p.status);
+      setPresence(map);
+    }).catch(() => {});
+  }, [selectedWs]);
+
+  // Mark channel as read when selecting it, and clear local badge
+  useEffect(() => {
+    if (!selectedCh) return;
+    unreadApi.markRead(selectedCh).catch(() => {});
+    setUnreadCounts((prev) => {
+      if (!prev[selectedCh]) return prev;
+      const next = { ...prev };
+      delete next[selectedCh];
+      return next;
+    });
+  }, [selectedCh]);
+
+
   useEffect(() => {
     if (!selectedCh) { setMessages([]); return; }
     api.getMessages(selectedCh).then((msgs) => {
       setMessages(msgs.reverse());
     }).catch(() => {});
   }, [selectedCh]);
+
+  useEffect(() => { usersMapRef.current = usersMap; }, [usersMap]);
 
   const addUserInfo = useCallback((userId: string, displayName: string, isAgent: boolean) => {
     setUsersMap((prev) => {
@@ -92,6 +122,9 @@ export function MainPage() {
           next.delete(p.userId);
           return next;
         });
+      } else {
+        // Increment unread count for other channels
+        setUnreadCounts((prev) => ({ ...prev, [p.channelId]: (prev[p.channelId] || 0) + 1 }));
       }
     }
     if (event.type === 'typing.started' && event.data) {
@@ -103,14 +136,27 @@ export function MainPage() {
       });
       const existing = typingTimers.current.get(p.userId);
       if (existing) clearTimeout(existing);
-      typingTimers.current.set(p.userId, setTimeout(() => {
-        setTypingUsers((prev) => {
-          const next = new Map(prev);
-          next.delete(p.userId);
-          return next;
-        });
-        typingTimers.current.delete(p.userId);
-      }, 5000));
+      // For agents, no timeout - indicator stays until their message arrives
+      const userInfo = usersMapRef.current.get(p.userId);
+      const isAgent = userInfo?.isAgent ?? false;
+      if (!isAgent) {
+        typingTimers.current.set(p.userId, setTimeout(() => {
+          setTypingUsers((prev) => {
+            const next = new Map(prev);
+            next.delete(p.userId);
+            return next;
+          });
+          typingTimers.current.delete(p.userId);
+        }, 30000));
+      }
+    }
+    if (event.type === 'presence.changed' && event.data) {
+      const p = event.data;
+      setPresence((prev) => {
+        const next = new Map(prev);
+        next.set(p.userId, p.status);
+        return next;
+      });
     }
     if (event.type === 'channel.created' && event.data) {
       setChannels((prev) => {
@@ -258,6 +304,22 @@ export function MainPage() {
                       }}
                     >
                       💬 # {ch.name} {ch.channelType === 'private' && '🔒'}
+                      {unreadCounts[ch.id] > 0 && (
+                        <span style={{
+                          display: 'inline-block',
+                          marginLeft: 4,
+                          minWidth: 14,
+                          height: 14,
+                          lineHeight: '14px',
+                          borderRadius: 7,
+                          background: '#CC3333',
+                          color: '#FFFFFF',
+                          fontSize: 9,
+                          textAlign: 'center' as const,
+                          padding: '0 3px',
+                          fontWeight: 'bold',
+                        }}>{unreadCounts[ch.id]}</span>
+                      )}
                     </div>
                   ))}
                   {channels.filter(ch => ch.channelType !== 'dm').length === 0 && (
@@ -273,7 +335,14 @@ export function MainPage() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
                     <span style={{ fontSize: 11, fontWeight: 'bold' }}>Users</span>
                   </div>
-                  {workspaceMembers.filter(member => member.id !== user?.id).map((member) => (
+                  {workspaceMembers.filter(member => member.id !== user?.id).sort((a, b) => {
+                    const order: Record<string, number> = { online: 0, idle: 1, offline: 2 };
+                    const sa = order[presence.get(a.id) || 'offline'] ?? 2;
+                    const sb = order[presence.get(b.id) || 'offline'] ?? 2;
+                    return sa - sb;
+                  }).map((member) => {
+                    const status = presence.get(member.id) || 'offline';
+                    return (
                     <div
                       key={member.id}
                       onClick={() => handleUserClick(member.id)}
@@ -282,7 +351,8 @@ export function MainPage() {
                         fontSize: 12,
                         cursor: 'pointer',
                         background: 'transparent',
-                        color: '#000000',
+                        color: status === 'offline' ? '#999999' : '#000000',
+                        fontStyle: status === 'offline' ? 'italic' : 'normal',
                         borderRadius: 2,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
@@ -291,9 +361,12 @@ export function MainPage() {
                       onMouseEnter={(e) => (e.target as HTMLElement).style.background = '#EEEEEE'}
                       onMouseLeave={(e) => (e.target as HTMLElement).style.background = 'transparent'}
                     >
-                      👤 {member.displayName} {member.isAgent && '[BOT]'}
+                      {status === 'online' && <span style={{ color: '#009900', marginRight: 3 }}>●</span>}
+                      {status === 'idle' && <span style={{ color: '#CC9900', marginRight: 3 }}>●</span>}
+                      {member.displayName} {member.isAgent && '[BOT]'}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

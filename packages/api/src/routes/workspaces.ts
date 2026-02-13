@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import { workspaces, workspaceMembers, channels, channelMembers, users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -213,4 +213,37 @@ workspaceRoutes.post('/:id/dm', async (c) => {
   });
 
   return c.json(dmChannel, 201);
+});
+
+// Get unread counts per channel
+workspaceRoutes.get('/:id/unread', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const workspaceId = c.req.param('id');
+
+  const result = await db.execute(
+    sql`SELECT c.id as channel_id,
+           COUNT(m.id)::int as unread_count
+         FROM channels c
+         LEFT JOIN channel_reads cr ON cr.channel_id = c.id AND cr.user_id = ${userId}
+         LEFT JOIN messages m ON m.channel_id = c.id AND (cr.last_read_at IS NULL OR m.created_at > cr.last_read_at)
+         WHERE c.workspace_id = ${workspaceId}
+         GROUP BY c.id
+         HAVING COUNT(m.id) > 0`
+  );
+
+  const counts: Record<string, number> = {};
+  for (const row of result as any[]) {
+    counts[row.channel_id] = row.unread_count;
+  }
+  return c.json(counts);
+});
+
+
+// Get workspace presence
+workspaceRoutes.get('/:id/presence', async (c) => {
+  const workspaceId = c.req.param('id');
+  const { getPresenceForWorkspace } = await import('../ws/manager.js');
+  const presence = getPresenceForWorkspace(workspaceId);
+  return c.json(presence);
 });

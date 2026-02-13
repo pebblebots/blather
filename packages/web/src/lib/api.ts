@@ -64,3 +64,18 @@ export const api = {
   getOrCreateDM: (workspaceId: string, userId: string) =>
     request<any>(`/workspaces/${workspaceId}/dm`, { method: 'POST', body: JSON.stringify({ userId }) }),
 };
+
+// Unread tracking
+export const unreadApi = {
+  markRead: (channelId: string) =>
+    request<{ ok: boolean }>(`/channels/${channelId}/read`, { method: 'POST' }),
+
+  getUnreadCounts: (workspaceId: string) =>
+    request<Record<string, number>>(`/workspaces/${workspaceId}/unread`),
+};
+
+// Presence
+export const presenceApi = {
+  getPresence: (workspaceId: string) =>
+    request<{ userId: string; status: string }[]>(`/workspaces/${workspaceId}/presence`),
+};

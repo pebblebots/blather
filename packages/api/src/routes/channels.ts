@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { messages, reactions, channels, channelMembers } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -137,4 +137,20 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
   }
 
   return c.json(reaction, 201);
+});
+
+// Mark channel as read
+channelRoutes.post('/:id/read', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = c.req.param('id');
+
+  await db.execute(
+    sql`INSERT INTO channel_reads (channel_id, user_id, last_read_at)
+         VALUES (${channelId}, ${userId}, NOW())
+         ON CONFLICT (channel_id, user_id)
+         DO UPDATE SET last_read_at = NOW()`
+  );
+
+  return c.json({ ok: true });
 });
