@@ -164,6 +164,14 @@ export function MainPage() {
         return exists ? prev : [...prev, event.data];
       });
     }
+    if (event.type === 'member.joined' && event.data) {
+      const m = event.data;
+      setWorkspaceMembers((prev) => {
+        const exists = prev.some((u: any) => u.id === m.id);
+        return exists ? prev : [...prev, m];
+      });
+      addUserInfo(m.id, m.displayName, m.isAgent);
+    }
   }, []);
 
   const wsConnected = useWebSocket(selectedWs, onWsEvent);

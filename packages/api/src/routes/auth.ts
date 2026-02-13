@@ -7,6 +7,7 @@ import type { Env } from '../app.js';
 import { signToken, hashApiKey, authMiddleware } from '../middleware/auth.js';
 import type { RegisterRequest, LoginRequest, CreateApiKeyRequest } from '@blather/types';
 import { Resend } from 'resend';
+import { publishEvent } from '../ws/manager.js';
 
 let _resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -65,6 +66,23 @@ async function autoJoinDomainWorkspaces(db: any, userId: string, email: string) 
               userId,
             });
           }
+        }
+
+        // Broadcast member.joined so other clients update their sidebar
+        const [joinedUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (joinedUser) {
+          await publishEvent(ws.id, {
+            type: 'member.joined',
+            workspace_id: ws.id,
+            channel_id: null,
+            data: {
+              id: joinedUser.id,
+              displayName: joinedUser.displayName,
+              email: joinedUser.email,
+              isAgent: joinedUser.isAgent,
+              avatarUrl: joinedUser.avatarUrl,
+            },
+          });
         }
       }
     }
