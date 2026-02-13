@@ -209,6 +209,14 @@ channelRoutes.patch('/:id/archive', async (c) => {
 
   const [updated] = await db.update(channels).set({ archived: true }).where(eq(channels.id, channelId)).returning();
 
+  await emitEvent(db, {
+    workspaceId: channel.workspaceId,
+    channelId,
+    userId,
+    type: 'channel.archived',
+    payload: { id: channelId },
+  });
+
   return c.json(updated);
 });
 

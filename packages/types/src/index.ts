@@ -137,6 +137,7 @@ export type EventType =
   | 'member.left'
   | 'channel.updated'
   | 'channel.deleted'
+  | 'channel.archived'
   | 'channel.member.added'
   | 'presence.changed';
 

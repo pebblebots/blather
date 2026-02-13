@@ -175,6 +175,11 @@ export function MainPage() {
       setChannels((prev) => prev.filter((c) => c.id !== deletedId));
       setSelectedCh((prev) => prev === deletedId ? null : prev);
     }
+    if (event.type === 'channel.archived' && event.data) {
+      const archivedId = event.data.id;
+      setChannels((prev) => prev.filter((c) => c.id !== archivedId));
+      setSelectedCh((prev) => prev === archivedId ? null : prev);
+    }
     if (event.type === 'member.joined' && event.data) {
       const m = event.data;
       setWorkspaceMembers((prev) => {
