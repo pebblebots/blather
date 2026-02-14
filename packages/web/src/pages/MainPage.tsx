@@ -17,7 +17,14 @@ export function MainPage() {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [selectedWs, setSelectedWs] = useState<string | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
-  const [selectedCh, setSelectedCh] = useState<string | null>(null);
+  const [selectedCh, _setSelectedCh] = useState<string | null>(null);
+  const setSelectedCh = (valOrFn: string | null | ((prev: string | null) => string | null)) => {
+    _setSelectedCh((prev) => {
+      const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
+      if (next) localStorage.setItem('blather_last_channel', next);
+      return next;
+    });
+  };
   const [messages, setMessages] = useState<any[]>([]);
   const [usersMap, setUsersMap] = useState<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
   const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
@@ -49,8 +56,11 @@ export function MainPage() {
     }
     api.getChannels(selectedWs).then((chs) => {
       setChannels(chs);
-      if (chs.length > 0) setSelectedCh(chs[0].id);
-      else setSelectedCh(null);
+      if (chs.length > 0) {
+        const saved = localStorage.getItem('blather_last_channel');
+        const match = saved && chs.find((c: any) => c.id === saved);
+        setSelectedCh(match ? saved : chs[0].id);
+      } else setSelectedCh(null);
     }).catch(() => {});
 
     api.getWorkspaceMembers(selectedWs).then((members) => {
