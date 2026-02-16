@@ -26,6 +26,8 @@ export function MainPage() {
     });
   };
   const [messages, setMessages] = useState<any[]>([]);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
   const [usersMap, setUsersMap] = useState<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
   const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,11 +95,33 @@ export function MainPage() {
 
 
   useEffect(() => {
-    if (!selectedCh) { setMessages([]); return; }
+    if (!selectedCh) { setMessages([]); setHasMoreOlder(true); return; }
     api.getMessages(selectedCh).then((msgs) => {
-      setMessages(msgs.reverse());
+      const sorted = msgs.reverse();
+      setMessages(sorted);
+      setHasMoreOlder(msgs.length >= 50);
     }).catch(() => {});
   }, [selectedCh]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!selectedCh || isLoadingOlder || !hasMoreOlder || messages.length === 0) return;
+    setIsLoadingOlder(true);
+    try {
+      const oldest = messages[0]?.createdAt;
+      const older = await api.getMessages(selectedCh, 50, undefined, oldest);
+      const sorted = older.reverse();
+      if (sorted.length === 0) {
+        setHasMoreOlder(false);
+      } else {
+        setMessages((prev) => [...sorted, ...prev]);
+        if (sorted.length < 50) setHasMoreOlder(false);
+      }
+    } catch (e) {
+      console.error("Failed to load older messages:", e);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [selectedCh, isLoadingOlder, hasMoreOlder, messages]);
 
   useEffect(() => { usersMapRef.current = usersMap; }, [usersMap]);
 
@@ -460,7 +484,7 @@ export function MainPage() {
 
             {selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} />
+                <MessageList messages={messages} usersMap={usersMap} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>

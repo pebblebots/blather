@@ -52,7 +52,7 @@ export const api = {
   createChannel: (workspaceId: string, data: { name: string; slug: string; topic?: string; channelType?: string; isDefault?: boolean }) =>
     request<any>(`/workspaces/${workspaceId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
 
-  getMessages: (channelId: string, limit = 50, after?: string) =>
+  getMessages: (channelId: string, limit = 50, after?: string, before?: string) =>
     request<any[]>(`/channels/${channelId}/messages?limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}`),
 
   sendMessage: (channelId: string, content: string) =>

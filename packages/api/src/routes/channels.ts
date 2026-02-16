@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, and, desc, gt, sql } from 'drizzle-orm';
+import { eq, and, desc, gt, lt, sql } from 'drizzle-orm';
 import { messages, reactions, channels, channelMembers, channelReads, events } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -15,6 +15,7 @@ channelRoutes.get('/:id/messages', async (c) => {
   const channelId = c.req.param('id');
   const limit = parseInt(c.req.query('limit') || '50', 10);
   const after = c.req.query('after');
+  const before = c.req.query('before');
 
   // Check access for private/dm channels
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -30,6 +31,9 @@ channelRoutes.get('/:id/messages', async (c) => {
   const conditions = [eq(messages.channelId, channelId)];
   if (after) {
     conditions.push(gt(messages.createdAt, new Date(after)));
+  }
+  if (before) {
+    conditions.push(lt(messages.createdAt, new Date(before)));
   }
   const result = await db.select().from(messages)
     .where(and(...conditions))
