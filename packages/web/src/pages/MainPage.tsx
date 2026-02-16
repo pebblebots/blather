@@ -123,12 +123,16 @@ export function MainPage() {
   // Use refs for values needed in WS callback to avoid reconnecting on every selection change
   const selectedChRef = useRef(selectedCh);
   selectedChRef.current = selectedCh;
+  const userRef = useRef(user);
+  userRef.current = user;
 
   const onWsEvent = useCallback((event: any) => {
     if (event.type === 'message.created' && event.data) {
       const p = event.data;
       if (p.channelId === selectedChRef.current) {
         setMessages((prev) => [...prev, p]);
+        // Mark channel as read so server stays in sync
+        unreadApi.markRead(p.channelId).catch(() => {});
         // Clear typing indicator for this user in this channel
         setTypingUsers((prev) => {
           const key = `${p.channelId}:${p.userId}`;
@@ -137,8 +141,8 @@ export function MainPage() {
           next.delete(key);
           return next;
         });
-      } else {
-        // Increment unread count for other channels
+      } else if (p.userId !== userRef.current?.id) {
+        // Increment unread count for other channels (skip own messages)
         setUnreadCounts((prev) => ({ ...prev, [p.channelId]: (prev[p.channelId] || 0) + 1 }));
       }
     }
