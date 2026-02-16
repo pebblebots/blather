@@ -204,7 +204,7 @@ export function MainPage() {
     }
   }, []);
 
-  const wsConnected = useWebSocket(selectedWs, onWsEvent);
+  const wsConnected = useWebSocket(selectedWs, onWsEvent, selectedCh);
 
   const handleSend = async (content: string) => {
     if (!selectedCh) return;
