@@ -160,3 +160,37 @@ export interface PresenceInfo {
   userId: string;
   status: PresenceStatus;
 }
+
+// ── Tasks ──
+
+export type TaskPriority = 'urgent' | 'normal' | 'low';
+export type TaskStatus = 'queued' | 'in_progress' | 'done';
+
+export interface Task {
+  id: string;
+  workspaceId: string;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assigneeId: string | null;
+  creatorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTaskRequest {
+  workspaceId: string;
+  title: string;
+  description?: string;
+  priority?: TaskPriority;
+  assigneeId?: string;
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  description?: string | null;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+  assigneeId?: string | null;
+}

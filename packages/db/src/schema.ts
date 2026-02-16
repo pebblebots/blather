@@ -122,3 +122,23 @@ export const channelReads = pgTable('channel_reads', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Task Priority & Status Enums ──
+
+export const taskPriorityEnum = pgEnum("task_priority", ["urgent", "normal", "low"]);
+export const taskStatusEnum = pgEnum("task_status", ["queued", "in_progress", "done"]);
+
+// ── Tasks ──
+
+export const tasks = pgTable("tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  priority: taskPriorityEnum("priority").notNull().default("normal"),
+  status: taskStatusEnum("status").notNull().default("queued"),
+  assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
+  creatorId: uuid("creator_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -11,6 +11,7 @@ import { CreateChannelModal } from '../components/CreateChannelModal';
 import { ChannelContextMenu } from '../components/ChannelContextMenu';
 import { InviteMemberModal } from '../components/InviteMemberModal';
 import { TypingIndicator } from '../components/TypingIndicator';
+import { TaskPanel } from '../components/TaskPanel';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -35,6 +36,7 @@ export function MainPage() {
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
+  const [showTasks, setShowTasks] = useState(false);
   const [contextMenu, setContextMenu] = useState<{x: number; y: number; channel: any} | null>(null);
   const [inviteChannelId, setInviteChannelId] = useState<string | null>(null);
   const usersMapRef = useRef<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
@@ -379,7 +381,7 @@ export function MainPage() {
                   {channels.filter(ch => ch.channelType !== 'dm').map((ch) => (
                     <div
                       key={ch.id}
-                      onClick={() => setSelectedCh(ch.id)}
+                      onClick={() => { setSelectedCh(ch.id); setShowTasks(false); }}
                       onContextMenu={(e) => handleChannelContextMenu(e, ch)}
                       style={{
                         padding: '2px 6px 2px 14px',
@@ -415,6 +417,27 @@ export function MainPage() {
                   {channels.filter(ch => ch.channelType !== 'dm').length === 0 && (
                     <div style={{ padding: '2px 6px', fontSize: 11, color: '#999999' }}>No channels</div>
                   )}
+                </div>
+              )}
+
+              {/* Tasks */}
+              {selectedWs && (
+                <div style={{ marginTop: 4, marginBottom: 4 }}>
+                  <hr className="mac-separator" />
+                  <div
+                    onClick={() => { setShowTasks(true); setSelectedCh(null); }}
+                    style={{
+                      padding: "2px 6px",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      background: showTasks ? "#3366CC" : "transparent",
+                      color: showTasks ? "#FFFFFF" : "#000000",
+                      borderRadius: 2,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    📋 Tasks
+                  </div>
                 </div>
               )}
 
@@ -482,7 +505,9 @@ export function MainPage() {
               </div>
             </div>
 
-            {selectedCh ? (
+            {showTasks && selectedWs ? (
+              <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
+            ) : selectedCh ? (
               <>
                 <MessageList messages={messages} usersMap={usersMap} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />

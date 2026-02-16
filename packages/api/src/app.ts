@@ -6,6 +6,7 @@ import { authRoutes } from './routes/auth.js';
 import { workspaceRoutes } from './routes/workspaces.js';
 import { channelRoutes } from './routes/channels.js';
 import { wsRoutes } from './routes/ws.js';
+import { taskRoutes } from './routes/tasks.js';
 
 export type Env = {
   Variables: {
@@ -39,3 +40,4 @@ app.route('/auth', authRoutes);
 app.route('/workspaces', workspaceRoutes);
 app.route('/channels', channelRoutes);
 app.route('/ws', wsRoutes);
+app.route('/tasks', taskRoutes);

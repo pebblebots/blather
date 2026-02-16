@@ -94,3 +94,20 @@ export const presenceApi = {
   getPresence: (workspaceId: string) =>
     request<{ userId: string; status: string }[]>(`/workspaces/${workspaceId}/presence`),
 };
+
+// Tasks
+export const taskApi = {
+  list: (workspaceId: string, filters?: { status?: string; priority?: string; assigneeId?: string }) => {
+    const params = new URLSearchParams({ workspaceId });
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.priority) params.set('priority', filters.priority);
+    if (filters?.assigneeId) params.set('assigneeId', filters.assigneeId);
+    return request<any[]>(`/tasks?${params}`);
+  },
+  create: (data: { workspaceId: string; title: string; description?: string; priority?: string; assigneeId?: string }) =>
+    request<any>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { title?: string; description?: string | null; priority?: string; status?: string; assigneeId?: string | null }) =>
+    request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    request<{ ok: boolean }>(`/tasks/${id}`, { method: 'DELETE' }),
+};
