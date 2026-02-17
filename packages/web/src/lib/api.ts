@@ -84,6 +84,16 @@ export const api = {
 
   getChannelMembers: (channelId: string) =>
     request<any[]>(`/channels/${channelId}/members`),
+
+  searchMessages: (params: { q: string; workspaceId: string; channelId?: string; userId?: string; before?: string; after?: string; limit?: number }) => {
+    const p = new URLSearchParams({ q: params.q, workspaceId: params.workspaceId });
+    if (params.channelId) p.set("channelId", params.channelId);
+    if (params.userId) p.set("userId", params.userId);
+    if (params.before) p.set("before", params.before);
+    if (params.after) p.set("after", params.after);
+    if (params.limit) p.set("limit", String(params.limit));
+    return request<any[]>(`/messages/search?${p}`);
+  },
 };
 
 // Unread tracking

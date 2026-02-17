@@ -12,6 +12,7 @@ import { ChannelContextMenu } from '../components/ChannelContextMenu';
 import { InviteMemberModal } from '../components/InviteMemberModal';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { TaskPanel } from '../components/TaskPanel';
+import { SearchPanel } from '../components/SearchPanel';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -37,6 +38,7 @@ export function MainPage() {
   const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [contextMenu, setContextMenu] = useState<{x: number; y: number; channel: any} | null>(null);
   const [inviteChannelId, setInviteChannelId] = useState<string | null>(null);
   const usersMapRef = useRef<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
@@ -383,6 +385,18 @@ export function MainPage() {
     setContextMenu({ x: e.clientX, y: e.clientY, channel: ch });
   };
 
+  // Keyboard shortcut: Cmd+K or Ctrl+K to open search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearch((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const selectedChannel = channels.find((c) => c.id === selectedCh);
   const selectedWorkspace = workspaces.find((w) => w.id === selectedWs);
 
@@ -469,7 +483,13 @@ export function MainPage() {
               {selectedWs && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 'bold' }}>Channels</span>
+                    <span style={{ fontSize: 11, fontWeight: "bold" }}>Channels</span>
+                    <button
+                      className="mac-btn"
+                      style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, marginRight: 2 }}
+                      onClick={() => setShowSearch(true)}
+                      title="Search messages"
+                    >🔍</button>
                     <button
                       className="mac-btn"
                       style={{ minWidth: 0, padding: '0 4px', fontSize: 10, borderRadius: 3 }}
@@ -664,6 +684,17 @@ export function MainPage() {
           channelId={inviteChannelId}
           workspaceMembers={workspaceMembers}
           onClose={() => setInviteChannelId(null)}
+        />
+      )}
+      {showSearch && selectedWs && (
+        <SearchPanel
+          workspaceId={selectedWs}
+          onClose={() => setShowSearch(false)}
+          onNavigate={(channelId, messageId) => {
+            setSelectedCh(channelId);
+            setShowTasks(false);
+            setShowSearch(false);
+          }}
         />
       )}
       {showCreateCh && selectedWs && (
