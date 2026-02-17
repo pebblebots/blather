@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique } from 'drizzle-orm/pg-core';
 
 export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member']);
 export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm']);
@@ -121,7 +121,9 @@ export const channelReads = pgTable('channel_reads', {
   channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  unq: unique().on(t.channelId, t.userId),
+}));
 
 // ── Task Priority & Status Enums ──
 
