@@ -85,7 +85,6 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
         <span style={{ color: '#999999', fontSize: 11 }}>[{formatTime(msg.createdAt)}]</span>
         {' '}
         <span style={{ fontWeight: 'bold', color: nickColor, fontSize: 12 }}>&lt;{user.displayName}&gt;</span>
-        {user.isAgent && <span style={{ fontWeight: 'bold', color: '#666666', fontSize: 11 }}> [BOT]</span>}
         {' '}
         <MarkdownText text={msg.content} />
       </div>

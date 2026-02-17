@@ -143,7 +143,6 @@ export function SearchPanel({ workspaceId, onNavigate, onClose }: SearchPanelPro
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                   <span style={{ fontWeight: "bold", fontSize: 11 }}>
                     {r.userName}
-                    {r.userIsAgent && " [BOT]"}
                     <span style={{ fontWeight: "normal", color: "#666", marginLeft: 6 }}>
                       #{r.channelName}
                     </span>

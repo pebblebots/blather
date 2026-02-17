@@ -615,7 +615,7 @@ export function MainPage() {
                     >
                       {status === 'online' && <span style={{ color: '#009900', marginRight: 3 }}>●</span>}
                       {status === 'idle' && <span style={{ color: '#CC9900', marginRight: 3 }}>●</span>}
-                      {member.displayName} {member.isAgent && '[BOT]'}
+                      {member.displayName}
                     </div>
                     );
                   })}
@@ -680,7 +680,6 @@ export function MainPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{user?.displayName}</span>
-            {user?.isAgent && <span style={{ fontWeight: 'bold', fontSize: 10 }}>[BOT]</span>}
           </div>
           <div style={{ flex: 1 }} />
           <button

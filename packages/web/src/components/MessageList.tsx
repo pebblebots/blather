@@ -210,7 +210,6 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
             <span style={{ color: "#999999" }}>[{formatTime(msg.createdAt)}]</span>
             {" "}
             <span style={{ fontWeight: "bold", color: nickColor }}>&lt;{user.displayName}&gt;</span>
-            {user.isAgent && <span style={{ fontWeight: "bold", color: "#666666" }}> [BOT]</span>}
             {" "}
             {editingMsg === msg.id ? (
               <span style={{ display: "inline" }}>
