@@ -5,7 +5,9 @@ import jwt from 'jsonwebtoken';
 import { createHash } from 'crypto';
 import { eq, and, isNull } from 'drizzle-orm';
 import { apiKeys, channels, channelMembers } from '@blather/db';
-import { createDb } from '@blather/db';
+import { createDb } from "@blather/db";
+
+const db = createDb();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'blather-dev-secret-change-in-production';
 
@@ -84,7 +86,7 @@ export async function publishEvent(workspaceId: string, event: Record<string, un
 
   // If event is for a specific channel, check if it's private/dm
   if (event.channel_id) {
-    const db = createDb();
+    
     const [ch] = await db.select({ channelType: channels.channelType })
       .from(channels)
       .where(eq(channels.id, event.channel_id))
@@ -114,7 +116,7 @@ export async function publishEphemeralEvent(workspaceId: string, channelId: stri
 
   let allowedUserIds: Set<string> | null = null;
 
-  const db = createDb();
+  // using module-level db
   const [ch] = await db.select({ channelType: channels.channelType })
     .from(channels)
     .where(eq(channels.id, channelId))
@@ -219,7 +221,7 @@ export function attachWebSocket(server: Server) {
       }
       // API key auth
       if (apiKeyParam) {
-        const db = createDb();
+        // using module-level db
         const hash = createHash('sha256').update(apiKeyParam).digest('hex');
         db.select().from(apiKeys).where(
           and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
