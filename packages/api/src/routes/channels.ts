@@ -44,6 +44,7 @@ channelRoutes.get('/:id/messages', async (c) => {
     threadId: messages.threadId,
     createdAt: messages.createdAt,
     updatedAt: messages.updatedAt,
+    attachments: messages.attachments,
     user: {
       displayName: users.displayName,
       isAgent: users.isAgent,
@@ -62,7 +63,7 @@ channelRoutes.post('/:id/messages', async (c) => {
   const db = c.get('db');
   const channelId = c.req.param('id');
   const userId = c.get('userId');
-  const body = await c.req.json<{ content: string; threadId?: string }>();
+  const body = await c.req.json<{ content: string; threadId?: string; attachments?: any[] }>();
 
   // Look up channel
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -81,6 +82,7 @@ channelRoutes.post('/:id/messages', async (c) => {
     userId,
     content: body.content,
     threadId: body.threadId ?? null,
+    attachments: body.attachments || [],
   }).returning();
 
   await emitEvent(db, {
@@ -95,6 +97,7 @@ channelRoutes.post('/:id/messages', async (c) => {
       content: msg.content,
       threadId: msg.threadId,
       createdAt: msg.createdAt.toISOString(),
+      attachments: msg.attachments || [],
     },
   });
 
@@ -330,6 +333,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
         threadId: updated.threadId,
         createdAt: updated.createdAt.toISOString(),
         updatedAt: updated.updatedAt.toISOString(),
+        attachments: updated.attachments || [],
       },
     });
   }

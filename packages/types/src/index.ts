@@ -95,7 +95,8 @@ export interface Channel {
 
 // ── Messages ──
 
-export interface CreateMessageRequest {
+// Old CreateMessageRequest replaced by version with attachments
+export interface _OldCreateMessageRequest_REMOVED {
   content: string;
   threadId?: string;
 }
@@ -193,4 +194,27 @@ export interface UpdateTaskRequest {
   priority?: TaskPriority;
   status?: TaskStatus;
   assigneeId?: string | null;
+}
+
+// ── Attachments ──
+
+export interface Attachment {
+  url: string;
+  filename: string;
+  contentType: string;
+  size: number;
+}
+
+// Old CreateMessageRequest replaced by version with attachments
+export interface _OldCreateMessageRequest_REMOVED {
+  content: string;
+  threadId?: string;
+  attachments?: Attachment[];
+}
+
+export interface UploadResponse {
+  url: string;
+  filename: string;
+  contentType: string;
+  size: number;
 }

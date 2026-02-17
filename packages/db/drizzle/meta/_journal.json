@@ -29,6 +29,13 @@
       "when": 1771278200299,
       "tag": "0003_add-tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1739820000000,
+      "tag": "0004_add-attachments",
+      "breakpoints": true
     }
   ]
 }

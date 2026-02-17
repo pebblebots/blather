@@ -333,10 +333,10 @@ export function MainPage() {
     } catch (e: any) { alert(e.message || 'Failed to delete message'); }
   };
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, attachments?: any[]) => {
     if (!selectedCh) return;
     try {
-      const msg = await api.sendMessage(selectedCh, content);
+      const msg = await api.sendMessage(selectedCh, content, attachments);
       setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
     } catch {}
   };

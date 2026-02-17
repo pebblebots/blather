@@ -8,6 +8,7 @@ import { channelRoutes } from './routes/channels.js';
 import { wsRoutes } from './routes/ws.js';
 import { taskRoutes } from './routes/tasks.js';
 import { messageRoutes } from './routes/messages.js';
+import { uploadRoutes } from './routes/uploads.js';
 
 export type Env = {
   Variables: {
@@ -43,3 +44,4 @@ app.route('/channels', channelRoutes);
 app.route('/ws', wsRoutes);
 app.route('/tasks', taskRoutes);
 app.route('/messages', messageRoutes);
+app.route("/uploads", uploadRoutes);

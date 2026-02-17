@@ -88,6 +88,7 @@ export const messages = pgTable('messages', {
   channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id),
   content: text('content').notNull(),
+  attachments: jsonb("attachments").$type<{ url: string; filename: string; contentType: string; size: number }[]>().default([]),
   threadId: uuid('thread_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

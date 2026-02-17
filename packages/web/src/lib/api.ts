@@ -55,8 +55,8 @@ export const api = {
   getMessages: (channelId: string, limit = 50, after?: string, before?: string) =>
     request<any[]>(`/channels/${channelId}/messages?limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}`),
 
-  sendMessage: (channelId: string, content: string) =>
-    request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
+  sendMessage: (channelId: string, content: string, attachments?: any[]) =>
+    request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content, attachments }) }),
 
   getWorkspaceMembers: (workspaceId: string) =>
     request<any[]>(`/workspaces/${workspaceId}/members`),
@@ -127,3 +127,38 @@ export const taskApi = {
   delete: (id: string) =>
     request<{ ok: boolean }>(`/tasks/${id}`, { method: 'DELETE' }),
 };
+
+// File uploads
+export async function uploadFile(
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<{ url: string; filename: string; contentType: string; size: number }> {
+  const token = localStorage.getItem('blather_token');
+  const BASE = import.meta.env.VITE_API_URL || '';
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/uploads`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        try { reject(new Error(JSON.parse(xhr.responseText).error)); }
+        catch { reject(new Error(`Upload failed: ${xhr.status}`)); }
+      }
+    };
+    xhr.onerror = () => reject(new Error('Upload failed'));
+
+    const fd = new FormData();
+    fd.append('file', file);
+    xhr.send(fd);
+  });
+}

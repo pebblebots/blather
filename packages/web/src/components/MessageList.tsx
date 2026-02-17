@@ -8,6 +8,7 @@ interface Msg {
   createdAt: string;
   updatedAt?: string;
   user?: { displayName: string; isAgent: boolean };
+  attachments?: { url: string; filename: string; contentType: string; size: number }[];
 }
 
 const NICK_COLORS = [
@@ -24,6 +25,67 @@ function getNickColor(userId: string): string {
 function formatTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+
+function isImageType(ct: string): boolean {
+  return ct.startsWith("image/");
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function AttachmentRenderer({ attachments }: { attachments: { url: string; filename: string; contentType: string; size: number }[] }) {
+  const BASE = (import.meta as any).env?.VITE_API_URL || "";
+  if (!attachments || attachments.length === 0) return null;
+  return (
+    <div style={{ marginTop: 2, display: "flex", flexWrap: "wrap", gap: 4 }}>
+      {attachments.map((att, i) =>
+        isImageType(att.contentType) ? (
+          <a key={i} href={`${BASE}${att.url}`} target="_blank" rel="noopener noreferrer">
+            <img
+              src={`${BASE}${att.url}`}
+              alt={att.filename}
+              style={{
+                maxWidth: 300,
+                maxHeight: 200,
+                borderRadius: 2,
+                border: "1px solid #CCCCCC",
+                display: "block",
+                cursor: "pointer",
+              }}
+              loading="lazy"
+            />
+          </a>
+        ) : (
+          <a
+            key={i}
+            href={`${BASE}${att.url}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "2px 6px",
+              border: "1px solid #CCCCCC",
+              borderRadius: 2,
+              background: "#F5F5F5",
+              color: "#3366CC",
+              textDecoration: "none",
+              fontSize: 11,
+              fontFamily: "Monaco, IBM Plex Mono, monospace",
+            }}
+          >
+            📄 {att.filename} <span style={{ color: "#999999", fontSize: 10 }}>({formatFileSize(att.size)})</span>
+          </a>
+        )
+      )}
+    </div>
+  );
 }
 
 function isEdited(msg: Msg): boolean {
@@ -176,6 +238,9 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
                 <MarkdownText text={msg.content} />
                 {isEdited(msg) && (
                   <span style={{ fontSize: 10, color: "#999999", marginLeft: 4 }}>(edited)</span>
+                )}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <AttachmentRenderer attachments={msg.attachments} />
                 )}
               </>
             )}
