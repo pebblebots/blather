@@ -143,6 +143,28 @@ channelRoutes.post('/:id/messages', async (c) => {
     });
   }
 
+  // Fire-and-forget: ingest message for agent memory (only human messages)
+  if (!msgUser?.isAgent) {
+    try {
+      const members = await db
+        .select({ userId: channelMembers.userId, isAgent: usersTable.isAgent })
+        .from(channelMembers)
+        .innerJoin(usersTable, eq(channelMembers.userId, usersTable.id))
+        .where(and(eq(channelMembers.channelId, channelId), eq(usersTable.isAgent, true)));
+      for (const agent of members) {
+        fetch("http://localhost:3002/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: agent.userId,
+            text: body.content,
+            metadata: { channelId, messageId: msg.id, userId, timestamp: new Date().toISOString() },
+          }),
+        }).catch(() => {});
+      }
+    } catch {}
+  }
+
   return c.json(msg, 201);
 });
 
