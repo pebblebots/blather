@@ -292,3 +292,82 @@ channelRoutes.delete('/:id', async (c) => {
 
   return c.json({ ok: true });
 });
+
+// Edit message (only author can edit)
+channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = c.req.param('channelId');
+  const messageId = c.req.param('messageId');
+  const body = await c.req.json<{ content: string }>();
+
+  if (!body.content || !body.content.trim()) {
+    return c.json({ error: 'Content cannot be empty' }, 400);
+  }
+
+  const [msg] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
+  if (!msg) return c.json({ error: 'Message not found' }, 404);
+  if (msg.userId !== userId) return c.json({ error: 'You can only edit your own messages' }, 403);
+  if (msg.channelId !== channelId) return c.json({ error: 'Message does not belong to this channel' }, 400);
+
+  const [updated] = await db.update(messages)
+    .set({ content: body.content, updatedAt: new Date() })
+    .where(eq(messages.id, messageId))
+    .returning();
+
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (channel) {
+    await emitEvent(db, {
+      workspaceId: channel.workspaceId,
+      channelId,
+      userId,
+      type: 'message.updated',
+      payload: {
+        id: updated.id,
+        channelId: updated.channelId,
+        userId: updated.userId,
+        content: updated.content,
+        threadId: updated.threadId,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+      },
+    });
+  }
+
+  return c.json(updated);
+});
+
+// Delete message (only author can delete)
+channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = c.req.param('channelId');
+  const messageId = c.req.param('messageId');
+
+  const [msg] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
+  if (!msg) return c.json({ error: 'Message not found' }, 404);
+  if (msg.userId !== userId) return c.json({ error: 'You can only delete your own messages' }, 403);
+  if (msg.channelId !== channelId) return c.json({ error: 'Message does not belong to this channel' }, 400);
+
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+
+  // Delete reactions first
+  await db.delete(reactions).where(eq(reactions.messageId, messageId));
+  await db.delete(messages).where(eq(messages.id, messageId));
+
+  if (channel) {
+    await emitEvent(db, {
+      workspaceId: channel.workspaceId,
+      channelId,
+      userId,
+      type: 'message.deleted',
+      payload: {
+        id: messageId,
+        channelId,
+        userId,
+      },
+    });
+  }
+
+  return c.json({ ok: true });
+});

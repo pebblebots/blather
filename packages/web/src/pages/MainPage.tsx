@@ -240,16 +240,96 @@ export function MainPage() {
       setSelectedCh((prev) => prev === archivedId ? null : prev);
     }
     if (event.type === 'member.joined' && event.data) {
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
+    }
       const m = event.data;
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
+    }
       setWorkspaceMembers((prev) => {
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
+    }
         const exists = prev.some((u: any) => u.id === m.id);
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
+    }
         return exists ? prev : [...prev, m];
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
+    }
       });
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
+    }
       addUserInfo(m.id, m.displayName, m.isAgent);
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
+    }
+    }
+    if (event.type === 'message.updated' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
+    }
+    if (event.type === 'message.deleted' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.filter((m) => m.id !== p.id));
     }
   }, []);
 
   const wsConnected = useWebSocket(selectedWs, onWsEvent, selectedCh);
+
+  const handleEditMessage = async (messageId: string, content: string) => {
+    if (!selectedCh) return;
+    try {
+      const updated = await api.editMessage(selectedCh, messageId, content);
+      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, content: updated.content, updatedAt: updated.updatedAt || updated.updated_at } : m));
+    } catch (e: any) { alert(e.message || 'Failed to edit message'); }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!selectedCh) return;
+    try {
+      await api.deleteMessage(selectedCh, messageId);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    } catch (e: any) { alert(e.message || 'Failed to delete message'); }
+  };
 
   const handleSend = async (content: string) => {
     if (!selectedCh) return;
@@ -528,7 +608,7 @@ export function MainPage() {
               <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
             ) : selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} />
+                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>

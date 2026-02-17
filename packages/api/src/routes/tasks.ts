@@ -6,6 +6,13 @@ import { authMiddleware } from '../middleware/auth.js';
 
 export const taskRoutes = new Hono<Env>();
 taskRoutes.use('*', authMiddleware);
+// Normalize status: accept both hyphens and underscores
+function normalizeStatus(s: string): 'queued' | 'in_progress' | 'done' {
+  const mapped = s.replace(/-/g, '_');
+  if (!['queued', 'in_progress', 'done'].includes(mapped)) throw new Error('Invalid status: ' + s);
+  return mapped as any;
+}
+
 
 // List tasks for a workspace
 taskRoutes.get('/', async (c) => {
@@ -15,7 +22,7 @@ taskRoutes.get('/', async (c) => {
 
   const conditions: any[] = [eq(tasks.workspaceId, workspaceId)];
   const status = c.req.query('status');
-  if (status) conditions.push(eq(tasks.status, status as any));
+  if (status) conditions.push(eq(tasks.status, status.replace(/-/g, '_') as any));
   const priority = c.req.query('priority');
   if (priority) conditions.push(eq(tasks.priority, priority as any));
   const assignee = c.req.query('assigneeId');
@@ -72,7 +79,7 @@ taskRoutes.patch('/:id', async (c) => {
   if (body.title !== undefined) updates.title = body.title;
   if (body.description !== undefined) updates.description = body.description;
   if (body.priority !== undefined) updates.priority = body.priority;
-  if (body.status !== undefined) updates.status = body.status;
+  if (body.status !== undefined) updates.status = normalizeStatus(body.status);
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
 
   const [task] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();

@@ -1,11 +1,12 @@
 import { MarkdownText } from "./MarkdownText";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 
 interface Msg {
   id: string;
   userId: string;
   content: string;
   createdAt: string;
+  updatedAt?: string;
   user?: { displayName: string; isAgent: boolean };
 }
 
@@ -25,30 +26,38 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+function isEdited(msg: Msg): boolean {
+  if (!msg.updatedAt || !msg.createdAt) return false;
+  return new Date(msg.updatedAt).getTime() - new Date(msg.createdAt).getTime() > 1000;
+}
+
 interface Props {
   messages: Msg[];
   usersMap: Map<string, { displayName: string; isAgent: boolean }>;
+  currentUserId?: string;
   onLoadOlder?: () => void;
   isLoadingOlder?: boolean;
   hasMoreOlder?: boolean;
+  onEditMessage?: (messageId: string, content: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
 }
 
-export function MessageList({ messages, usersMap, onLoadOlder, isLoadingOlder, hasMoreOlder }: Props) {
+export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
   const isRestoringScroll = useRef(false);
   const prevMsgCountRef = useRef<number>(0);
+  const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
+  const [editingMsg, setEditingMsg] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
-  // Auto-scroll to bottom on new messages (only if already near bottom)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
     const newCount = messages.length;
     const oldCount = prevMsgCountRef.current;
-
-    // If messages were prepended (older loaded), restore scroll position
     if (isRestoringScroll.current) {
       const newScrollHeight = el.scrollHeight;
       const diff = newScrollHeight - prevScrollHeightRef.current;
@@ -57,27 +66,44 @@ export function MessageList({ messages, usersMap, onLoadOlder, isLoadingOlder, h
       prevMsgCountRef.current = newCount;
       return;
     }
-
-    // Otherwise scroll to bottom if near bottom or first load
     const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
     if (isNearBottom || oldCount === 0) {
       endRef.current?.scrollIntoView({ behavior: oldCount === 0 ? "auto" : "smooth" });
     }
-
     prevMsgCountRef.current = newCount;
   }, [messages.length]);
 
-  // Scroll-to-top detection
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el || isLoadingOlder || !hasMoreOlder || !onLoadOlder) return;
-
     if (el.scrollTop < 50) {
       prevScrollHeightRef.current = el.scrollHeight;
       isRestoringScroll.current = true;
       onLoadOlder();
     }
   }, [isLoadingOlder, hasMoreOlder, onLoadOlder]);
+
+  const startEdit = (msg: Msg) => {
+    setEditingMsg(msg.id);
+    setEditText(msg.content);
+  };
+
+  const cancelEdit = () => {
+    setEditingMsg(null);
+    setEditText("");
+  };
+
+  const submitEdit = (msgId: string) => {
+    if (editText.trim() && onEditMessage) {
+      onEditMessage(msgId, editText.trim());
+    }
+    cancelEdit();
+  };
+
+  const confirmDelete = (msgId: string) => {
+    if (onDeleteMessage) onDeleteMessage(msgId);
+    setShowDeleteConfirm(null);
+  };
 
   if (messages.length === 0) {
     return (
@@ -92,7 +118,7 @@ export function MessageList({ messages, usersMap, onLoadOlder, isLoadingOlder, h
       ref={containerRef}
       onScroll={handleScroll}
       className="mac-inset"
-      style={{ flex: 1, overflowY: "auto", padding: 6, fontSize: 12, fontFamily: "Monaco, IBM Plex Mono, monospace", margin: 4 }}
+      style={{ flex: 1, overflowY: "auto", padding: 6, fontSize: 12, fontFamily: "Monaco, IBM Plex Mono, monospace", margin: 4, position: "relative" }}
     >
       {isLoadingOlder && (
         <div style={{ textAlign: "center", padding: "4px 0", color: "#999999", fontSize: 11 }}>
@@ -107,14 +133,89 @@ export function MessageList({ messages, usersMap, onLoadOlder, isLoadingOlder, h
       {messages.map((msg) => {
         const user = usersMap.get(msg.userId) || { displayName: msg.userId.slice(0, 8), isAgent: false };
         const nickColor = getNickColor(msg.userId);
+        const isOwn = msg.userId === currentUserId;
+        const isHovered = hoveredMsg === msg.id;
+
         return (
-          <div key={msg.id} style={{ padding: "1px 2px", lineHeight: 1.6 }}>
+          <div
+            key={msg.id}
+            style={{ padding: "1px 2px", lineHeight: 1.6, position: "relative", background: isHovered ? "#F0F0F0" : "transparent" }}
+            onMouseEnter={() => setHoveredMsg(msg.id)}
+            onMouseLeave={() => setHoveredMsg(null)}
+          >
             <span style={{ color: "#999999" }}>[{formatTime(msg.createdAt)}]</span>
             {" "}
             <span style={{ fontWeight: "bold", color: nickColor }}>&lt;{user.displayName}&gt;</span>
             {user.isAgent && <span style={{ fontWeight: "bold", color: "#666666" }}> [BOT]</span>}
             {" "}
-            <MarkdownText text={msg.content} />
+            {editingMsg === msg.id ? (
+              <span style={{ display: "inline" }}>
+                <input
+                  type="text"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitEdit(msg.id);
+                    if (e.key === "Escape") cancelEdit();
+                  }}
+                  autoFocus
+                  style={{
+                    fontFamily: "Monaco, IBM Plex Mono, monospace",
+                    fontSize: 12,
+                    border: "1px solid #999999",
+                    background: "#FFFFFF",
+                    padding: "1px 4px",
+                    width: "60%",
+                    outline: "none",
+                  }}
+                />
+                <span style={{ fontSize: 10, color: "#999999", marginLeft: 4 }}>Enter=save · Esc=cancel</span>
+              </span>
+            ) : (
+              <>
+                <MarkdownText text={msg.content} />
+                {isEdited(msg) && (
+                  <span style={{ fontSize: 10, color: "#999999", marginLeft: 4 }}>(edited)</span>
+                )}
+              </>
+            )}
+            {/* Hover action buttons for own messages */}
+            {isOwn && isHovered && !editingMsg && (
+              <span style={{ position: "absolute", right: 4, top: 0, display: "inline-flex", gap: 2 }}>
+                <button
+                  onClick={() => startEdit(msg)}
+                  className="mac-btn"
+                  style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
+                  title="Edit message"
+                >✏️</button>
+                <button
+                  onClick={() => setShowDeleteConfirm(msg.id)}
+                  className="mac-btn"
+                  style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
+                  title="Delete message"
+                >🗑️</button>
+              </span>
+            )}
+            {/* Delete confirmation */}
+            {showDeleteConfirm === msg.id && (
+              <div style={{
+                position: "absolute", right: 4, top: -2, background: "#FFFFFF",
+                border: "2px solid #000000", padding: "4px 8px", fontSize: 11, zIndex: 10,
+                boxShadow: "2px 2px 0 #000000",
+              }}>
+                <div style={{ marginBottom: 4 }}>Delete this message?</div>
+                <button
+                  onClick={() => confirmDelete(msg.id)}
+                  className="mac-btn"
+                  style={{ minWidth: 0, padding: "1px 8px", fontSize: 10, marginRight: 4 }}
+                >Delete</button>
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="mac-btn"
+                  style={{ minWidth: 0, padding: "1px 8px", fontSize: 10 }}
+                >Cancel</button>
+              </div>
+            )}
           </div>
         );
       })}

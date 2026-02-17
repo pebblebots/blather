@@ -76,6 +76,12 @@ export const api = {
   sendTyping: (channelId: string) =>
     request<{ ok: boolean }>(`/channels/${channelId}/typing`, { method: 'POST' }),
 
+  editMessage: (channelId: string, messageId: string, content: string) =>
+    request<any>(`/channels/${channelId}/messages/${messageId}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
+
+  deleteMessage: (channelId: string, messageId: string) =>
+    request<any>(`/channels/${channelId}/messages/${messageId}`, { method: 'DELETE' }),
+
   getChannelMembers: (channelId: string) =>
     request<any[]>(`/channels/${channelId}/members`),
 };
