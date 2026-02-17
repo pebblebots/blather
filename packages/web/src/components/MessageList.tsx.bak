@@ -9,7 +9,6 @@ interface Msg {
   updatedAt?: string;
   user?: { displayName: string; isAgent: boolean };
   attachments?: { url: string; filename: string; contentType: string; size: number }[];
-  replyCount?: number;
 }
 
 const NICK_COLORS = [
@@ -103,10 +102,9 @@ interface Props {
   hasMoreOlder?: boolean;
   onEditMessage?: (messageId: string, content: string) => void;
   onDeleteMessage?: (messageId: string) => void;
-  onOpenThread?: (message: Msg) => void;
 }
 
-export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread }: Props) {
+export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
@@ -244,51 +242,23 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
                 {msg.attachments && msg.attachments.length > 0 && (
                   <AttachmentRenderer attachments={msg.attachments} />
                 )}
-                {(msg.replyCount ?? 0) > 0 && (
-                  <div
-                    onClick={() => onOpenThread && onOpenThread(msg)}
-                    style={{
-                      fontSize: 11,
-                      color: '#3366CC',
-                      cursor: 'pointer',
-                      marginTop: 1,
-                      display: 'inline-block',
-                    }}
-                    onMouseEnter={(e) => (e.target as HTMLElement).style.textDecoration = 'underline'}
-                    onMouseLeave={(e) => (e.target as HTMLElement).style.textDecoration = 'none'}
-                  >
-                    💬 {msg.replyCount} {msg.replyCount === 1 ? 'reply' : 'replies'}
-                  </div>
-                )}
               </>
             )}
-            {/* Hover action buttons */}
-            {isHovered && !editingMsg && (
+            {/* Hover action buttons for own messages */}
+            {isOwn && isHovered && !editingMsg && (
               <span style={{ position: "absolute", right: 4, top: 0, display: "inline-flex", gap: 2 }}>
-                {onOpenThread && (
-                  <button
-                    onClick={() => onOpenThread(msg)}
-                    className="mac-btn"
-                    style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
-                    title="Reply in thread"
-                  >💬</button>
-                )}
-                {isOwn && (
-                  <>
-                    <button
-                      onClick={() => startEdit(msg)}
-                      className="mac-btn"
-                      style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
-                      title="Edit message"
-                    >✏️</button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(msg.id)}
-                      className="mac-btn"
-                      style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
-                      title="Delete message"
-                    >🗑️</button>
-                  </>
-                )}
+                <button
+                  onClick={() => startEdit(msg)}
+                  className="mac-btn"
+                  style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
+                  title="Edit message"
+                >✏️</button>
+                <button
+                  onClick={() => setShowDeleteConfirm(msg.id)}
+                  className="mac-btn"
+                  style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
+                  title="Delete message"
+                >🗑️</button>
               </span>
             )}
             {/* Delete confirmation */}

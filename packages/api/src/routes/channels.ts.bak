@@ -28,27 +28,14 @@ channelRoutes.get('/:id/messages', async (c) => {
     if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
   }
 
-  const conditions: any[] = [eq(messages.channelId, channelId)];
+  const conditions = [eq(messages.channelId, channelId)];
   if (after) {
     conditions.push(gt(messages.createdAt, new Date(after)));
   }
   if (before) {
     conditions.push(lt(messages.createdAt, new Date(before)));
   }
-
-  // Only fetch top-level messages (not thread replies)
-  conditions.push(sql`${messages.threadId} IS NULL`);
-
   const { users } = await import('@blather/db');
-
-  // Subquery for reply counts
-  const replyCountSq = db
-    .select({ parentId: messages.threadId, count: sql<number>`count(*)::int`.as('count') })
-    .from(messages)
-    .where(sql`${messages.threadId} IS NOT NULL`)
-    .groupBy(messages.threadId)
-    .as('rc');
-
   const result = await db.select({
     id: messages.id,
     channelId: messages.channelId,
@@ -58,14 +45,12 @@ channelRoutes.get('/:id/messages', async (c) => {
     createdAt: messages.createdAt,
     updatedAt: messages.updatedAt,
     attachments: messages.attachments,
-    replyCount: sql<number>`coalesce(${replyCountSq.count}, 0)`.as('reply_count'),
     user: {
       displayName: users.displayName,
       isAgent: users.isAgent,
     },
   }).from(messages)
     .innerJoin(users, eq(messages.userId, users.id))
-    .leftJoin(replyCountSq, eq(messages.id, replyCountSq.parentId))
     .where(and(...conditions))
     .orderBy(desc(messages.createdAt))
     .limit(limit);
@@ -100,10 +85,6 @@ channelRoutes.post('/:id/messages', async (c) => {
     attachments: body.attachments || [],
   }).returning();
 
-  // Get user info for the payload
-  const { users: usersTable } = await import('@blather/db');
-  const [msgUser] = await db.select({ displayName: usersTable.displayName, isAgent: usersTable.isAgent }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-
   await emitEvent(db, {
     workspaceId: channel.workspaceId,
     channelId,
@@ -117,70 +98,10 @@ channelRoutes.post('/:id/messages', async (c) => {
       threadId: msg.threadId,
       createdAt: msg.createdAt.toISOString(),
       attachments: msg.attachments || [],
-      user: msgUser ? { displayName: msgUser.displayName, isAgent: msgUser.isAgent } : undefined,
     },
   });
 
-  // If this is a thread reply, emit thread.updated so clients can update reply counts
-  if (msg.threadId) {
-    const [replyCountResult] = await db.select({ count: sql<number>`count(*)::int` }).from(messages).where(eq(messages.threadId, msg.threadId));
-    await emitEvent(db, {
-      workspaceId: channel.workspaceId,
-      channelId,
-      userId,
-      type: 'thread.updated' as any,
-      payload: {
-        parentMessageId: msg.threadId,
-        channelId,
-        replyCount: replyCountResult?.count || 0,
-        latestReply: {
-          id: msg.id,
-          userId: msg.userId,
-          content: msg.content,
-          createdAt: msg.createdAt.toISOString(),
-        },
-      },
-    });
-  }
-
   return c.json(msg, 201);
-});
-
-// Get replies for a message thread
-channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
-  const db = c.get('db');
-  const channelId = c.req.param('channelId');
-  const messageId = c.req.param('messageId');
-  const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100);
-  const after = c.req.query('after');
-  const before = c.req.query('before');
-
-  const { users } = await import('@blather/db');
-
-  const conditions: any[] = [eq(messages.threadId, messageId)];
-  if (after) conditions.push(gt(messages.createdAt, new Date(after)));
-  if (before) conditions.push(lt(messages.createdAt, new Date(before)));
-
-  const result = await db.select({
-    id: messages.id,
-    channelId: messages.channelId,
-    userId: messages.userId,
-    content: messages.content,
-    threadId: messages.threadId,
-    createdAt: messages.createdAt,
-    updatedAt: messages.updatedAt,
-    attachments: messages.attachments,
-    user: {
-      displayName: users.displayName,
-      isAgent: users.isAgent,
-    },
-  }).from(messages)
-    .innerJoin(users, eq(messages.userId, users.id))
-    .where(and(...conditions))
-    .orderBy(messages.createdAt)
-    .limit(limit);
-
-  return c.json(result);
 });
 
 // Send typing indicator

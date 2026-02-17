@@ -140,7 +140,8 @@ export type EventType =
   | 'channel.deleted'
   | 'channel.archived'
   | 'channel.member.added'
-  | 'presence.changed';
+  | 'presence.changed'
+  | 'thread.updated';
 
 export interface WsEvent {
   id: string;

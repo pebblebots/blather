@@ -85,6 +85,12 @@ export const api = {
   getChannelMembers: (channelId: string) =>
     request<any[]>(`/channels/${channelId}/members`),
 
+  getThreadReplies: (channelId: string, messageId: string, limit = 50, after?: string) =>
+    request<any[]>(`/channels/${channelId}/messages/${messageId}/replies?limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}`),
+
+  sendThreadReply: (channelId: string, content: string, threadId: string, attachments?: any[]) =>
+    request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content, threadId, attachments }) }),
+
   searchMessages: (params: { q: string; workspaceId: string; channelId?: string; userId?: string; before?: string; after?: string; limit?: number }) => {
     const p = new URLSearchParams({ q: params.q, workspaceId: params.workspaceId });
     if (params.channelId) p.set("channelId", params.channelId);

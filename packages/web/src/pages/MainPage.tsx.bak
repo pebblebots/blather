@@ -13,7 +13,6 @@ import { InviteMemberModal } from '../components/InviteMemberModal';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { TaskPanel } from '../components/TaskPanel';
 import { SearchPanel } from '../components/SearchPanel';
-import { ThreadPanel } from '../components/ThreadPanel';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -40,8 +39,6 @@ export function MainPage() {
   const [showCreateCh, setShowCreateCh] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [threadMessage, setThreadMessage] = useState<any>(null);
-  const [threadNewReply, setThreadNewReply] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{x: number; y: number; channel: any} | null>(null);
   const [inviteChannelId, setInviteChannelId] = useState<string | null>(null);
   const usersMapRef = useRef<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
@@ -103,7 +100,6 @@ export function MainPage() {
 
   useEffect(() => {
     if (!selectedCh) { setMessages([]); setHasMoreOlder(true); return; }
-    setThreadMessage(null);
     api.getMessages(selectedCh).then((msgs) => {
       const sorted = msgs.reverse();
       // Populate usersMap from message user data
@@ -180,11 +176,7 @@ export function MainPage() {
       const p = event.data;
       // Add user info if present and not yet known
       if (p.user && p.userId) addUserInfo(p.userId, p.user.displayName, p.user.isAgent);
-      // If it's a thread reply, route to thread panel instead of main list
-      if (p.threadId) {
-        setThreadNewReply({ ...p, _ts: Date.now() });
-        // Don't add to main message list
-      } else if (p.channelId === selectedChRef.current) {
+      if (p.channelId === selectedChRef.current) {
         setMessages((prev) => [...prev, p]);
         // Mark channel as read so server stays in sync
         unreadApi.markRead(p.channelId).catch(() => {});
@@ -232,13 +224,6 @@ export function MainPage() {
         next.set(p.userId, p.status);
         return next;
       });
-    }
-    if (event.type === 'thread.updated' && event.data) {
-      const p = event.data;
-      // Update reply count on the parent message
-      setMessages((prev) => prev.map((m) =>
-        m.id === p.parentMessageId ? { ...m, replyCount: p.replyCount } : m
-      ));
     }
     if (event.type === 'channel.created' && event.data) {
       setChannels((prev) => {
@@ -331,11 +316,6 @@ export function MainPage() {
   }, []);
 
   const wsConnected = useWebSocket(selectedWs, onWsEvent, selectedCh);
-
-  const handleOpenThread = (msg: any) => {
-    setThreadMessage(msg);
-    setThreadNewReply(null);
-  };
 
   const handleEditMessage = async (messageId: string, content: string) => {
     if (!selectedCh) return;
@@ -648,7 +628,7 @@ export function MainPage() {
               <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
             ) : selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} />
+                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>
@@ -658,18 +638,6 @@ export function MainPage() {
               </div>
             )}
           </div>
-
-          {/* Thread panel */}
-          {threadMessage && selectedCh && (
-            <ThreadPanel
-              channelId={selectedCh}
-              parentMessage={threadMessage}
-              usersMap={usersMap}
-              currentUserId={user?.id}
-              onClose={() => setThreadMessage(null)}
-              newReplyFromWs={threadNewReply}
-            />
-          )}
         </div>
 
         {/* Status bar */}
