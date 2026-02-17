@@ -35,7 +35,21 @@ channelRoutes.get('/:id/messages', async (c) => {
   if (before) {
     conditions.push(lt(messages.createdAt, new Date(before)));
   }
-  const result = await db.select().from(messages)
+  const { users } = await import('@blather/db');
+  const result = await db.select({
+    id: messages.id,
+    channelId: messages.channelId,
+    userId: messages.userId,
+    content: messages.content,
+    threadId: messages.threadId,
+    createdAt: messages.createdAt,
+    updatedAt: messages.updatedAt,
+    user: {
+      displayName: users.displayName,
+      isAgent: users.isAgent,
+    },
+  }).from(messages)
+    .innerJoin(users, eq(messages.userId, users.id))
     .where(and(...conditions))
     .orderBy(desc(messages.createdAt))
     .limit(limit);

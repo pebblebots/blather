@@ -100,6 +100,15 @@ export function MainPage() {
     if (!selectedCh) { setMessages([]); setHasMoreOlder(true); return; }
     api.getMessages(selectedCh).then((msgs) => {
       const sorted = msgs.reverse();
+      // Populate usersMap from message user data
+      setUsersMap((prev) => {
+        const next = new Map(prev);
+        let changed = false;
+        for (const m of msgs) {
+          if (m.user && !next.has(m.userId)) { next.set(m.userId, { displayName: m.user.displayName, isAgent: m.user.isAgent }); changed = true; }
+        }
+        return changed ? next : prev;
+      });
       setMessages(sorted);
       setHasMoreOlder(msgs.length >= 50);
     }).catch(() => {});
@@ -112,6 +121,14 @@ export function MainPage() {
       const oldest = messages[0]?.createdAt;
       const older = await api.getMessages(selectedCh, 50, undefined, oldest);
       const sorted = older.reverse();
+        setUsersMap((prev) => {
+          const next = new Map(prev);
+          let changed = false;
+          for (const m of older) {
+            if (m.user && !next.has(m.userId)) { next.set(m.userId, { displayName: m.user.displayName, isAgent: m.user.isAgent }); changed = true; }
+          }
+          return changed ? next : prev;
+        });
       if (sorted.length === 0) {
         setHasMoreOlder(false);
       } else {
@@ -155,6 +172,8 @@ export function MainPage() {
   const onWsEvent = useCallback((event: any) => {
     if (event.type === 'message.created' && event.data) {
       const p = event.data;
+      // Add user info if present and not yet known
+      if (p.user && p.userId) addUserInfo(p.userId, p.user.displayName, p.user.isAgent);
       if (p.channelId === selectedChRef.current) {
         setMessages((prev) => [...prev, p]);
         // Mark channel as read so server stays in sync
