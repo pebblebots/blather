@@ -5,28 +5,44 @@ interface TypingIndicatorProps {
   selectedChannelId: string | null;
 }
 
+const AGENT_VERBS = [
+  'boffinating', 'cogitating', 'ruminating', 'ventriculating', 'scheming',
+  'pondering', 'hallucinating', 'confabulating', 'machinating', 'percolating',
+  'computing', 'plotting', 'manifesting', 'overcooking', 'yapping',
+];
+
+const HUMAN_VERBS = [
+  'typing', 'scribbling', 'pecking away', 'mashing keys', 'composing',
+  'hunting and pecking', 'yapping', 'cooking something up', 'doing their best',
+  'banging on the keyboard', 'thinking out loud', 'wordsmithing',
+];
+
+function getVerb(userId: string, isAgent: boolean): string {
+  const verbs = isAgent ? AGENT_VERBS : HUMAN_VERBS;
+  // Deterministic per user so it doesn't flicker
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  return verbs[Math.abs(hash) % verbs.length];
+}
+
 export function TypingIndicator({ typingUsers, usersMap, currentUserId, selectedChannelId }: TypingIndicatorProps) {
-  // Filter typing users to only those in the selected channel, and extract userId from composite key
   const others = Array.from(typingUsers.entries())
     .filter(([key, val]) => val.channelId === selectedChannelId)
     .map(([key]) => key.split(':')[1])
     .filter(id => id !== currentUserId);
   if (others.length === 0) return <div style={{ height: 18, padding: '0 10px', fontSize: 11 }} />;
 
-  const names = others.map(id => {
-    const u = usersMap.get(id);
-    return u?.displayName ?? id.slice(0, 8);
-  });
-
-  const isAgent = others.some(id => usersMap.get(id)?.isAgent);
+  const getName = (id: string) => usersMap.get(id)?.displayName ?? id.slice(0, 8);
+  const isAgent = (id: string) => usersMap.get(id)?.isAgent ?? false;
 
   let text: string;
-  if (names.length === 1) {
-    text = `${names[0]} is ${isAgent ? 'boffinating' : 'typing'}`;
-  } else if (names.length === 2) {
-    text = `${names[0]} and ${names[1]} are ${isAgent ? 'ventriculating' : 'typing'}`;
+  if (others.length === 1) {
+    const id = others[0];
+    text = `${getName(id)} is ${getVerb(id, isAgent(id))}`;
+  } else if (others.length === 2) {
+    text = `${getName(others[0])} and ${getName(others[1])} are going at it`;
   } else {
-    text = `${names.length} users are typing`;
+    text = `${others.length} people are having a moment`;
   }
 
   return (
