@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 
 const BACKOFF_INITIAL = 1000;
-const BACKOFF_MAX = 30000;
+const BACKOFF_MAX = 5000;
 
 function backoffMs(attempt: number): number {
   const base = Math.min(BACKOFF_INITIAL * 2 ** attempt, BACKOFF_MAX);
