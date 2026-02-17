@@ -17,12 +17,25 @@ const HUMAN_VERBS = [
   'banging on the keyboard', 'thinking out loud', 'wordsmithing',
 ];
 
-function getVerb(userId: string, isAgent: boolean): string {
-  const verbs = isAgent ? AGENT_VERBS : HUMAN_VERBS;
-  // Deterministic per user so it doesn't flicker
+const GROUP_VERBS = [
+  'going at it', 'having a moment', 'cooking something up', 'in a frenzy',
+  'causing a ruckus', 'conspiring', 'vibing', 'losing it',
+];
+
+function hashId(userId: string): number {
   let hash = 0;
   for (let i = 0; i < userId.length; i++) hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
-  return verbs[Math.abs(hash) % verbs.length];
+  return Math.abs(hash);
+}
+
+function getVerb(userId: string, isAgent: boolean): string {
+  const verbs = isAgent ? AGENT_VERBS : HUMAN_VERBS;
+  return verbs[hashId(userId) % verbs.length];
+}
+
+function getGroupVerb(ids: string[]): string {
+  const combined = ids.sort().join(':');
+  return GROUP_VERBS[hashId(combined) % GROUP_VERBS.length];
 }
 
 export function TypingIndicator({ typingUsers, usersMap, currentUserId, selectedChannelId }: TypingIndicatorProps) {
@@ -39,10 +52,10 @@ export function TypingIndicator({ typingUsers, usersMap, currentUserId, selected
   if (others.length === 1) {
     const id = others[0];
     text = `${getName(id)} is ${getVerb(id, isAgent(id))}`;
-  } else if (others.length === 2) {
-    text = `${getName(others[0])} and ${getName(others[1])} are going at it`;
   } else {
-    text = `${others.length} people are having a moment`;
+    const names = others.map(getName);
+    const list = names.join(' and ');
+    text = `${list} are ${getGroupVerb(others)}`;
   }
 
   return (
