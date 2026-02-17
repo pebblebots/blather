@@ -3,10 +3,7 @@ import type { Env } from '../app.js';
 
 export const wsRoutes = new Hono<Env>();
 
-// Info endpoint — actual WebSocket upgrade is handled in index.ts on the raw HTTP server
-wsRoutes.get('/events', (c) => {
-  return c.json({
-    message: 'WebSocket endpoint. Connect with ws:// and a WebSocket client.',
-    protocol: 'Auth via ?token=<jwt> query param, or send {"type":"auth","token":"...","workspaceId":"..."} as first message.',
-  });
-});
+// WebSocket upgrade is handled directly on the raw HTTP server in index.ts
+// No Hono routes needed here — having a GET /events route was intercepting
+// the upgrade request and returning a JSON response instead of allowing
+// the WebSocket handshake to proceed.
