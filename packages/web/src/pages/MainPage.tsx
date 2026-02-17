@@ -599,7 +599,7 @@ export function MainPage() {
                       key={member.id}
                       onClick={() => handleUserClick(member.id)}
                       style={{
-                        padding: '2px 6px 2px 14px',
+                        padding: '2px 6px 2px 10px',
                         fontSize: 12,
                         cursor: 'pointer',
                         background: 'transparent',
@@ -609,13 +609,33 @@ export function MainPage() {
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
+                        display: 'flex',
+                        alignItems: 'center',
                       }}
-                      onMouseEnter={(e) => (e.target as HTMLElement).style.background = '#EEEEEE'}
-                      onMouseLeave={(e) => (e.target as HTMLElement).style.background = 'transparent'}
+                      onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = '#EEEEEE'}
+                      onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                     >
-                      {status === 'online' && <span style={{ color: '#009900', marginRight: 3 }}>●</span>}
-                      {status === 'idle' && <span style={{ color: '#CC9900', marginRight: 3 }}>●</span>}
-                      {member.displayName}
+                      <span style={{
+                        display: 'inline-block',
+                        width: 8,
+                        height: 8,
+                        minWidth: 8,
+                        borderRadius: '50%',
+                        background: status === 'online'
+                          ? 'radial-gradient(circle at 3px 3px, #44dd44, #009900)'
+                          : status === 'idle'
+                          ? 'radial-gradient(circle at 3px 3px, #ffcc44, #cc9900)'
+                          : 'radial-gradient(circle at 3px 3px, #cccccc, #999999)',
+                        boxShadow: status === 'online'
+                          ? '0 0 3px rgba(0,153,0,0.5)'
+                          : status === 'idle'
+                          ? '0 0 3px rgba(204,153,0,0.4)'
+                          : 'none',
+                        border: status === 'online' ? '0.5px solid #007700' : status === 'idle' ? '0.5px solid #aa7700' : '0.5px solid #888888',
+                        marginRight: 5,
+                        flexShrink: 0,
+                      }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.displayName}</span>
                     </div>
                     );
                   })}

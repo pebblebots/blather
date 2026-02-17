@@ -5,3 +5,5 @@ dist/
 dist/
 packages/web/dist
 packages/web/node_modules
+cognee-env/
+cognee-data/
