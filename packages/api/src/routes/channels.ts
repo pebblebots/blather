@@ -5,6 +5,7 @@ import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { emitEvent } from '../ws/events.js';
 
+import { handleTasksCommand } from '../bots/tasks.js';
 export const channelRoutes = new Hono<Env>();
 channelRoutes.use('*', authMiddleware);
 
@@ -165,6 +166,10 @@ channelRoutes.post('/:id/messages', async (c) => {
     } catch {}
   }
 
+  // @tasks bot handler
+  if (body.content.trim().startsWith("@tasks")) {
+    handleTasksCommand(db, channelId, body.content.trim(), body.threadId ?? null).catch((err) => console.error("[TaskBot] Error:", err));
+  }
   return c.json(msg, 201);
 });
 
