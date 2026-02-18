@@ -203,6 +203,8 @@ export function MainPage() {
     }
     if (event.type === 'typing.started' && event.data) {
       const p = event.data;
+      // Add user info to usersMap if provided
+      if (p.user && p.userId) addUserInfo(p.userId, p.user.displayName, p.user.isAgent);
       const typingKey = `${p.channelId}:${p.userId}`;
       setTypingUsers((prev) => {
         const next = new Map(prev);

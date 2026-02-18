@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { eq, and, desc, gt, lt, sql } from 'drizzle-orm';
-import { messages, reactions, channels, channelMembers, channelReads, events } from '@blather/db';
+import { messages, reactions, channels, channelMembers, channelReads, events, users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { emitEvent } from '../ws/events.js';
@@ -221,11 +221,12 @@ channelRoutes.post('/:id/typing', async (c) => {
     if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
   }
 
+  const [typingUser] = await db.select({ displayName: users.displayName, isAgent: users.isAgent }).from(users).where(eq(users.id, userId)).limit(1);
   const { publishEphemeralEvent } = await import('../ws/manager.js');
   await publishEphemeralEvent(channel.workspaceId, channelId, {
     type: 'typing.started',
     channel_id: channelId,
-    data: { userId, channelId },
+    data: { userId, channelId, user: typingUser ? { displayName: typingUser.displayName, isAgent: typingUser.isAgent } : undefined },
   });
 
   return c.json({ ok: true });
