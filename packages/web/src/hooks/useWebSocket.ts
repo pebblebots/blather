@@ -48,10 +48,11 @@ export function useWebSocket(
   }, []);
 
   const connect = useCallback(() => {
+    console.log("[WS] connect called, workspaceId:", workspaceIdRef.current, "token:", !!localStorage.getItem("blather_token"));
     const wId = workspaceIdRef.current;
-    if (!wId) return;
+    if (!wId) { console.log("[WS] no workspaceId, bailing"); return; }
     const token = localStorage.getItem('blather_token');
-    if (!token) return;
+    if (!token) { console.log("[WS] no token, bailing"); return; }
 
     // Clean up existing connection
     if (wsRef.current) {
@@ -66,10 +67,10 @@ export function useWebSocket(
       : location.host;
     const url = `${proto}//${base}/ws/events?token=${token}&workspace_id=${wId}`;
 
-    const ws = new WebSocket(url);
+    console.log("[WS] connecting to:", url.replace(/token=[^const ws = new WebSocket(url);]*/, "token=***")); const ws = new WebSocket(url);
     wsRef.current = ws;
 
-    ws.onopen = () => {
+    ws.onopen = () => { console.log("[WS] connected!");
       setConnected(true);
       attemptRef.current = 0;
       // Fetch any messages we missed while disconnected
@@ -81,7 +82,7 @@ export function useWebSocket(
       scheduleReconnect();
     };
 
-    ws.onerror = () => ws.close();
+    ws.onerror = (e) => { console.log("[WS] error:", e); ws.close(); };
 
     ws.onmessage = (e) => {
       try {
@@ -99,9 +100,9 @@ export function useWebSocket(
     const delay = backoffMs(attemptRef.current);
     attemptRef.current++;
     reconnectTimer.current = setTimeout(connect, delay);
-  }, [connect]);
+  }, [connect, workspaceId]);
 
-  // Main connection lifecycle
+  // Main connection lifecycle — re-run when workspaceId changes
   useEffect(() => {
     connect();
     return () => {
@@ -111,7 +112,7 @@ export function useWebSocket(
         wsRef.current.close();
       }
     };
-  }, [connect]);
+  }, [connect, workspaceId]);
 
   // Listen for browser online/offline events to fast-reconnect on wake
   useEffect(() => {
@@ -142,7 +143,7 @@ export function useWebSocket(
       window.removeEventListener('online', handleOnline);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [connect]);
+  }, [connect, workspaceId]);
 
   return connected;
 }
