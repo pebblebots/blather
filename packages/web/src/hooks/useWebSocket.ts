@@ -3,6 +3,8 @@ import { api } from '../lib/api';
 
 const BACKOFF_INITIAL = 1000;
 const BACKOFF_MAX = 5000;
+const DEBUG = true;
+const log = (...args: any[]) => DEBUG && console.log('[WS]', ...args);
 
 function backoffMs(attempt: number): number {
   const base = Math.min(BACKOFF_INITIAL * 2 ** attempt, BACKOFF_MAX);
@@ -35,17 +37,20 @@ export function useWebSocket(
     try {
       const missed = await api.getMessages(chId, 100, since);
       const sorted = [...missed].reverse();
+      log('fetched', sorted.length, 'missed messages');
       for (const msg of sorted) {
         onEventRef.current({ type: 'new_message', payload: msg });
       }
-    } catch {}
+    } catch (e) {
+      log('fetchMissedMessages error:', e);
+    }
   }, []);
 
   const connect = useCallback(() => {
     const wId = workspaceIdRef.current;
-    if (!wId) return;
+    if (!wId) { log('no workspaceId, waiting...'); return; }
     const token = localStorage.getItem('blather_token');
-    if (!token) return;
+    if (!token) { log('no token, bailing'); return; }
 
     if (wsRef.current) {
       wsRef.current.onclose = null;
@@ -59,21 +64,27 @@ export function useWebSocket(
       : location.host;
     const url = `${proto}//${base}/ws/events?token=${token}&workspace_id=${wId}`;
 
+    log('connecting to', url.replace(/token=[^&]*/, 'token=***'));
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      log('connected');
       setConnected(true);
       attemptRef.current = 0;
       fetchMissedMessages();
     };
 
-    ws.onclose = () => {
+    ws.onclose = (e) => {
+      log('disconnected, code:', e.code, 'reason:', e.reason);
       setConnected(false);
       scheduleReconnect();
     };
 
-    ws.onerror = () => ws.close();
+    ws.onerror = (e) => {
+      log('error:', e);
+      ws.close();
+    };
 
     ws.onmessage = (e) => {
       try {
@@ -88,6 +99,7 @@ export function useWebSocket(
 
   const scheduleReconnect = useCallback(() => {
     const delay = backoffMs(attemptRef.current);
+    log('reconnecting in', Math.round(delay), 'ms (attempt', attemptRef.current + 1 + ')');
     attemptRef.current++;
     reconnectTimer.current = setTimeout(connect, delay);
   }, [connect]);
@@ -107,6 +119,7 @@ export function useWebSocket(
   // Fast-reconnect on browser wake / tab focus
   useEffect(() => {
     const handleOnline = () => {
+      log('browser online event');
       attemptRef.current = 0;
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         clearTimeout(reconnectTimer.current);
@@ -116,6 +129,7 @@ export function useWebSocket(
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        log('tab visible, checking connection...');
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
           attemptRef.current = 0;
           clearTimeout(reconnectTimer.current);
