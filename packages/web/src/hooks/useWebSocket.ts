@@ -34,27 +34,19 @@ export function useWebSocket(
     if (!chId || !since) return;
     try {
       const missed = await api.getMessages(chId, 100, since);
-      // Messages come newest-first; reverse for chronological replay
       const sorted = [...missed].reverse();
       for (const msg of sorted) {
-        onEventRef.current({
-          type: 'new_message',
-          payload: msg,
-        });
+        onEventRef.current({ type: 'new_message', payload: msg });
       }
-    } catch {
-      // Silently fail — messages will load on channel switch anyway
-    }
+    } catch {}
   }, []);
 
   const connect = useCallback(() => {
-    console.log("[WS] connect called, workspaceId:", workspaceIdRef.current, "token:", !!localStorage.getItem("blather_token"));
     const wId = workspaceIdRef.current;
-    if (!wId) { console.log("[WS] no workspaceId, bailing"); return; }
+    if (!wId) return;
     const token = localStorage.getItem('blather_token');
-    if (!token) { console.log("[WS] no token, bailing"); return; }
+    if (!token) return;
 
-    // Clean up existing connection
     if (wsRef.current) {
       wsRef.current.onclose = null;
       wsRef.current.close();
@@ -67,13 +59,12 @@ export function useWebSocket(
       : location.host;
     const url = `${proto}//${base}/ws/events?token=${token}&workspace_id=${wId}`;
 
-    console.log("[WS] connecting to:", url.replace(/token=[^const ws = new WebSocket(url);]*/, "token=***")); const ws = new WebSocket(url);
+    const ws = new WebSocket(url);
     wsRef.current = ws;
 
-    ws.onopen = () => { console.log("[WS] connected!");
+    ws.onopen = () => {
       setConnected(true);
       attemptRef.current = 0;
-      // Fetch any messages we missed while disconnected
       fetchMissedMessages();
     };
 
@@ -82,12 +73,11 @@ export function useWebSocket(
       scheduleReconnect();
     };
 
-    ws.onerror = (e) => { console.log("[WS] error:", e); ws.close(); };
+    ws.onerror = () => ws.close();
 
     ws.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data);
-        // Track latest event time for gap-fill on reconnect
         if (event.payload?.createdAt) {
           lastEventTimeRef.current = event.payload.createdAt;
         }
@@ -100,7 +90,7 @@ export function useWebSocket(
     const delay = backoffMs(attemptRef.current);
     attemptRef.current++;
     reconnectTimer.current = setTimeout(connect, delay);
-  }, [connect, workspaceId]);
+  }, [connect]);
 
   // Main connection lifecycle — re-run when workspaceId changes
   useEffect(() => {
@@ -114,10 +104,9 @@ export function useWebSocket(
     };
   }, [connect, workspaceId]);
 
-  // Listen for browser online/offline events to fast-reconnect on wake
+  // Fast-reconnect on browser wake / tab focus
   useEffect(() => {
     const handleOnline = () => {
-      // Reset backoff and reconnect immediately when network returns
       attemptRef.current = 0;
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         clearTimeout(reconnectTimer.current);
@@ -127,7 +116,6 @@ export function useWebSocket(
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Tab became visible — check if WS is still alive
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
           attemptRef.current = 0;
           clearTimeout(reconnectTimer.current);
@@ -143,7 +131,7 @@ export function useWebSocket(
       window.removeEventListener('online', handleOnline);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [connect, workspaceId]);
+  }, [connect]);
 
   return connected;
 }
