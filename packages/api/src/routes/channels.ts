@@ -92,6 +92,19 @@ channelRoutes.post('/:id/messages', async (c) => {
     if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
   }
 
+  // Auto-fire typing indicator for agents
+  const { users: usersLookup } = await import("@blather/db");
+  const [senderInfo] = await db.select({ displayName: usersLookup.displayName, isAgent: usersLookup.isAgent }).from(usersLookup).where(eq(usersLookup.id, userId)).limit(1);
+  if (senderInfo?.isAgent) {
+    const { publishEphemeralEvent } = await import("../ws/manager.js");
+    await publishEphemeralEvent(channel.workspaceId, channelId, {
+      type: "typing.started",
+      channel_id: channelId,
+      data: { userId, channelId, user: { displayName: senderInfo.displayName, isAgent: true } },
+    });
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
   const [msg] = await db.insert(messages).values({
     channelId,
     userId,
