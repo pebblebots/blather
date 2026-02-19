@@ -8,7 +8,7 @@ import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
 
 const UPLOAD_DIR = join(process.env.HOME || "/home/code", "blather", "uploads");
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_SIZE = 25 * 1024 * 1024; // 25MB
 const ALLOWED_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp",
   "application/pdf", "text/plain",
@@ -30,7 +30,7 @@ uploadRoutes.post("/", authMiddleware, async (c) => {
   // file is a File object
   const f = file as File;
   if (f.size > MAX_SIZE) {
-    return c.json({ error: "File too large (max 10MB)" }, 400);
+    return c.json({ error: "File too large (max 25MB)" }, 400);
   }
   if (!ALLOWED_TYPES.has(f.type)) {
     return c.json({ error: `Content type not allowed: ${f.type}` }, 400);
