@@ -74,6 +74,13 @@ channelRoutes.get('/:id/messages', async (c) => {
   return c.json(result);
 });
 
+// Detect raw API error messages that should never be broadcast
+const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b/i;
+
+function looksLikeApiError(content: string): boolean {
+  return API_ERROR_PATTERN.test(content);
+}
+
 // Post message to channel
 channelRoutes.post('/:id/messages', async (c) => {
   const db = c.get('db');
@@ -91,6 +98,12 @@ channelRoutes.post('/:id/messages', async (c) => {
       .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
       .limit(1);
     if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+
+  // Reject messages that look like raw API errors (prevents error feedback loops)
+  if (looksLikeApiError(body.content)) {
+    console.warn(`[error-filter] Rejected API error message from user=${userId} channel=${channelId}: ${body.content.slice(0, 200)}`);
+    return c.json({ error: 'Message rejected: appears to be a raw API error. These should be handled by the sender, not posted to chat.' }, 422);
   }
 
   const [msg] = await db.insert(messages).values({
