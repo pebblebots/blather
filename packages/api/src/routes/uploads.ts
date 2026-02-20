@@ -46,6 +46,31 @@ uploadRoutes.post("/", authMiddleware, async (c) => {
   return c.json({ url, filename: f.name, contentType: f.type, size: f.size }, 201);
 });
 
+
+// Serve TTS audio files
+uploadRoutes.get("/tts/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  if (filename.includes("..") || filename.includes("/")) {
+    return c.json({ error: "Invalid filename" }, 400);
+  }
+  const filePath = join(UPLOAD_DIR, "tts", filename);
+  if (!existsSync(filePath)) {
+    return c.json({ error: "File not found" }, 404);
+  }
+  const stat = statSync(filePath);
+  const stream = createReadStream(filePath);
+  return new Response(
+    ReadableStream.from(stream as any) as any,
+    {
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Content-Length": String(stat.size),
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    }
+  );
+});
+
 // Serve uploaded files (no auth needed for viewing)
 uploadRoutes.get("/:filename", async (c) => {
   const filename = c.req.param("filename");

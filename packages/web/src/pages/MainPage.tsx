@@ -14,6 +14,8 @@ import { TypingIndicator } from '../components/TypingIndicator';
 import { TaskPanel } from '../components/TaskPanel';
 import { SearchPanel } from '../components/SearchPanel';
 import { ThreadPanel } from '../components/ThreadPanel';
+import { HuddleModal } from '../components/HuddleModal';
+import { NewHuddleModal } from '../components/NewHuddleModal';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -40,6 +42,11 @@ export function MainPage() {
   const [showCreateCh, setShowCreateCh] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [activeHuddle, setActiveHuddle] = useState<any>(null);
+  const [showNewHuddle, setShowNewHuddle] = useState(false);
+  const [showHuddle, setShowHuddle] = useState(false);
+  const [currentHuddleId, setCurrentHuddleId] = useState<string | null>(null);
+  const [huddleEvents, setHuddleEvents] = useState<any[]>([]);
   const [threadMessage, setThreadMessage] = useState<any>(null);
   const [threadNewReply, setThreadNewReply] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{x: number; y: number; channel: any} | null>(null);
@@ -86,6 +93,17 @@ export function MainPage() {
       for (const p of data) map.set(p.userId, p.status);
       setPresence(map);
     }).catch(() => {});
+  }, [selectedWs]);
+
+  // Fetch active huddles
+  useEffect(() => {
+    if (!selectedWs) return;
+    const token = localStorage.getItem('blather_token');
+    const BASE = (import.meta as any).env?.VITE_API_URL || '';
+    fetch(`${BASE}/huddles?workspaceId=${selectedWs}&status=active`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(huddles => { if (huddles.length > 0) setActiveHuddle(huddles[0]); else setActiveHuddle(null); })
+      .catch(() => {});
   }, [selectedWs]);
 
   // Mark channel as read when selecting it, and clear local badge
@@ -226,6 +244,18 @@ export function MainPage() {
           typingTimers.current.delete(typingKey);
         }, 30000));
       }
+    }
+    // Huddle events
+    if (event.type === 'huddle.created' && event.data) {
+      setActiveHuddle(event.data);
+    }
+    if (event.type === 'huddle.ended' && event.data) {
+      setActiveHuddle(null);
+      setShowHuddle(false);
+      setCurrentHuddleId(null);
+    }
+    if (event.type?.startsWith('huddle.') && event.data) {
+      setHuddleEvents(prev => [...prev, { type: event.type, ...event.data, _ts: Date.now() }]);
     }
     if (event.type === 'presence.changed' && event.data) {
       const p = event.data;
@@ -441,7 +471,8 @@ export function MainPage() {
         <span>Window</span>
         <span>Help</span>
         <div style={{ flex: 1 }} />
-        <span style={{ fontWeight: 'normal', fontSize: 11 }}>⌘</span>
+        <span onClick={() => setShowNewHuddle(true)} style={{ cursor: "pointer", fontSize: 13 }} title="Start a Huddle">🎙️</span>
+        <span style={{ fontWeight: "normal", fontSize: 11 }}>⌘</span>
       </div>
 
       {/* Main window */}
@@ -500,6 +531,23 @@ export function MainPage() {
               </div>
 
               <hr className="mac-separator" />
+
+              {/* Huddle Banner */}
+              {activeHuddle && (
+                <div style={{
+                  background: '#CC3333', color: '#FFFFFF', padding: '4px 8px',
+                  fontSize: 11, fontFamily: 'Monaco, IBM Plex Mono, monospace',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, margin: '0 0 4px 0',
+                }} onClick={() => {
+                  setCurrentHuddleId(activeHuddle.huddleId || activeHuddle.id);
+                  setShowHuddle(true);
+                  setHuddleEvents([]);
+                }}>
+                  <span style={{ animation: 'pulse 1s infinite' }}>🔴</span>
+                  <span>Huddle: {activeHuddle.topic}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 10 }}>Join →</span>
+                </div>
+              )}
 
               {/* Channels */}
               {selectedWs && (
@@ -755,6 +803,31 @@ export function MainPage() {
           workspaceId={selectedWs}
           onClose={() => setShowCreateCh(false)}
           onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); }}
+        />
+      )}
+      {showNewHuddle && selectedWs && (
+        <NewHuddleModal
+          workspaceId={selectedWs}
+          workspaceMembers={workspaceMembers}
+          onClose={() => setShowNewHuddle(false)}
+          onCreated={(huddle) => {
+            setActiveHuddle(huddle);
+            setCurrentHuddleId(huddle.id);
+            setShowHuddle(true);
+            setHuddleEvents([]);
+          }}
+        />
+      )}
+      {showHuddle && currentHuddleId && (
+        <HuddleModal
+          huddleId={currentHuddleId}
+          topic={activeHuddle?.topic || ''}
+          createdBy={activeHuddle?.createdBy || ''}
+          currentUserId={user?.id}
+          usersMap={usersMap}
+          onClose={() => setShowHuddle(false)}
+          onEnded={() => { setShowHuddle(false); setActiveHuddle(null); setCurrentHuddleId(null); setHuddleEvents([]); }}
+          huddleEvents={huddleEvents}
         />
       )}
     </div>

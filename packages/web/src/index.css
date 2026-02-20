@@ -282,3 +282,5 @@ input[type="checkbox"]:checked::after {
   0%, 60%, 100% { opacity: 0.2; }
   30% { opacity: 1; }
 }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }

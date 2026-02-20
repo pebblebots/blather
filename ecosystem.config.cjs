@@ -7,6 +7,7 @@ module.exports = {
       env: {
         RESEND_API_KEY: 'REDACTED_RESEND_KEY',
         RESEND_FROM: 'Blather <admin@pbd.bot>',
+        OPENAI_API_KEY: 'REDACTED_OPENAI_KEY',
       },
     },
     {

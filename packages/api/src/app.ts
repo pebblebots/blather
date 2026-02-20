@@ -8,6 +8,8 @@ import { channelRoutes } from './routes/channels.js';
 import { taskRoutes } from './routes/tasks.js';
 import { messageRoutes } from './routes/messages.js';
 import { uploadRoutes } from './routes/uploads.js';
+import { ttsRoutes } from "./routes/tts.js";
+import { huddleRoutes } from "./routes/huddles.js";
 import { memoryRoutes } from './routes/memory.js';
 
 export type Env = {
@@ -45,3 +47,5 @@ app.route('/tasks', taskRoutes);
 app.route('/messages', messageRoutes);
 app.route("/uploads", uploadRoutes);
 app.route("/memory", memoryRoutes);
+app.route("/tts", ttsRoutes);
+app.route("/huddles", huddleRoutes);

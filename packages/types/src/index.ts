@@ -141,7 +141,12 @@ export type EventType =
   | 'channel.archived'
   | 'channel.member.added'
   | 'presence.changed'
-  | 'thread.updated';
+  | 'thread.updated'
+  | 'huddle.created'
+  | 'huddle.audio'
+  | 'huddle.speaking'
+  | 'huddle.joined'
+  | 'huddle.ended';
 
 export interface WsEvent {
   id: string;

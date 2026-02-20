@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique, integer } from 'drizzle-orm/pg-core';
 
 export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member']);
 export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm']);
@@ -12,6 +12,7 @@ export const users = pgTable('users', {
   displayName: varchar('display_name', { length: 255 }).notNull(),
   avatarUrl: text('avatar_url'),
   isAgent: boolean('is_agent').notNull().default(false),
+  voice: varchar('voice', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -144,4 +145,28 @@ export const tasks = pgTable("tasks", {
   creatorId: uuid("creator_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Huddles ──
+
+export const huddleStatusEnum = pgEnum('huddle_status', ['active', 'ended']);
+
+export const huddles = pgTable('huddles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  topic: text('topic').notNull(),
+  status: huddleStatusEnum('status').notNull().default('active'),
+  channelId: uuid('channel_id').notNull().references(() => channels.id),
+  createdBy: uuid('created_by').notNull().references(() => users.id),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  maxDurationMs: integer('max_duration_ms').notNull().default(1800000),
+});
+
+export const huddleParticipants = pgTable('huddle_participants', {
+  huddleId: uuid('huddle_id').notNull().references(() => huddles.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  role: varchar('role', { length: 20 }).notNull(),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+  leftAt: timestamp('left_at', { withTimezone: true }),
 });

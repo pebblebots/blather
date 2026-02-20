@@ -104,9 +104,11 @@ interface Props {
   onEditMessage?: (messageId: string, content: string) => void;
   onDeleteMessage?: (messageId: string) => void;
   onOpenThread?: (message: Msg) => void;
+  highlightMessageId?: string | null;
+  onHighlightDone?: () => void;
 }
 
-export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread }: Props) {
+export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onHighlightDone }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
@@ -116,41 +118,22 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
   const [editingMsg, setEditingMsg] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
-  const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
 
-  const playTts = async (messageId: string) => {
-    // Stop any currently playing audio
-    if (ttsAudioRef.current) {
-      ttsAudioRef.current.pause();
-      ttsAudioRef.current = null;
-      if (ttsPlayingId === messageId) {
-        setTtsPlayingId(null);
-        return;
-      }
+  useEffect(() => {
+    if (!highlightMessageId) return;
+    const el = containerRef.current?.querySelector(`[data-msg-id="${highlightMessageId}"]`) as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlashId(highlightMessageId);
+      const timer = setTimeout(() => {
+        setFlashId(null);
+        onHighlightDone?.();
+      }, 2000);
+      return () => clearTimeout(timer);
     }
-    setTtsPlayingId(null);
-    if (ttsLoadingId === messageId) return;
-    setTtsLoadingId(messageId);
-    try {
-      const BASE = (import.meta as any).env?.VITE_API_URL || "";
-      const token = localStorage.getItem("blather_token") || "";
-      const res = await fetch(`${BASE}/tts/${messageId}`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" } });
-      if (!res.ok) throw new Error("TTS failed");
-      const { audioUrl } = await res.json();
-      const audio = new Audio(`${BASE}${audioUrl}`);
-      ttsAudioRef.current = audio;
-      setTtsPlayingId(messageId);
-      audio.onended = () => { setTtsPlayingId(null); ttsAudioRef.current = null; };
-      audio.onerror = () => { setTtsPlayingId(null); ttsAudioRef.current = null; };
-      await audio.play();
-    } catch (e) {
-      console.error("TTS error:", e);
-    } finally {
-      setTtsLoadingId(null);
-    }
-  };
+  }, [highlightMessageId, messages]);
+
 
   useEffect(() => {
     const el = containerRef.current;
@@ -237,8 +220,9 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
 
         return (
           <div
-            key={msg.id}
-            style={{ padding: "1px 2px", lineHeight: 1.6, position: "relative", background: isHovered ? "#F0F0F0" : "transparent" }}
+key={msg.id}
+            data-msg-id={msg.id}
+            style={{ padding: "1px 2px", lineHeight: 1.6, position: "relative", background: flashId === msg.id ? "#FFFF00" : isHovered ? "#F0F0F0" : "transparent", transition: flashId === msg.id ? "background 0.3s" : "background 1.5s" }}
             onMouseEnter={() => setHoveredMsg(msg.id)}
             onMouseLeave={() => setHoveredMsg(null)}
           >
@@ -307,12 +291,6 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
                     title="Reply in thread"
                   >💬</button>
                 )}
-                <button
-                    onClick={() => playTts(msg.id)}
-                    className="mac-btn"
-                    style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
-                    title="Play message aloud"
-                  >{ttsLoadingId === msg.id ? "⏳" : ttsPlayingId === msg.id ? "🔊" : "🔈"}</button>
                 {isOwn && (
                   <>
                     <button

@@ -1,3 +1,4 @@
+import { onMessageCreated, isHuddleChannel } from "../huddle/orchestrator.js";
 import { Hono } from 'hono';
 import { eq, and, desc, gt, lt, sql } from 'drizzle-orm';
 import { messages, reactions, channels, channelMembers, channelReads, events, users } from '@blather/db';
@@ -75,7 +76,7 @@ channelRoutes.get('/:id/messages', async (c) => {
 });
 
 // Detect raw API error messages that should never be broadcast
-const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b/i;
+const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b/i;
 
 function looksLikeApiError(content: string): boolean {
   return API_ERROR_PATTERN.test(content);
@@ -179,6 +180,18 @@ channelRoutes.post('/:id/messages', async (c) => {
     } catch {}
   }
 
+  // Huddle orchestrator hook
+  if (isHuddleChannel(channelId)) {
+    const [msgAuthor] = await db.select({ voice: users.voice, isAgent: users.isAgent, displayName: users.displayName }).from(users).where(eq(users.id, userId)).limit(1);
+    onMessageCreated(channelId, {
+      id: msg.id,
+      userId,
+      content: body.content,
+      isAgent: msgAuthor?.isAgent || false,
+      voice: msgAuthor?.voice,
+      displayName: msgAuthor?.displayName,
+    });
+  }
   // @tasks bot handler
   if (body.content.trim().startsWith("@tasks")) {
     handleTasksCommand(db, channelId, body.content.trim(), body.threadId ?? null).catch((err) => console.error("[TaskBot] Error:", err));
