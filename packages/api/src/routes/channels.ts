@@ -57,7 +57,7 @@ channelRoutes.get('/:id/messages', async (c) => {
       attachments: messages.attachments,
       userName: users.displayName, userIsAgent: users.isAgent,
     }).from(messages).innerJoin(users, eq(messages.userId, users.id))
-      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} <= ${target.createdAt}`))
+      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} <= ${target.createdAt.toISOString()}`))
       .orderBy(sql`${messages.createdAt} DESC`).limit(halfLimit + 1);
     const afterMsgs = await db.select({
       id: messages.id, channelId: messages.channelId, userId: messages.userId,
@@ -66,7 +66,7 @@ channelRoutes.get('/:id/messages', async (c) => {
       attachments: messages.attachments,
       userName: users.displayName, userIsAgent: users.isAgent,
     }).from(messages).innerJoin(users, eq(messages.userId, users.id))
-      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} > ${target.createdAt}`))
+      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} > ${target.createdAt.toISOString()}`))
       .orderBy(messages.createdAt).limit(halfLimit);
     // Merge, dedupe, sort
     const allMsgs = [...beforeMsgs.reverse(), ...afterMsgs];
