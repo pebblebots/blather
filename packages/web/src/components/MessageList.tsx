@@ -121,10 +121,12 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
   const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const skipAutoScrollRef = useRef(false);
 
   // Scroll to highlighted message (retry to handle channel switch / render delay)
   useEffect(() => {
     if (!highlightMessageId) return;
+    skipAutoScrollRef.current = true;
     setHighlightId(highlightMessageId);
     let attempts = 0;
     const maxAttempts = 20;
@@ -191,8 +193,11 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
       return;
     }
     const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    if (isNearBottom || oldCount === 0) {
+    if ((isNearBottom || oldCount === 0) && !skipAutoScrollRef.current) {
       endRef.current?.scrollIntoView({ behavior: oldCount === 0 ? "auto" : "smooth" });
+    }
+    if (skipAutoScrollRef.current) {
+      skipAutoScrollRef.current = false;
     }
     prevMsgCountRef.current = newCount;
   }, [messages.length]);
