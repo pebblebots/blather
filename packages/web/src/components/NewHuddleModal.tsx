@@ -55,11 +55,11 @@ export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreat
     <Modal title="🎙️ Start a Huddle" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Topic:</label>
+          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Prompt:</label>
           <input
             className="mac-input"
             style={{ flex: 1 }}
-            placeholder="What should they discuss?"
+            placeholder="What should they talk about?"
             value={topic}
             onChange={e => setTopic(e.target.value)}
             required

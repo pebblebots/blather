@@ -17,9 +17,9 @@ huddleRoutes.use("*", authMiddleware);
 huddleRoutes.post("/", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
-  const body = await c.req.json<{ workspaceId: string; topic: string; agentIds: string[] }>();
+  const body = await c.req.json<{ workspaceId: string; topic: string; agentIds: string[]; starter?: string }>();
 
-  const { workspaceId, topic, agentIds } = body;
+  const { workspaceId, topic, agentIds, starter } = body;
   if (!workspaceId || !topic || !agentIds?.length) {
     return c.json({ error: "workspaceId, topic, and agentIds are required" }, 400);
   }
@@ -83,6 +83,7 @@ huddleRoutes.post("/", async (c) => {
     topic,
     agentNames: agentUsers.map(a => a.displayName),
     maxDurationMs: huddle.maxDurationMs,
+    starter: starter || null,
     createdBy: userId,
   });
 

@@ -48,29 +48,89 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
   const [participants, setParticipants] = useState<HuddleParticipant[]>([]);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [speakingUserId, setSpeakingUserId] = useState<string | null>(null);
+  const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [muted, setMuted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [ended, setEnded] = useState(false);
   const startTime = useRef(Date.now());
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const audioQueue = useRef<string[]>([]);
+  const audioQueue = useRef<{ url: string; messageId: string }[]>([]);
   const isPlaying = useRef(false);
   const currentAudio = useRef<HTMLAudioElement | null>(null);
   const processedEvents = useRef(new Set<string>());
 
-  // Fetch huddle details on mount
+  // Kill all audio helper
+  const killAudio = useCallback(() => {
+    if (currentAudio.current) {
+      currentAudio.current.pause();
+      currentAudio.current.src = '';
+      currentAudio.current.onended = null;
+      currentAudio.current.onerror = null;
+      currentAudio.current = null;
+    }
+    audioQueue.current = [];
+    isPlaying.current = false;
+    setSpeakingUserId(null);
+    setCurrentPlayingId(null);
+  }, []);
+
+  // Fetch huddle details + message history on mount
   useEffect(() => {
     fetch(`${BASE}/huddles/${huddleId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         if (data.participants) setParticipants(data.participants);
-        if (data.createdAt) startTime.current = new Date(data.createdAt).getTime();
+        if (data.startedAt) startTime.current = new Date(data.startedAt).getTime();
+        if (data.status === 'ended') setEnded(true);
+        // Fetch message history for the huddle channel
+        if (data.channel?.id) {
+          fetch(`${BASE}/channels/${data.channel.id}/messages?limit=100`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then(r => r.json())
+            .then((messages: any[]) => {
+              if (!Array.isArray(messages)) return;
+              // Messages come newest-first, reverse for chronological
+              const sorted = [...messages].reverse();
+              setTranscript(prev => {
+                const existingIds = new Set(prev.map(t => t.id));
+                const newEntries = sorted
+                  .filter(m => !existingIds.has(m.id))
+                  .map(m => ({
+                    id: m.id,
+                    userId: m.userId,
+                    content: m.content,
+                    timestamp: m.createdAt,
+                    audioUrl: undefined,
+                  }));
+                // Merge: history first, then any live entries
+                return [...newEntries, ...prev.filter(t => !newEntries.some(n => n.id === t.id))];
+              });
+              // Mark all history messages as processed so we don't try to play old audio
+              sorted.forEach(m => processedEvents.current.add(m.id));
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {});
 
     // Join as listener
     fetch(`${BASE}/huddles/${huddleId}/join`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }).catch(() => {});
+
+    // Cleanup on unmount — kill audio
+    return () => {
+      if (currentAudio.current) {
+        currentAudio.current.pause();
+        currentAudio.current.src = '';
+        currentAudio.current.onended = null;
+        currentAudio.current.onerror = null;
+        currentAudio.current = null;
+      }
+      audioQueue.current = [];
+      isPlaying.current = false;
+    };
   }, [huddleId]);
 
   // Timer
@@ -84,6 +144,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
   // Process huddle events — only new ones
   const lastProcessedIndex = useRef(0);
   useEffect(() => {
+    if (ended) return;
     const newEvents = huddleEvents.slice(lastProcessedIndex.current);
     lastProcessedIndex.current = huddleEvents.length;
     for (const event of newEvents) {
@@ -102,41 +163,36 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
         });
         if (event.audioUrl && !muted && !processedEvents.current.has(event.messageId)) {
           processedEvents.current.add(event.messageId);
-          console.log('[Huddle] Audio event received:', event.audioUrl);
-          audioQueue.current.push(event.audioUrl);
+          audioQueue.current.push({ url: event.audioUrl, messageId: event.messageId });
           playNext();
         }
       }
-      if (event.type === 'huddle.speaking') {
-        setSpeakingUserId(event.userId);
-      }
       if (event.type === 'huddle.joined') {
-        // Refetch participants
         fetch(`${BASE}/huddles/${huddleId}`, { headers: { Authorization: `Bearer ${token}` } })
           .then(r => r.json())
           .then(data => { if (data.participants) setParticipants(data.participants); })
           .catch(() => {});
       }
       if (event.type === 'huddle.ended') {
-        // Kill audio immediately
-        if (currentAudio.current) {
-          currentAudio.current.pause();
-          currentAudio.current.src = '';
-          currentAudio.current = null;
-        }
-        audioQueue.current = [];
-        isPlaying.current = false;
+        killAudio();
+        setEnded(true);
         onEnded();
       }
     }
-  }, [huddleEvents]);
+  }, [huddleEvents, ended]);
 
-  // Auto-scroll transcript
+  // Auto-scroll to currently playing message (teleprompter)
   useEffect(() => {
-    if (transcriptRef.current) {
+    if (currentPlayingId) {
+      const el = document.getElementById(`transcript-${currentPlayingId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else if (transcriptRef.current) {
+      // When not playing, scroll to bottom for latest
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
-  }, [transcript]);
+  }, [currentPlayingId, transcript]);
 
   // Unlock audio on first user interaction
   const audioUnlocked = useRef(false);
@@ -144,40 +200,49 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (audioUnlocked.current) return;
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     ctx.resume().then(() => { audioUnlocked.current = true; ctx.close(); });
-    // Also play a silent buffer
     const silent = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
     silent.play().catch(() => {});
   }, []);
 
   useEffect(() => {
-    const el = document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('click', unlockAudio, { once: true });
     return () => document.removeEventListener('click', unlockAudio);
   }, [unlockAudio]);
 
   const playNext = useCallback(() => {
     if (isPlaying.current || audioQueue.current.length === 0) return;
     isPlaying.current = true;
-    const url = audioQueue.current.shift()!;
+    const { url, messageId } = audioQueue.current.shift()!;
     const fullUrl = url.startsWith('http') ? url : `https://blather.pbd.bot/api${url}`;
+    setCurrentPlayingId(messageId);
+
+    // Find the userId for this message to set speakingUserId
+    setTranscript(prev => {
+      const entry = prev.find(t => t.id === messageId);
+      if (entry) setSpeakingUserId(entry.userId);
+      return prev;
+    });
+
     const audio = new Audio(fullUrl);
     currentAudio.current = audio;
     audio.onended = () => {
       isPlaying.current = false;
       currentAudio.current = null;
       setSpeakingUserId(null);
+      setCurrentPlayingId(null);
       playNext();
     };
     audio.onerror = (e) => {
       console.error('[Huddle] Audio error:', url, e);
       isPlaying.current = false;
       currentAudio.current = null;
+      setCurrentPlayingId(null);
       playNext();
     };
     audio.play().catch((err) => {
-      console.warn('[Huddle] Audio play blocked:', err.message, '- will retry on next interaction');
+      console.warn('[Huddle] Audio play blocked:', err.message);
       isPlaying.current = false;
-      // Don't skip - push back to front of queue for retry
-      audioQueue.current.unshift(url);
+      audioQueue.current.unshift({ url, messageId });
     });
   }, []);
 
@@ -198,22 +263,27 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
 
   const handleEnd = async () => {
     if (!confirm('End this huddle for everyone?')) return;
+    killAudio();
     try {
       await fetch(`${BASE}/huddles/${huddleId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      onEnded();
     } catch {}
+    setEnded(true);
+    onEnded();
+  };
+
+  // Close button also kills audio
+  const handleClose = () => {
+    killAudio();
+    onClose();
   };
 
   const toggleMute = () => {
     setMuted(m => {
-      if (!m && currentAudio.current) {
-        currentAudio.current.pause();
-        currentAudio.current = null;
-        isPlaying.current = false;
-        audioQueue.current = [];
+      if (!m) {
+        killAudio();
       }
       return !m;
     });
@@ -228,11 +298,11 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(221,221,221,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(221,221,221,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={handleClose}>
       <div className="mac-window" style={{ width: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div className="mac-titlebar">
-          <div className="mac-close-box" onClick={onClose} />
-          <div style={{ flex: 1, textAlign: 'center' }}>🎙️ Huddle: "{topic}"</div>
+          <div className="mac-close-box" onClick={handleClose} />
+          <div style={{ flex: 1, textAlign: 'center' }}>🎙️ Huddle: &ldquo;{topic}&rdquo;</div>
           <span style={{ fontSize: 11, fontWeight: 'normal', fontFamily: 'Monaco, IBM Plex Mono, monospace' }}>⏱️ {mm}:{ss} / 30:00</span>
         </div>
 
@@ -245,7 +315,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
             const isSpeaking = speakingUserId === p.userId;
             const color = getNickColor(p.userId);
             return (
-              <div key={p.id} style={{ textAlign: 'center' }}>
+              <div key={p.userId} style={{ textAlign: 'center' }}>
                 <div style={{
                   width: 40, height: 40, borderRadius: '50%', background: color,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -253,6 +323,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
                   border: isSpeaking ? '3px solid #00CC00' : '2px solid #999999',
                   boxShadow: isSpeaking ? '0 0 8px rgba(0,204,0,0.6)' : 'none',
                   animation: isSpeaking ? 'pulse 1s infinite' : 'none',
+                  transition: 'border 0.2s, box-shadow 0.2s',
                 }}>
                   {getUserName(p.userId).charAt(0).toUpperCase()}
                 </div>
@@ -269,13 +340,27 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
           {transcript.length === 0 && (
             <div style={{ color: '#999999', textAlign: 'center', padding: 20 }}>Waiting for agents to speak...</div>
           )}
-          {transcript.map(entry => (
-            <div key={entry.id} style={{ marginBottom: 4 }}>
-              <span style={{ color: '#999999' }}>{formatTime(entry.timestamp)}</span>{' '}
-              <span style={{ color: getNickColor(entry.userId), fontWeight: 'bold' }}>{getUserName(entry.userId)}</span>{' '}
-              <span>{entry.content}</span>
-            </div>
-          ))}
+          {transcript.map(entry => {
+            const isActive = currentPlayingId === entry.id;
+            return (
+              <div
+                key={entry.id}
+                id={`transcript-${entry.id}`}
+                style={{
+                  marginBottom: 4,
+                  padding: '2px 4px',
+                  borderRadius: 3,
+                  background: isActive ? 'rgba(0, 204, 0, 0.1)' : 'transparent',
+                  borderLeft: isActive ? '3px solid #00CC00' : '3px solid transparent',
+                  transition: 'background 0.3s, border-left 0.3s',
+                }}
+              >
+                <span style={{ color: '#999999' }}>{formatTime(entry.timestamp)}</span>{' '}
+                <span style={{ color: getNickColor(entry.userId), fontWeight: 'bold' }}>{getUserName(entry.userId)}</span>{' '}
+                <span>{entry.content}</span>
+              </div>
+            );
+          })}
         </div>
 
         {/* Controls */}
@@ -287,16 +372,16 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
               placeholder="Say something..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              disabled={sending}
+              disabled={sending || ended}
             />
-            <button type="submit" className="mac-btn" disabled={sending || !input.trim()} style={{ minWidth: 50, fontSize: 11 }}>
+            <button type="submit" className="mac-btn" disabled={sending || !input.trim() || ended} style={{ minWidth: 50, fontSize: 11 }}>
               {sending ? '⏳' : 'Send'}
             </button>
           </form>
           <button className="mac-btn" onClick={toggleMute} style={{ minWidth: 0, padding: '4px 8px', fontSize: 13 }} title={muted ? 'Unmute' : 'Mute'}>
             {muted ? '🔇' : '🔊'}
           </button>
-          {currentUserId === createdBy && (
+          {currentUserId === createdBy && !ended && (
             <button className="mac-btn" onClick={handleEnd} style={{ minWidth: 0, padding: '4px 8px', fontSize: 11, color: '#CC0000' }}>
               End
             </button>

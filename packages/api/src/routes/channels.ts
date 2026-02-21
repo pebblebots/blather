@@ -18,6 +18,7 @@ channelRoutes.get('/:id/messages', async (c) => {
   const limit = parseInt(c.req.query('limit') || '50', 10);
   const after = c.req.query('after');
   const before = c.req.query('before');
+  const around = c.req.query('around');
 
   // Check access for private/dm channels
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -40,6 +41,43 @@ channelRoutes.get('/:id/messages', async (c) => {
 
   // Only fetch top-level messages (not thread replies)
   conditions.push(sql`${messages.threadId} IS NULL`);
+
+  // "around" query: fetch messages surrounding a specific message ID
+  if (around) {
+    const { users } = await import('@blather/db');
+    // Get the target message's timestamp
+    const [target] = await db.select({ createdAt: messages.createdAt }).from(messages).where(eq(messages.id, around)).limit(1);
+    if (!target) return c.json({ error: 'Message not found' }, 404);
+    const halfLimit = Math.floor(limit / 2);
+    // Fetch messages before and after (inclusive of target)
+    const beforeMsgs = await db.select({
+      id: messages.id, channelId: messages.channelId, userId: messages.userId,
+      content: messages.content, threadId: messages.threadId,
+      createdAt: messages.createdAt, updatedAt: messages.updatedAt,
+      attachments: messages.attachments,
+      userName: users.displayName, userIsAgent: users.isAgent,
+    }).from(messages).innerJoin(users, eq(messages.userId, users.id))
+      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} <= ${target.createdAt}`))
+      .orderBy(sql`${messages.createdAt} DESC`).limit(halfLimit + 1);
+    const afterMsgs = await db.select({
+      id: messages.id, channelId: messages.channelId, userId: messages.userId,
+      content: messages.content, threadId: messages.threadId,
+      createdAt: messages.createdAt, updatedAt: messages.updatedAt,
+      attachments: messages.attachments,
+      userName: users.displayName, userIsAgent: users.isAgent,
+    }).from(messages).innerJoin(users, eq(messages.userId, users.id))
+      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} > ${target.createdAt}`))
+      .orderBy(messages.createdAt).limit(halfLimit);
+    // Merge, dedupe, sort
+    const allMsgs = [...beforeMsgs.reverse(), ...afterMsgs];
+    const seen = new Set<string>();
+    const deduped = allMsgs.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+    return c.json(deduped.map(m => ({
+      ...m, user: { displayName: m.userName, isAgent: m.userIsAgent },
+      userName: undefined, userIsAgent: undefined,
+      attachments: m.attachments || [],
+    })));
+  }
 
   const { users } = await import('@blather/db');
 
@@ -207,6 +245,7 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100);
   const after = c.req.query('after');
   const before = c.req.query('before');
+  const around = c.req.query('around');
 
   const { users } = await import('@blather/db');
 

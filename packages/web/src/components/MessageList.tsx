@@ -104,9 +104,10 @@ interface Props {
   onEditMessage?: (messageId: string, content: string) => void;
   onDeleteMessage?: (messageId: string) => void;
   onOpenThread?: (message: Msg) => void;
+  highlightMessageId?: string | null;
 }
 
-export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread }: Props) {
+export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
@@ -119,6 +120,30 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
   const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Scroll to highlighted message (retry to handle channel switch / render delay)
+  useEffect(() => {
+    if (!highlightMessageId) return;
+    setHighlightId(highlightMessageId);
+    let attempts = 0;
+    const maxAttempts = 20;
+    const tryScroll = () => {
+      const el = document.getElementById(`msg-${highlightMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      attempts++;
+      if (attempts < maxAttempts) {
+        setTimeout(tryScroll, 100);
+      }
+    };
+    // Use setTimeout to let React flush state updates and render new messages
+    setTimeout(tryScroll, 50);
+    const timer = setTimeout(() => setHighlightId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [highlightMessageId]);
 
   const playTts = async (messageId: string) => {
     // Stop any currently playing audio
@@ -238,7 +263,8 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
         return (
           <div
             key={msg.id}
-            style={{ padding: "1px 2px", lineHeight: 1.6, position: "relative", background: isHovered ? "#F0F0F0" : "transparent" }}
+            id={`msg-${msg.id}`}
+            style={{ padding: "1px 2px", lineHeight: 1.6, position: "relative", background: highlightId === msg.id ? "#FFFFAA" : isHovered ? "#F0F0F0" : "transparent", transition: "background 0.5s" }}
             onMouseEnter={() => setHoveredMsg(msg.id)}
             onMouseLeave={() => setHoveredMsg(null)}
           >

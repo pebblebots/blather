@@ -42,6 +42,7 @@ export function MainPage() {
   const [showCreateCh, setShowCreateCh] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [activeHuddle, setActiveHuddle] = useState<any>(null);
   const [showNewHuddle, setShowNewHuddle] = useState(false);
   const [showHuddle, setShowHuddle] = useState(false);
@@ -156,7 +157,7 @@ export function MainPage() {
       if (sorted.length === 0) {
         setHasMoreOlder(false);
       } else {
-        setMessages((prev) => [...sorted, ...prev]);
+        setMessages((prev) => { const ids = new Set(prev.map(m => m.id)); const unique = sorted.filter(m => !ids.has(m.id)); return [...unique, ...prev]; });
         if (sorted.length < 50) setHasMoreOlder(false);
       }
     } catch (e) {
@@ -718,7 +719,7 @@ export function MainPage() {
               <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
             ) : selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} />
+                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>
@@ -792,9 +793,30 @@ export function MainPage() {
           workspaceId={selectedWs}
           onClose={() => setShowSearch(false)}
           onNavigate={(channelId, messageId) => {
-            setSelectedCh(channelId);
             setShowTasks(false);
             setShowSearch(false);
+            // Fetch messages around the target
+            api.getMessagesAround(channelId, messageId, 50).then((msgs) => {
+              const sorted = [...msgs].reverse();
+              setUsersMap((prev) => {
+                const next = new Map(prev);
+                let changed = false;
+                for (const m of msgs) {
+                  if (m.user && !next.has(m.userId)) { next.set(m.userId, { displayName: m.user.displayName, isAgent: m.user.isAgent }); changed = true; }
+                }
+                return changed ? next : prev;
+              });
+              setMessages(sorted);
+              setHasMoreOlder(true);
+              setSelectedCh(channelId);
+              // Delay highlight until after React renders the new messages
+              setTimeout(() => {
+                setHighlightMessageId(messageId);
+                setTimeout(() => setHighlightMessageId(null), 4000);
+              }, 100);
+            }).catch(() => {
+              setSelectedCh(channelId);
+            });
           }}
         />
       )}

@@ -53,7 +53,10 @@ export const api = {
     request<any>(`/workspaces/${workspaceId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
 
   getMessages: (channelId: string, limit = 50, after?: string, before?: string) =>
-    request<any[]>(`/channels/${channelId}/messages?limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}`),
+    request<any[]>(`/channels/${channelId}/messages?limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}${before ? `&before=${encodeURIComponent(before)}` : ''}`),
+
+  getMessagesAround: (channelId: string, messageId: string, limit = 50) =>
+    request<any[]>(`/channels/${channelId}/messages?limit=${limit}&around=${encodeURIComponent(messageId)}`),
 
   sendMessage: (channelId: string, content: string, attachments?: any[]) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content, attachments }) }),

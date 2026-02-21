@@ -13,6 +13,7 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   isAgent: boolean('is_agent').notNull().default(false),
   voice: varchar('voice', { length: 255 }),
+  bio: text('bio'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

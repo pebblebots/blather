@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { huddles, huddleParticipants, messages, users, channels, channelMembers } from "@blather/db";
 import { createDb } from "@blather/db";
 import { publishEvent } from "../ws/manager.js";
@@ -7,10 +7,15 @@ import { generateTTS } from "./tts.js";
 
 const db = createDb();
 
+type Phase = "opening" | "debate" | "synthesis";
+
 interface AgentState {
   userId: string;
   displayName: string;
-  lastSpoke: number; // timestamp
+  bio: string | null;
+  lastSpoke: number;
+  messageCount: number;
+  pendingNudge: boolean;
 }
 
 interface ActiveOrchestrator {
@@ -18,21 +23,96 @@ interface ActiveOrchestrator {
   channelId: string;
   workspaceId: string;
   topic: string;
+  starter: string | null;
   nudgeTimer: ReturnType<typeof setTimeout> | null;
   turnTimer: ReturnType<typeof setTimeout> | null;
   maxTimer: ReturnType<typeof setTimeout> | null;
   stopped: boolean;
   agents: AgentState[];
   lastSpeakerId: string | null;
+  totalMessages: number;
+  startedAt: number;
+  phase: Phase;
+  createdBy: string;
 }
 
 const activeOrchestrators = new Map<string, ActiveOrchestrator>();
-
-// Message listener - checks new messages against active huddle channels
-const huddleChannelMap = new Map<string, string>(); // channelId -> huddleId
+const huddleChannelMap = new Map<string, string>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getCurrentPhase(orch: ActiveOrchestrator): Phase {
+  const elapsed = Date.now() - orch.startedAt;
+  if (orch.totalMessages <= 6 && elapsed < 2 * 60 * 1000) return "opening";
+  if (orch.totalMessages <= 18 && elapsed < 8 * 60 * 1000) return "debate";
+  return "synthesis";
+}
+
+function assignAngles(topic: string, agents: AgentState[]): Map<string, string> {
+  const angles = new Map<string, string>();
+  
+  const twoAngles = [
+    ["the optimistic case — argue this will create massive value", "the skeptical case — argue this is overhyped and the risks are underappreciated"],
+    ["the builder's perspective — what's technically feasible right now", "the investor's perspective — where the money will actually flow"],
+    ["the adoption argument — why this goes mainstream fast", "the structural barriers — why this stalls or fragments"],
+  ];
+
+  const threeAngles = [
+    ["the technology angle — what's actually possible and what breaks", "the business/money angle — who captures value and who gets commoditized", "the culture/adoption angle — how real people will actually use this"],
+    ["the optimist — make the bull case", "the skeptic — make the bear case", "the pragmatist — find the nuanced middle ground others are missing"],
+    ["the systems thinker — second-order effects everyone's ignoring", "the historian — what past analogies tell us about how this plays out", "the contrarian — the take nobody wants to hear but might be right"],
+  ];
+
+  // Pick angle set based on topic hash for variety
+  const hash = topic.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+
+  if (agents.length === 2) {
+    const set = twoAngles[hash % twoAngles.length];
+    agents.forEach((a, i) => angles.set(a.userId, set[i]));
+  } else if (agents.length >= 3) {
+    const set = threeAngles[hash % threeAngles.length];
+    agents.forEach((a, i) => angles.set(a.userId, set[i % set.length]));
+  } else if (agents.length === 1) {
+    angles.set(agents[0].userId, "give your honest, opinionated take — don't hold back");
+  }
+
+  // Refine based on bios if available
+  // If an agent has a finance bio, prefer giving them the money angle, etc.
+  if (agents.length >= 2) {
+    const financeBio = agents.find(a => a.bio && /financ|valuat|portfolio|invest|money/i.test(a.bio));
+    const techBio = agents.find(a => a.bio && /build|engineer|architect|system/i.test(a.bio));
+    const cultureBio = agents.find(a => a.bio && /culture|trend|adopt|social|research/i.test(a.bio));
+    
+    if (agents.length === 2) {
+      if (financeBio && techBio && financeBio !== techBio) {
+        angles.set(financeBio.userId, "the investment thesis — where value accrues and what gets commoditized");
+        angles.set(techBio.userId, "the builder's reality check — what's actually shippable vs vaporware");
+      } else if (financeBio && cultureBio && financeBio !== cultureBio) {
+        angles.set(financeBio.userId, "the money view — follow the capital and incentive structures");
+        angles.set(cultureBio.userId, "the adoption view — how real humans and communities will shape this");
+      }
+    }
+    
+    if (agents.length >= 3 && financeBio && techBio && cultureBio && 
+        financeBio !== techBio && techBio !== cultureBio && financeBio !== cultureBio) {
+      angles.set(financeBio.userId, "the money angle — who captures value, who gets commoditized, and where to place bets");
+      angles.set(techBio.userId, "the builder's angle — what's technically real, what breaks at scale, what's vaporware");
+      angles.set(cultureBio.userId, "the adoption angle — how people actually behave, what patterns from history repeat");
+    }
+  }
+
+  return angles;
+}
+
+function buildAgentPrompt(agent: AgentState, topic: string, angle: string, starter: string | null, allAgents: AgentState[]): string {
+  const otherNames = allAgents.filter(a => a.userId !== agent.userId).map(a => a.displayName);
+  const bioLine = agent.bio ? `Your expertise: ${agent.bio}` : "";
+  const starterLine = starter ? `\nA provocative seed to react to: "${starter}"` : "";
+  const othersLine = otherNames.length > 0 ? ` You're debating with ${otherNames.join(" and ")}.` : "";
+  
+  return `@${agent.displayName} — Huddle topic: "${topic}". ${bioLine}\n\nYour angle: ${angle}.${starterLine}${othersLine}\n\nIMPORTANT: Keep responses to 1-2 sentences MAX. This is a quick conversation, not an essay. Be punchy and opinionated. Riff on what others say.`;
 }
 
 export function onMessageCreated(channelId: string, messageData: {
@@ -49,22 +129,25 @@ export function onMessageCreated(channelId: string, messageData: {
   if (!orch || orch.stopped) return;
   console.log(`[Huddle] onMessageCreated: channel=${channelId} user=${messageData.displayName} huddleId=${huddleId}`);
 
-  // Update agent lastSpoke
+  // Update agent lastSpoke + message counts
   const agent = orch.agents.find(a => a.userId === messageData.userId);
   if (agent) {
     agent.lastSpoke = Date.now();
+    agent.messageCount++;
+    agent.pendingNudge = false;
     orch.lastSpeakerId = messageData.userId;
   }
+  orch.totalMessages++;
+  
+  // Update phase
+  orch.phase = getCurrentPhase(orch);
 
-  // Reset nudge timer
   resetNudgeTimer(orch);
 
-  // Schedule turn-taking: after an agent speaks, nudge the next quiet agent
   if (messageData.isAgent || agent) {
     scheduleTurnTaking(orch);
   }
 
-  // TTS the message and broadcast
   if (messageData.isAgent || messageData.userId) {
     handleHuddleMessage(orch, messageData).catch(err => {
       console.error(`[Huddle] TTS error for message ${messageData.id}:`, err);
@@ -74,9 +157,7 @@ export function onMessageCreated(channelId: string, messageData: {
 
 function getNextQuietAgent(orch: ActiveOrchestrator): AgentState | null {
   if (orch.agents.length === 0) return null;
-  // Sort by lastSpoke ascending — pick the one who hasn't spoken recently
   const sorted = [...orch.agents].sort((a, b) => a.lastSpoke - b.lastSpoke);
-  // Skip the one who just spoke
   const candidate = sorted.find(a => a.userId !== orch.lastSpeakerId) || sorted[0];
   return candidate;
 }
@@ -85,28 +166,67 @@ function scheduleTurnTaking(orch: ActiveOrchestrator) {
   if (orch.turnTimer) clearTimeout(orch.turnTimer);
   if (orch.stopped) return;
 
-  // Wait 3-5 seconds then nudge the next agent
-  const delay = 3000 + Math.random() * 2000;
+  const delay = 15000 + Math.random() * 5000;
   orch.turnTimer = setTimeout(async () => {
     if (orch.stopped) return;
     const next = getNextQuietAgent(orch);
     if (!next) return;
-
-    // Only nudge if they haven't spoken in the last 5 seconds
-    if (Date.now() - next.lastSpoke < 5000) return;
-
+    if (Date.now() - next.lastSpoke < 20000) return;
+    if (next.pendingNudge) return;
     await postTargetedNudge(orch, next);
   }, delay);
 }
 
+function getLastAgentMessage(orch: ActiveOrchestrator): { speaker: string; content: string } | null {
+  // We don't have message history in memory, so we'll use a generic reference
+  const lastSpeaker = orch.agents.find(a => a.userId === orch.lastSpeakerId);
+  return lastSpeaker ? { speaker: lastSpeaker.displayName, content: "" } : null;
+}
+
 async function postTargetedNudge(orch: ActiveOrchestrator, agent: AgentState) {
   if (orch.stopped) return;
+  if (agent.pendingNudge) return;
   try {
-    const nudgeContent = `@${agent.displayName} — what are your thoughts on ${orch.topic}?`;
+    const phase = getCurrentPhase(orch);
+    let nudgeContent: string;
 
+    const lastSpeaker = orch.agents.find(a => a.userId === orch.lastSpeakerId);
+    const lastSpeakerName = lastSpeaker?.displayName || "the others";
+
+    // Bug 4: Fetch recent conversation context
+    const recentMessages = await db.select({
+      displayName: users.displayName,
+      content: messages.content,
+    }).from(messages)
+      .innerJoin(users, eq(messages.userId, users.id))
+      .where(eq(messages.channelId, orch.channelId))
+      .orderBy(desc(messages.createdAt))
+      .limit(3);
+    
+    const recentReversed = [...recentMessages];
+    let recapLines = "";
+    if (recentReversed.length > 0) {
+      const lines = recentReversed.map(m => `- ${m.displayName}: "${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}"`).join("\n");
+      recapLines = `\n\nRecent conversation:\n${lines}\n`;
+    }
+
+    switch (phase) {
+      case "opening":
+        nudgeContent = `@${agent.displayName} — what do you think? One or two sentences, keep it tight.${recapLines}`;
+        break;
+      case "debate":
+        nudgeContent = `@${agent.displayName} —${recapLines}
+thoughts? (keep it to 1-2 sentences)`;
+        break;
+      case "synthesis":
+        nudgeContent = `@${agent.displayName} — we're wrapping up — one sentence to close it out.${recapLines}`;
+        break;
+    }
+
+    // Bug 1: Use orch.createdBy instead of agent.userId
     const [msg] = await db.insert(messages).values({
       channelId: orch.channelId,
-      userId: agent.userId, // Post "from" the system but directed at agent
+      userId: orch.createdBy,
       content: nudgeContent,
     }).returning();
 
@@ -115,7 +235,7 @@ async function postTargetedNudge(orch: ActiveOrchestrator, agent: AgentState) {
       await emitEvent(db, {
         workspaceId: orch.workspaceId,
         channelId: orch.channelId,
-        userId: agent.userId,
+        userId: orch.createdBy,
         type: "message.created",
         payload: {
           id: msg.id,
@@ -128,6 +248,9 @@ async function postTargetedNudge(orch: ActiveOrchestrator, agent: AgentState) {
         },
       });
     }
+
+    // Bug 2: Mark pending nudge
+    agent.pendingNudge = true;
   } catch (err) {
     console.error("[Huddle] Targeted nudge error:", err);
   }
@@ -141,12 +264,6 @@ async function handleHuddleMessage(orch: ActiveOrchestrator, msg: {
   displayName?: string;
 }) {
   const voice = msg.voice || "echo";
-
-  // Broadcast speaking event
-  await publishEvent(orch.workspaceId, {
-    type: "huddle.speaking",
-    data: { huddleId: orch.huddleId, userId: msg.userId, displayName: msg.displayName },
-  });
 
   try {
     const { audioUrl, duration } = await generateTTS(msg.content, voice, msg.id);
@@ -174,11 +291,10 @@ function resetNudgeTimer(orch: ActiveOrchestrator) {
 
   orch.nudgeTimer = setTimeout(async () => {
     if (orch.stopped) return;
-    // Pick the quietest agent and nudge them specifically
     const next = getNextQuietAgent(orch);
     if (!next) return;
     await postTargetedNudge(orch, next);
-  }, 15000);
+  }, 45000);
 }
 
 export async function startOrchestrator(params: {
@@ -189,11 +305,13 @@ export async function startOrchestrator(params: {
   agentNames: string[];
   maxDurationMs: number;
   createdBy: string;
+  starter?: string | null;
 }) {
-  // Load agent participants with their details
+  // Load agent participants with bios
   const agentParticipants = await db.select({
     userId: huddleParticipants.userId,
     displayName: users.displayName,
+    bio: users.bio,
   }).from(huddleParticipants)
     .innerJoin(users, eq(huddleParticipants.userId, users.id))
     .where(and(eq(huddleParticipants.huddleId, params.huddleId), eq(huddleParticipants.role, "agent")));
@@ -203,6 +321,7 @@ export async function startOrchestrator(params: {
     channelId: params.channelId,
     workspaceId: params.workspaceId,
     topic: params.topic,
+    starter: params.starter || null,
     nudgeTimer: null,
     turnTimer: null,
     maxTimer: null,
@@ -210,16 +329,27 @@ export async function startOrchestrator(params: {
     agents: agentParticipants.map(a => ({
       userId: a.userId,
       displayName: a.displayName,
+      bio: a.bio,
       lastSpoke: 0,
+      messageCount: 0,
+      pendingNudge: false,
     })),
     lastSpeakerId: null,
+    totalMessages: 0,
+    startedAt: Date.now(),
+    phase: "opening",
+    createdBy: params.createdBy,
   };
 
   activeOrchestrators.set(params.huddleId, orch);
   huddleChannelMap.set(params.channelId, params.huddleId);
 
+  // Assign angles
+  const angles = assignAngles(params.topic, orch.agents);
+
   // Post initial message
-  const initContent = `🎙️ Huddle started! Topic: ${params.topic}. Participants: ${params.agentNames.join(", ")}. Keep responses conversational — 1-3 sentences max.`;
+  const starterLine = params.starter ? `\n\n💡 Starter: "${params.starter}"` : "";
+  const initContent = `🎙️ Huddle started! "${params.topic}" — ${params.agentNames.join(", ")} are in.${starterLine}\n\nKeep responses SHORT — 1-2 sentences max. Who's got an opening take?`;
 
   const [msg] = await db.insert(messages).values({
     channelId: params.channelId,
@@ -243,12 +373,13 @@ export async function startOrchestrator(params: {
     },
   });
 
-  // Post personalized prompts to each agent, staggered by 1-2 seconds
+  // Post persona-aware prompts, staggered
   for (const agent of orch.agents) {
     await sleep(1000 + Math.random() * 1000);
     if (orch.stopped) break;
 
-    const promptContent = `@${agent.displayName} — You're in a huddle about "${params.topic}". Share your perspective in 1-3 sentences. Be conversational. You can ask questions or build on what others say.`;
+    const angle = angles.get(agent.userId) || "share your unique perspective";
+    const promptContent = buildAgentPrompt(agent, params.topic, angle, params.starter || null, orch.agents);
 
     const [promptMsg] = await db.insert(messages).values({
       channelId: params.channelId,
@@ -272,19 +403,16 @@ export async function startOrchestrator(params: {
       },
     });
 
-    console.log(`[Huddle] Sent personalized prompt to ${agent.displayName}`);
+    console.log(`[Huddle] Sent persona-aware prompt to ${agent.displayName} (angle: ${angle.substring(0, 50)}...)`);
   }
 
-  // Start nudge timer
   resetNudgeTimer(orch);
 
-  // Max duration timeout
   orch.maxTimer = setTimeout(async () => {
     if (orch.stopped) return;
     await endHuddle(params.huddleId, params.createdBy);
   }, params.maxDurationMs);
 
-  // Broadcast huddle.created
   await publishEvent(params.workspaceId, {
     type: "huddle.created",
     data: {
@@ -305,7 +433,6 @@ export async function endHuddle(huddleId: string, endedBy: string) {
     huddleChannelMap.delete(orch.channelId);
     activeOrchestrators.delete(huddleId);
 
-    // Post closing message
     const closingContent = `🎙️ Huddle ended. Thanks for the conversation!`;
     const [msg] = await db.insert(messages).values({
       channelId: orch.channelId,
@@ -330,13 +457,11 @@ export async function endHuddle(huddleId: string, endedBy: string) {
     });
   }
 
-  // Update DB
   await db.update(huddles).set({
     status: "ended",
     endedAt: new Date(),
   }).where(eq(huddles.id, huddleId));
 
-  // Get workspace ID for broadcast
   const [huddle] = await db.select().from(huddles).where(eq(huddles.id, huddleId)).limit(1);
   if (huddle) {
     await publishEvent(huddle.workspaceId, {
