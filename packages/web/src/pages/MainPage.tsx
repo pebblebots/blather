@@ -43,6 +43,7 @@ export function MainPage() {
   const [showTasks, setShowTasks] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
+  const skipChannelLoadRef = useRef(false);
   const [activeHuddle, setActiveHuddle] = useState<any>(null);
   const [showNewHuddle, setShowNewHuddle] = useState(false);
   const [showHuddle, setShowHuddle] = useState(false);
@@ -122,6 +123,7 @@ export function MainPage() {
 
   useEffect(() => {
     if (!selectedCh) { setMessages([]); setHasMoreOlder(true); return; }
+    if (skipChannelLoadRef.current) { skipChannelLoadRef.current = false; return; }
     setThreadMessage(null);
     api.getMessages(selectedCh).then((msgs) => {
       const sorted = msgs.reverse();
@@ -808,6 +810,7 @@ export function MainPage() {
               });
               setMessages(sorted);
               setHasMoreOlder(true);
+              skipChannelLoadRef.current = true;
               setSelectedCh(channelId);
               // Delay highlight until after React renders the new messages
               setTimeout(() => {
