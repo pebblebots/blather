@@ -797,7 +797,7 @@ export function MainPage() {
             setShowSearch(false);
             // Fetch messages around the target
             api.getMessagesAround(channelId, messageId, 50).then((msgs) => {
-              const sorted = [...msgs].reverse();
+              const sorted = msgs;
               setUsersMap((prev) => {
                 const next = new Map(prev);
                 let changed = false;
