@@ -37,18 +37,7 @@ check_vm aura-farmer-clawdbot vagata us-central1-a
 check_vm irma admin us-central1-a
 check_vm diligence-baby vagata us-central1-c
 
-# sourcy-mcfunnel - try us-central1-a first, then us-central1-c
-if gcloud compute ssh vagata@sourcy-mcfunnel --zone=us-central1-a --project=clawds-487022 \
-  --command="echo OK" --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" \
-  &>/dev/null; then
-  ok "VM sourcy-mcfunnel"
-elif gcloud compute ssh vagata@sourcy-mcfunnel --zone=us-central1-c --project=clawds-487022 \
-  --command="echo OK" --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" \
-  &>/dev/null; then
-  ok "VM sourcy-mcfunnel (us-central1-c)"
-else
-  fail "VM sourcy-mcfunnel unreachable"
-fi
+check_vm sourcy-mcfunnel vagata us-west4-a
 
 # --- 2. Services on dev box ---
 
