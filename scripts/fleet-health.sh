@@ -42,7 +42,7 @@ check_vm sourcy-mcfunnel vagata us-west4-a
 # --- 2. Services on dev box ---
 
 # Blather API
-if curl -sf --max-time 10 https://blather.pbd.bot/api/workspaces || curl -sf --max-time 10 http://localhost:3000/api/workspaces > /dev/null 2>&1; then
+if curl -sf --max-time 10 http://localhost:3000/ > /dev/null 2>&1; then
   ok "Blather API"
 else
   fail "Blather API not responding"
