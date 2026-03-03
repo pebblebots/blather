@@ -148,6 +148,30 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ── Incident Severity & Status Enums ──
+
+export const incidentSeverityEnum = pgEnum("incident_severity", ["critical", "warning", "info"]);
+export const incidentStatusEnum = pgEnum("incident_status", ["open", "acked", "resolved"]);
+
+// ── Incidents ──
+
+export const incidents = pgTable("incidents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  severity: incidentSeverityEnum("severity").notNull().default("warning"),
+  status: incidentStatusEnum("status").notNull().default("open"),
+  openedBy: uuid("opened_by").references(() => users.id, { onDelete: "set null" }),
+  ackedBy: uuid("acked_by").references(() => users.id, { onDelete: "set null" }),
+  resolvedBy: uuid("resolved_by").references(() => users.id, { onDelete: "set null" }),
+  resolution: text("resolution"),
+  channelId: uuid("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  ackedAt: timestamp("acked_at", { withTimezone: true }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Huddles ──
 
 export const huddleStatusEnum = pgEnum('huddle_status', ['active', 'ended']);
