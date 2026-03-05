@@ -282,25 +282,52 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   return c.json(result);
 });
 
-// Send typing indicator
+// Send typing indicator (in-memory state, DB only on cache miss)
 channelRoutes.post('/:id/typing', async (c) => {
-  const db = c.get('db');
   const channelId = c.req.param('id');
   const userId = c.get('userId');
 
-  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
-  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+  const { markTyping, getCachedChannel, setCachedChannel, getCachedUser, setCachedUser, getCachedMembership, setCachedMembership } = await import('../state/typingState.js');
 
-  if (channel.channelType === 'dm' || channel.channelType === 'private') {
-    const [membership] = await db.select().from(channelMembers)
-      .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
-      .limit(1);
-    if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
+  // Channel lookup — cache first
+  let chan = getCachedChannel(channelId);
+  if (!chan) {
+    const db = c.get('db');
+    const [row] = await db.select({ workspaceId: channels.workspaceId, channelType: channels.channelType }).from(channels).where(eq(channels.id, channelId)).limit(1);
+    if (!row) return c.json({ error: 'Channel not found' }, 404);
+    chan = row;
+    setCachedChannel(channelId, chan);
   }
 
-  const [typingUser] = await db.select({ displayName: users.displayName, isAgent: users.isAgent }).from(users).where(eq(users.id, userId)).limit(1);
+  // Membership check for private/dm — cache first
+  if (chan.channelType === 'dm' || chan.channelType === 'private') {
+    let isMember = getCachedMembership(channelId, userId);
+    if (isMember === undefined) {
+      const db = c.get('db');
+      const [membership] = await db.select().from(channelMembers)
+        .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+        .limit(1);
+      isMember = !!membership;
+      setCachedMembership(channelId, userId, isMember);
+    }
+    if (!isMember) return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+
+  // User info — cache first
+  let typingUser = getCachedUser(userId);
+  if (!typingUser) {
+    const db = c.get('db');
+    const [row] = await db.select({ displayName: users.displayName, isAgent: users.isAgent }).from(users).where(eq(users.id, userId)).limit(1);
+    if (row) {
+      typingUser = row;
+      setCachedUser(userId, row);
+    }
+  }
+
+  markTyping(channelId, userId);
+
   const { publishEphemeralEvent } = await import('../ws/manager.js');
-  await publishEphemeralEvent(channel.workspaceId, channelId, {
+  await publishEphemeralEvent(chan.workspaceId, channelId, {
     type: 'typing.started',
     channel_id: channelId,
     data: { userId, channelId, user: typingUser ? { displayName: typingUser.displayName, isAgent: typingUser.isAgent } : undefined },

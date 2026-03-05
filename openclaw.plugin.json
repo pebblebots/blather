@@ -1,0 +1,11 @@
+{
+  "id": "blather",
+  "name": "Blather",
+  "description": "Blather messaging channel plugin for OpenClaw",
+  "channels": ["blather"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
