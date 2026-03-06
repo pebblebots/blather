@@ -13,6 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'blather-dev-secret-change-in-produ
 
 const HEARTBEAT_INTERVAL = 30_000;
 const IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+const MAX_CONNECTIONS_PER_USER = 3;
 
 interface AuthedClient {
   ws: WebSocket;
@@ -30,6 +31,13 @@ function addClient(client: AuthedClient) {
   if (!set) {
     set = new Set();
     workspaceClients.set(client.workspaceId, set);
+  }
+  // Limit connections per user — close oldest if over limit
+  const userConns = [...set].filter(c => c.userId === client.userId);
+  while (userConns.length >= MAX_CONNECTIONS_PER_USER) {
+    const oldest = userConns.shift()!;
+    oldest.ws.close(4008, 'Too many connections');
+    set.delete(oldest);
   }
   set.add(client);
   broadcastPresence(client.workspaceId, client.userId, 'online');
