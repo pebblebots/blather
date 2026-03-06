@@ -4,7 +4,7 @@ import * as schema from './schema.js';
 
 export function createDb(url?: string) {
   const connectionString = url || process.env.DATABASE_URL || 'postgresql://blather:blather-dev@localhost:5432/blather';
-  const client = postgres(connectionString, { max: 10 });
+  const client = postgres(connectionString, { max: 30 });
   return drizzle(client, { schema });
 }
 
