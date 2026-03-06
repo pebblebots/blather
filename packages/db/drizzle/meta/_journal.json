@@ -36,6 +36,13 @@
       "when": 1739820000000,
       "tag": "0004_add-attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1741257600000,
+      "tag": "0005_add_portfolio_metrics",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique, integer, date, decimal, index } from 'drizzle-orm/pg-core';
 
 export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member']);
 export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm']);
@@ -195,3 +195,33 @@ export const huddleParticipants = pgTable('huddle_participants', {
   joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
   leftAt: timestamp('left_at', { withTimezone: true }),
 });
+
+// ── Portfolio Metrics ──
+
+export const portfolioMetrics = pgTable('portfolio_metrics', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  companyName: text('company_name').notNull(),
+  fund: text('fund').notNull(),
+  reportingDate: date('reporting_date').notNull(),
+  revenueArrUsd: decimal('revenue_arr_usd').notNull(),
+  revenueAsOfDate: date('revenue_as_of_date'),
+  headcount: integer('headcount'),
+  runwayMonths: decimal('runway_months'),
+  yoyGrowthPct: decimal('yoy_growth_pct'),
+  lastRoundSizeUsd: decimal('last_round_size_usd'),
+  lastRoundValuationUsd: decimal('last_round_valuation_usd'),
+  lastRoundDate: date('last_round_date'),
+  lastRoundType: text('last_round_type'),
+  keyMilestoneText: varchar('key_milestone_text', { length: 500 }),
+  nextFundraiseTiming: text('next_fundraise_timing'),
+  contactEmail: text('contact_email'),
+  permissionToShare: boolean('permission_to_share').notNull().default(false),
+  source: text('source').notNull(),
+  confidence: decimal('confidence'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  fundIdx: index('portfolio_metrics_fund_idx').on(t.fund),
+  companyNameIdx: index('portfolio_metrics_company_name_idx').on(t.companyName),
+  reportingDateIdx: index('portfolio_metrics_reporting_date_idx').on(t.reportingDate),
+}));
