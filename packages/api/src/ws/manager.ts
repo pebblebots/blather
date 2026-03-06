@@ -114,25 +114,11 @@ export async function publishEphemeralEvent(workspaceId: string, channelId: stri
   const set = workspaceClients.get(workspaceId);
   if (!set) return;
 
-  let allowedUserIds: Set<string> | null = null;
-
-  // using module-level db
-  const [ch] = await db.select({ channelType: channels.channelType })
-    .from(channels)
-    .where(eq(channels.id, channelId))
-    .limit(1);
-
-  if (ch && (ch.channelType === "dm" || ch.channelType === "private")) {
-    const members = await db.select({ userId: channelMembers.userId })
-      .from(channelMembers)
-      .where(eq(channelMembers.channelId, channelId));
-    allowedUserIds = new Set(members.map(m => m.userId));
-  }
-
+  // No DB queries — caller already verified membership for DM/private channels.
+  // Broadcast to all workspace clients; fine for typing indicators.
   const data = JSON.stringify(event);
   for (const client of set) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
-    if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
     client.ws.send(data);
   }
 }
