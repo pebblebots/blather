@@ -52,4 +52,4 @@ app.route("/uploads", uploadRoutes);
 app.route("/memory", memoryRoutes);
 app.route("/tts", ttsRoutes);
 app.route("/huddles", huddleRoutes);
-app.route("/api/metrics", metricRoutes);
+app.route("/metrics", metricRoutes);
