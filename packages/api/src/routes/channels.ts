@@ -73,11 +73,23 @@ channelRoutes.get('/:id/messages', async (c) => {
     const allMsgs = [...beforeMsgs.reverse(), ...afterMsgs];
     const seen = new Set<string>();
     const deduped = allMsgs.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
-    return c.json(deduped.map(m => ({
+    const aroundMapped = deduped.map(m => ({
       ...m, user: { displayName: m.userName, isAgent: m.userIsAgent },
       userName: undefined, userIsAgent: undefined,
       attachments: m.attachments || [],
-    })));
+    }));
+    if (aroundMapped.length > 0) {
+      const amIds = aroundMapped.map(m => m.id);
+      const amReactions = await db.select().from(reactions)
+        .where(sql`${reactions.messageId} IN (${sql.join(amIds.map((id: string) => sql`${id}`), sql`, `)})`);
+      const amByMsg: Record<string, any[]> = {};
+      for (const r of amReactions) {
+        if (!amByMsg[r.messageId]) amByMsg[r.messageId] = [];
+        amByMsg[r.messageId].push({ id: r.id, userId: r.userId, emoji: r.emoji, createdAt: r.createdAt });
+      }
+      for (const m of aroundMapped) (m as any).reactions = amByMsg[m.id] || [];
+    }
+    return c.json(aroundMapped);
   }
 
   const { users } = await import('@blather/db');
@@ -110,6 +122,21 @@ channelRoutes.get('/:id/messages', async (c) => {
     .where(and(...conditions))
     .orderBy(desc(messages.createdAt))
     .limit(limit);
+
+  // Attach reactions
+  if (result.length > 0) {
+    const msgIds = result.map(m => m.id);
+    const allReactions = await db.select().from(reactions)
+      .where(sql`${reactions.messageId} IN (${sql.join(msgIds.map((id: string) => sql`${id}`), sql`, `)})`);
+    const reactionsByMsg: Record<string, any[]> = {};
+    for (const r of allReactions) {
+      if (!reactionsByMsg[r.messageId]) reactionsByMsg[r.messageId] = [];
+      reactionsByMsg[r.messageId].push({ id: r.id, userId: r.userId, emoji: r.emoji, createdAt: r.createdAt });
+    }
+    for (const msg of result) {
+      (msg as any).reactions = reactionsByMsg[msg.id] || [];
+    }
+  }
 
   return c.json(result);
 });
@@ -279,6 +306,21 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
     .where(and(...conditions))
     .orderBy(messages.createdAt)
     .limit(limit);
+
+  // Attach reactions
+  if (result.length > 0) {
+    const rIds = result.map(m => m.id);
+    const rReactions = await db.select().from(reactions)
+      .where(sql`${reactions.messageId} IN (${sql.join(rIds.map((id: string) => sql`${id}`), sql`, `)})`);
+    const rByMsg: Record<string, any[]> = {};
+    for (const r of rReactions) {
+      if (!rByMsg[r.messageId]) rByMsg[r.messageId] = [];
+      rByMsg[r.messageId].push({ id: r.id, userId: r.userId, emoji: r.emoji, createdAt: r.createdAt });
+    }
+    for (const m of result) {
+      (m as any).reactions = rByMsg[m.id] || [];
+    }
+  }
 
   return c.json(result);
 });
