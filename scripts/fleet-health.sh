@@ -8,7 +8,7 @@ LOG_DIR="$HOME/blather/logs"
 LOG_FILE="$LOG_DIR/fleet-health.log"
 mkdir -p "$LOG_DIR"
 
-ALERT_URL="https://blather.pbd.bot/api/channels/5d2564b6-3ccd-4712-a303-151111a1747c/messages"
+ALERT_URL="https://blather.pbd.bot/api/channels/023a4be8-d738-4531-a126-4d2af1caf291/messages"
 API_KEY="blather_d3982e5cd14f043c15d8326437306ee0d963804387be07353688292aa4924026"
 FAILURES=()
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
@@ -38,6 +38,27 @@ check_vm irma admin us-central1-a
 check_vm diligence-baby vagata us-central1-c
 
 check_vm sourcy-mcfunnel vagata us-west4-a
+
+# Check gateway health (with retry)
+check_gateway() {
+  local name="$1" user="$2" zone="$3"
+  local attempts=3 delay=5
+  for i in $(seq 1 $attempts); do
+    if gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022       --command="curl -sf --max-time 10 http://localhost:18789/ >/dev/null 2>&1"       --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no"       &>/dev/null; then
+      ok "Gateway $name"
+      return
+    fi
+    [ $i -lt $attempts ] && sleep $delay
+  done
+  fail "Gateway $name not responding (after $attempts attempts)"
+}
+
+# Gateway checks (3 retries, 5s between)
+check_gateway portia-wrangler vagata us-central1-a
+check_gateway aura-farmer-clawdbot vagata us-central1-a
+check_gateway irma admin us-central1-a
+check_gateway diligence-baby vagata us-central1-c
+check_gateway sourcy-mcfunnel admin us-west4-a
 
 # --- 2. Services on dev box ---
 

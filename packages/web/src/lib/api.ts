@@ -85,6 +85,12 @@ export const api = {
   deleteMessage: (channelId: string, messageId: string) =>
     request<any>(`/channels/${channelId}/messages/${messageId}`, { method: 'DELETE' }),
 
+  addReaction: (channelId: string, messageId: string, emoji: string) =>
+    request<any>(`/channels/${channelId}/messages/${messageId}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }),
+
+  removeReaction: (channelId: string, messageId: string, emoji: string) =>
+    request<any>(`/channels/${channelId}/messages/${messageId}/reactions`, { method: 'DELETE', body: JSON.stringify({ emoji }) }),
+
   getChannelMembers: (channelId: string) =>
     request<any[]>(`/channels/${channelId}/members`),
 

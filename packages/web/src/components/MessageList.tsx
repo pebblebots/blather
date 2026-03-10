@@ -1,4 +1,5 @@
 import { MarkdownText } from "./MarkdownText";
+import { MessageReactions, EmojiPicker } from "./MessageReactions";
 import { useEffect, useRef, useCallback, useState } from "react";
 
 interface Msg {
@@ -10,6 +11,7 @@ interface Msg {
   user?: { displayName: string; isAgent: boolean };
   attachments?: { url: string; filename: string; contentType: string; size: number }[];
   replyCount?: number;
+  reactions?: { id: string; userId: string; emoji: string; createdAt: string }[];
 }
 
 const NICK_COLORS = [
@@ -105,9 +107,10 @@ interface Props {
   onDeleteMessage?: (messageId: string) => void;
   onOpenThread?: (message: Msg) => void;
   highlightMessageId?: string | null;
+  onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
 }
 
-export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId }: Props) {
+export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onToggleReaction }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
@@ -121,6 +124,8 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
   const [ttsPlayingId, setTtsPlayingId] = useState<string | null>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
+  const emojiAnchorRef = useRef<HTMLButtonElement>(null);
   const skipAutoScrollRef = useRef(false);
 
   // Scroll to highlighted message (retry to handle channel switch / render delay)
@@ -325,11 +330,30 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
                     💬 {msg.replyCount} {msg.replyCount === 1 ? 'reply' : 'replies'}
                   </div>
                 )}
+                {msg.reactions && msg.reactions.length > 0 && onToggleReaction && (
+                  <MessageReactions
+                    reactions={msg.reactions}
+                    currentUserId={currentUserId}
+                    onToggleReaction={(emoji) => {
+                      const hasReacted = msg.reactions!.some(r => r.emoji === emoji && r.userId === currentUserId);
+                      onToggleReaction(msg.id, emoji, hasReacted);
+                    }}
+                  />
+                )}
               </>
             )}
             {/* Hover action buttons */}
             {isHovered && !editingMsg && (
               <span style={{ position: "absolute", right: 4, top: 0, display: "inline-flex", gap: 2 }}>
+                {onToggleReaction && (
+                  <button
+                    ref={emojiPickerMsgId === msg.id ? emojiAnchorRef : undefined}
+                    onClick={() => setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id)}
+                    className="mac-btn"
+                    style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
+                    title="Add reaction"
+                  >😀+</button>
+                )}
                 {onOpenThread && (
                   <button
                     onClick={() => onOpenThread(msg)}
@@ -361,6 +385,18 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
                   </>
                 )}
               </span>
+            )}
+            {/* Emoji picker */}
+            {emojiPickerMsgId === msg.id && onToggleReaction && (
+              <EmojiPicker
+                anchorRef={emojiAnchorRef as any}
+                onSelect={(emoji) => {
+                  const hasReacted = (msg.reactions || []).some(r => r.emoji === emoji && r.userId === currentUserId);
+                  onToggleReaction(msg.id, emoji, hasReacted);
+                  setEmojiPickerMsgId(null);
+                }}
+                onClose={() => setEmojiPickerMsgId(null)}
+              />
             )}
             {/* Delete confirmation */}
             {showDeleteConfirm === msg.id && (

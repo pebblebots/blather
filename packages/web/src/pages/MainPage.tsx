@@ -275,6 +275,22 @@ export function MainPage() {
         m.id === p.parentMessageId ? { ...m, replyCount: p.replyCount } : m
       ));
     }
+    if (event.type === 'reaction.added' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => {
+        if (m.id !== p.messageId) return m;
+        const existing = (m.reactions || []).some((r: any) => r.id === p.id);
+        if (existing) return m;
+        return { ...m, reactions: [...(m.reactions || []), { id: p.id, userId: p.userId, emoji: p.emoji, createdAt: p.createdAt }] };
+      }));
+    }
+    if (event.type === 'reaction.removed' && event.data) {
+      const p = event.data;
+      setMessages((prev) => prev.map((m) => {
+        if (m.id !== p.messageId) return m;
+        return { ...m, reactions: (m.reactions || []).filter((r: any) => r.id !== p.id) };
+      }));
+    }
     if (event.type === 'channel.created' && event.data) {
       setChannels((prev) => {
         const exists = prev.some((c) => c.id === event.data.id);
@@ -386,6 +402,27 @@ export function MainPage() {
       await api.deleteMessage(selectedCh, messageId);
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
     } catch (e: any) { alert(e.message || 'Failed to delete message'); }
+  };
+
+  const handleToggleReaction = async (messageId: string, emoji: string, hasReacted: boolean) => {
+    if (!selectedCh) return;
+    try {
+      if (hasReacted) {
+        await api.removeReaction(selectedCh, messageId, emoji);
+        // Remove from local state
+        setMessages((prev) => prev.map((m) => {
+          if (m.id !== messageId) return m;
+          return { ...m, reactions: (m.reactions || []).filter((r: any) => !(r.emoji === emoji && r.userId === user?.id)) };
+        }));
+      } else {
+        const reaction = await api.addReaction(selectedCh, messageId, emoji);
+        // Add to local state
+        setMessages((prev) => prev.map((m) => {
+          if (m.id !== messageId) return m;
+          return { ...m, reactions: [...(m.reactions || []), { id: reaction.id, userId: user?.id, emoji, createdAt: reaction.createdAt }] };
+        }));
+      }
+    } catch (e: any) { console.error('Reaction error:', e); }
   };
 
   const handleSend = async (content: string, attachments?: any[]) => {
@@ -721,7 +758,7 @@ export function MainPage() {
               <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
             ) : selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} />
+                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>

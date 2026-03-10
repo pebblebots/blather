@@ -581,3 +581,52 @@ channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
 
   return c.json({ ok: true });
 });
+
+// Delete/toggle reaction
+channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = c.req.param('channelId');
+  const messageId = c.req.param('messageId');
+  const body = await c.req.json<{ emoji: string }>();
+
+  const [existing] = await db.select().from(reactions)
+    .where(and(
+      eq(reactions.messageId, messageId),
+      eq(reactions.userId, userId),
+      eq(reactions.emoji, body.emoji),
+    )).limit(1);
+
+  if (!existing) return c.json({ ok: true });
+
+  await db.delete(reactions).where(eq(reactions.id, existing.id));
+
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (channel) {
+    await emitEvent(db, {
+      workspaceId: channel.workspaceId,
+      channelId,
+      userId,
+      type: 'reaction.removed' as any,
+      payload: {
+        id: existing.id,
+        messageId,
+        userId,
+        emoji: body.emoji,
+      },
+    });
+  }
+
+  return c.json({ ok: true });
+});
+
+// Get reactions for a message
+channelRoutes.get('/:channelId/messages/:messageId/reactions', async (c) => {
+  const db = c.get('db');
+  const messageId = c.req.param('messageId');
+
+  const result = await db.select().from(reactions)
+    .where(eq(reactions.messageId, messageId));
+
+  return c.json(result);
+});
