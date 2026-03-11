@@ -47,6 +47,7 @@ export function AuthPage() {
     try {
       const res = await api.verifyMagicLink(token);
       setToken(res.token);
+      window.history.replaceState({}, '', '/');
       setUser(res.user);
     } catch (err: any) {
       setError(err.message);
