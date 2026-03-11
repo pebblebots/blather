@@ -639,7 +639,7 @@ export function MainPage() {
                           textAlign: 'center' as const,
                           padding: '0 3px',
                           fontWeight: 'bold',
-                        }}>{unreadCounts[ch.id]}</span>
+                        }}>{unreadCounts[ch.id] > 99 ? '99+' : unreadCounts[ch.id]}</span>
                       )}
                     </div>
                   ))}
