@@ -130,3 +130,60 @@ metricRoutes.delete('/:id', async (c) => {
 
   return c.json({ ok: true });
 });
+
+// Upsert metric (match on companyName + fund + reportingDate)
+metricRoutes.put('/upsert', async (c) => {
+  const db = c.get('db');
+  const body = await c.req.json();
+
+  if (!body.companyName || !body.fund || !body.reportingDate || body.revenueArrUsd === undefined || !body.source) {
+    return c.json({ error: 'companyName, fund, reportingDate, revenueArrUsd, and source are required' }, 400);
+  }
+
+  if (!['form', 'agent'].includes(body.source)) {
+    return c.json({ error: "source must be 'form' or 'agent'" }, 400);
+  }
+
+  // Check if record exists
+  const [existing] = await db.select({ id: portfolioMetrics.id })
+    .from(portfolioMetrics)
+    .where(and(
+      eq(portfolioMetrics.companyName, body.companyName),
+      eq(portfolioMetrics.fund, body.fund),
+      eq(portfolioMetrics.reportingDate, body.reportingDate),
+    ));
+
+  const values = {
+    companyName: body.companyName,
+    fund: body.fund,
+    reportingDate: body.reportingDate,
+    revenueArrUsd: body.revenueArrUsd,
+    revenueAsOfDate: body.revenueAsOfDate ?? null,
+    headcount: body.headcount ?? null,
+    runwayMonths: body.runwayMonths ?? null,
+    yoyGrowthPct: body.yoyGrowthPct ?? null,
+    lastRoundSizeUsd: body.lastRoundSizeUsd ?? null,
+    lastRoundValuationUsd: body.lastRoundValuationUsd ?? null,
+    lastRoundDate: body.lastRoundDate ?? null,
+    lastRoundType: body.lastRoundType ?? null,
+    keyMilestoneText: body.keyMilestoneText ?? null,
+    nextFundraiseTiming: body.nextFundraiseTiming ?? null,
+    contactEmail: body.contactEmail ?? null,
+    permissionToShare: body.permissionToShare ?? false,
+    source: body.source,
+    confidence: body.confidence ?? null,
+  };
+
+  if (existing) {
+    const [metric] = await db.update(portfolioMetrics)
+      .set({ ...values, updatedAt: new Date() })
+      .where(eq(portfolioMetrics.id, existing.id))
+      .returning();
+    return c.json(metric, 200);
+  } else {
+    const [metric] = await db.insert(portfolioMetrics)
+      .values(values)
+      .returning();
+    return c.json(metric, 201);
+  }
+});

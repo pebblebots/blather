@@ -224,4 +224,5 @@ export const portfolioMetrics = pgTable('portfolio_metrics', {
   fundIdx: index('portfolio_metrics_fund_idx').on(t.fund),
   companyNameIdx: index('portfolio_metrics_company_name_idx').on(t.companyName),
   reportingDateIdx: index('portfolio_metrics_reporting_date_idx').on(t.reportingDate),
+  companyFundDateUq: unique('portfolio_metrics_company_fund_date_uq').on(t.companyName, t.fund, t.reportingDate),
 }));
