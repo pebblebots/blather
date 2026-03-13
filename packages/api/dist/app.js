@@ -14,35 +14,21 @@ import { huddleRoutes } from "./routes/huddles.js";
 import { memoryRoutes } from './routes/memory.js';
 import { activityRoutes } from "./routes/activity.js";
 import { metricRoutes } from './routes/metrics.js';
-
-export type Env = {
-  Variables: {
-    userId: string;
-    db: ReturnType<typeof createDb>;
-  };
-};
-
 const db = createDb();
-
-export const app = new Hono<Env>();
-
+export const app = new Hono();
 // CORS
 app.use('*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
 }));
-
 // Inject db into context
 app.use('*', async (c, next) => {
-  c.set('db', db);
-  await next();
+    c.set('db', db);
+    await next();
 });
-
 app.use('*', logger());
-
 app.get('/', (c) => c.json({ name: 'blather', version: '0.1.0' }));
-
 app.route('/auth', authRoutes);
 app.route('/workspaces', workspaceRoutes);
 app.route('/channels', channelRoutes);
@@ -55,3 +41,4 @@ app.route("/tts", ttsRoutes);
 app.route("/huddles", huddleRoutes);
 app.route("/metrics", metricRoutes);
 app.route("/activity", activityRoutes);
+//# sourceMappingURL=app.js.map

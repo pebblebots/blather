@@ -1,3 +1,4 @@
+import { logAgentActivity, isAgentUser } from "./activity.js";
 import { Hono } from 'hono';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { tasks, taskComments, users, workspaceMembers } from '@blather/db';
@@ -61,6 +62,8 @@ taskRoutes.post('/', async (c) => {
     sourceChannelId: body.sourceChannelId ?? null,
   } as any).returning();
 
+  // Auto-log agent task creation
+  isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: body.workspaceId, userId, action: "task_created", metadata: { taskId: task.id, title: task.title, shortId: (task as any).shortId } }); }).catch(() => {});
   return c.json(task, 201);
 });
 
@@ -103,6 +106,8 @@ taskRoutes.patch('/:id', async (c) => {
     }
   }
 
+  // Auto-log agent task update
+  isAgentUser(db, userId).then(isAgent => { if (isAgent) { const act = (body.status === "done") ? "task_completed" : "task_updated"; logAgentActivity(db, { workspaceId: existing.workspaceId, userId, action: act, metadata: { taskId: task.id, title: task.title, shortId: (task as any).shortId, status: body.status } }); } }).catch(() => {});
   return c.json(task);
 });
 

@@ -1,3 +1,4 @@
+import { logAgentActivity, isAgentUser } from "./activity.js";
 import { onMessageCreated, isHuddleChannel } from "../huddle/orchestrator.js";
 import { Hono } from 'hono';
 import { eq, and, desc, gt, lt, sql } from 'drizzle-orm';
@@ -269,6 +270,8 @@ channelRoutes.post('/:id/messages', async (c) => {
   
 
   }
+  // Auto-log agent activity
+  isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => {});
   return c.json(msg, 201);
 });
 
@@ -411,6 +414,8 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
     });
   }
 
+  // Auto-log agent reaction
+  isAgentUser(db, userId).then(isAgent => { if (isAgent && channel) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => {});
   return c.json(reaction, 201);
 });
 

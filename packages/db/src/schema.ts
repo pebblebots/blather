@@ -238,3 +238,17 @@ export const taskComments = pgTable('task_comments', {
   content: text('content').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Agent Activity Log ──
+
+export const agentActivityLog = pgTable('agent_activity_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agentUserId: uuid('agent_user_id').notNull(),
+  sessionKey: text('session_key').notNull().default(''),
+  action: text('action').notNull(),
+  targetChannelId: uuid('target_channel_id'),
+  targetMessageId: uuid('target_message_id'),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

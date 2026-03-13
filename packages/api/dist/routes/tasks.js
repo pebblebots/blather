@@ -1,0 +1,144 @@
+import { logAgentActivity, isAgentUser } from "./activity.js";
+import { Hono } from 'hono';
+import { eq, and, desc, sql } from 'drizzle-orm';
+import { tasks, taskComments, users } from '@blather/db';
+import { authMiddleware } from '../middleware/auth.js';
+import { postStatusNotification } from '../bots/taskNotify.js';
+export const taskRoutes = new Hono();
+taskRoutes.use('*', authMiddleware);
+function normalizeStatus(s) {
+    const mapped = s.replace(/-/g, '_');
+    if (!['queued', 'in_progress', 'done'].includes(mapped))
+        throw new Error('Invalid status: ' + s);
+    return mapped;
+}
+taskRoutes.get('/', async (c) => {
+    const db = c.get('db');
+    const workspaceId = c.req.query('workspaceId');
+    if (!workspaceId)
+        return c.json({ error: 'workspaceId required' }, 400);
+    const conditions = [eq(tasks.workspaceId, workspaceId)];
+    const status = c.req.query('status');
+    if (status)
+        conditions.push(eq(tasks.status, status.replace(/-/g, '_')));
+    const priority = c.req.query('priority');
+    if (priority)
+        conditions.push(eq(tasks.priority, priority));
+    const assignee = c.req.query('assigneeId');
+    if (assignee)
+        conditions.push(eq(tasks.assigneeId, assignee));
+    const result = await db.select().from(tasks)
+        .where(and(...conditions))
+        .orderBy(desc(tasks.createdAt));
+    return c.json(result);
+});
+taskRoutes.post('/', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const body = await c.req.json();
+    if (!body.workspaceId || !body.title) {
+        return c.json({ error: 'workspaceId and title required' }, 400);
+    }
+    const [task] = await db.insert(tasks).values({
+        workspaceId: body.workspaceId,
+        title: body.title,
+        description: body.description ?? null,
+        priority: body.priority ?? 'normal',
+        assigneeId: body.assigneeId ?? null,
+        creatorId: userId,
+        sourceChannelId: body.sourceChannelId ?? null,
+    }).returning();
+    // Auto-log agent task creation
+    isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: body.workspaceId, userId, action: "task_created", metadata: { taskId: task.id, title: task.title, shortId: task.shortId } }); }).catch(() => {});
+    return c.json(task, 201);
+});
+taskRoutes.patch('/:id', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    const [existing] = await db.select().from(tasks).where(eq(tasks.id, id));
+    if (!existing)
+        return c.json({ error: 'Task not found' }, 404);
+    const updates = { updatedAt: new Date() };
+    if (body.title !== undefined)
+        updates.title = body.title;
+    if (body.description !== undefined)
+        updates.description = body.description;
+    if (body.priority !== undefined)
+        updates.priority = body.priority;
+    if (body.status !== undefined)
+        updates.status = normalizeStatus(body.status);
+    if (body.assigneeId !== undefined)
+        updates.assigneeId = body.assigneeId;
+    const [task] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
+    if (body.status !== undefined && normalizeStatus(body.status) !== existing.status) {
+        const sourceChannelId = existing.sourceChannelId || existing.source_channel_id;
+        if (sourceChannelId) {
+            try {
+                await postStatusNotification(db, task, existing.status, normalizeStatus(body.status), userId);
+            } catch (e) {
+                console.error('[Tasks] Status notification error:', e);
+            }
+        }
+    }
+    // Auto-log agent task update
+    isAgentUser(db, userId).then(isAgent => { if (isAgent) { const act = (body.status === "done") ? "task_completed" : "task_updated"; logAgentActivity(db, { workspaceId: existing.workspaceId, userId, action: act, metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status } }); } }).catch(() => {});
+    return c.json(task);
+});
+taskRoutes.delete('/:id', async (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const [task] = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+    if (!task)
+        return c.json({ error: 'Task not found' }, 404);
+    return c.json({ ok: true });
+});
+// Task Comments
+taskRoutes.get('/:taskId/comments', async (c) => {
+    const db = c.get('db');
+    const taskId = c.req.param('taskId');
+    const result = await db.select({
+        id: taskComments.id,
+        taskId: taskComments.taskId,
+        userId: taskComments.userId,
+        content: taskComments.content,
+        createdAt: taskComments.createdAt,
+        userDisplayName: users.displayName,
+    })
+        .from(taskComments)
+        .leftJoin(users, eq(taskComments.userId, users.id))
+        .where(eq(taskComments.taskId, taskId))
+        .orderBy(taskComments.createdAt);
+    return c.json(result);
+});
+taskRoutes.post('/:taskId/comments', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const taskId = c.req.param('taskId');
+    const body = await c.req.json();
+    if (!body.content?.trim()) {
+        return c.json({ error: 'content required' }, 400);
+    }
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+    if (!task)
+        return c.json({ error: 'Task not found' }, 404);
+    const [comment] = await db.insert(taskComments).values({
+        taskId,
+        userId,
+        content: body.content.trim(),
+    }).returning();
+    return c.json(comment, 201);
+});
+taskRoutes.delete('/:taskId/comments/:commentId', async (c) => {
+    const db = c.get('db');
+    const userId = c.get('userId');
+    const commentId = c.req.param('commentId');
+    const [comment] = await db.select().from(taskComments).where(eq(taskComments.id, commentId));
+    if (!comment)
+        return c.json({ error: 'Comment not found' }, 404);
+    if (comment.userId !== userId)
+        return c.json({ error: 'Not authorized' }, 403);
+    await db.delete(taskComments).where(eq(taskComments.id, commentId));
+    return c.json({ ok: true });
+});
