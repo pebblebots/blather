@@ -144,6 +144,8 @@ export const tasks = pgTable("tasks", {
   status: taskStatusEnum("status").notNull().default("queued"),
   assigneeId: uuid("assignee_id").references(() => users.id, { onDelete: "set null" }),
   creatorId: uuid("creator_id").references(() => users.id, { onDelete: 'set null' }),
+  shortId: integer("short_id"),
+  sourceChannelId: uuid("source_channel_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -226,3 +228,13 @@ export const portfolioMetrics = pgTable('portfolio_metrics', {
   reportingDateIdx: index('portfolio_metrics_reporting_date_idx').on(t.reportingDate),
   companyFundDateUq: unique('portfolio_metrics_company_fund_date_uq').on(t.companyName, t.fund, t.reportingDate),
 }));
+
+// ── Task Comments ──
+
+export const taskComments = pgTable('task_comments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'set null' }),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

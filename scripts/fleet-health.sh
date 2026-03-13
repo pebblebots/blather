@@ -33,7 +33,7 @@ check_vm() {
 if echo OK &>/dev/null; then ok "VM code-boffin (localhost)"; fi
 
 check_vm portia-wrangler vagata us-central1-a
-check_vm aura-farmer-clawdbot vagata us-central1-a
+check_vm aura-farmer-clawdbot admin us-central1-a
 check_vm irma admin us-central1-a
 check_vm diligence-baby vagata us-central1-c
 
@@ -55,7 +55,7 @@ check_gateway() {
 
 # Gateway checks (3 retries, 5s between)
 check_gateway portia-wrangler vagata us-central1-a
-check_gateway aura-farmer-clawdbot vagata us-central1-a
+check_gateway aura-farmer-clawdbot admin us-central1-a
 check_gateway irma admin us-central1-a
 check_gateway diligence-baby vagata us-central1-c
 check_gateway sourcy-mcfunnel admin us-west4-a

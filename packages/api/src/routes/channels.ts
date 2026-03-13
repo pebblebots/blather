@@ -261,7 +261,7 @@ channelRoutes.post('/:id/messages', async (c) => {
   }
   // @tasks bot handler
   if (body.content.trim().startsWith("@tasks")) {
-    handleTasksCommand(db, channelId, body.content.trim(), body.threadId ?? null).catch((err) => console.error("[TaskBot] Error:", err));
+    handleTasksCommand(db, channelId, body.content.trim(), body.threadId ?? null, userId).catch((err) => console.error("[TaskBot] Error:", err));
   }
   // @incident bot handler
   if (body.content.trim().startsWith("@incident")) {

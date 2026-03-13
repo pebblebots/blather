@@ -1,18 +1,17 @@
 import { Hono } from 'hono';
-import { eq, and, desc } from 'drizzle-orm';
-import { tasks, workspaceMembers } from '@blather/db';
+import { eq, and, desc, sql } from 'drizzle-orm';
+import { tasks, taskComments, users, workspaceMembers } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 export const taskRoutes = new Hono<Env>();
 taskRoutes.use('*', authMiddleware);
-// Normalize status: accept both hyphens and underscores
+
 function normalizeStatus(s: string): 'queued' | 'in_progress' | 'done' {
   const mapped = s.replace(/-/g, '_');
   if (!['queued', 'in_progress', 'done'].includes(mapped)) throw new Error('Invalid status: ' + s);
   return mapped as any;
 }
-
 
 // List tasks for a workspace
 taskRoutes.get('/', async (c) => {
@@ -45,6 +44,7 @@ taskRoutes.post('/', async (c) => {
     description?: string;
     priority?: 'urgent' | 'normal' | 'low';
     assigneeId?: string;
+    sourceChannelId?: string;
   }>();
 
   if (!body.workspaceId || !body.title) {
@@ -58,14 +58,16 @@ taskRoutes.post('/', async (c) => {
     priority: body.priority ?? 'normal',
     assigneeId: body.assigneeId ?? null,
     creatorId: userId,
-  }).returning();
+    sourceChannelId: body.sourceChannelId ?? null,
+  } as any).returning();
 
   return c.json(task, 201);
 });
 
-// Update task
+// Update task (with status change notification)
 taskRoutes.patch('/:id', async (c) => {
   const db = c.get('db');
+  const userId = c.get('userId');
   const id = c.req.param('id');
   const body = await c.req.json<{
     title?: string;
@@ -75,6 +77,10 @@ taskRoutes.patch('/:id', async (c) => {
     assigneeId?: string | null;
   }>();
 
+  // Fetch current task for status comparison
+  const [existing] = await db.select().from(tasks).where(eq(tasks.id, id));
+  if (!existing) return c.json({ error: 'Task not found' }, 404);
+
   const updates: any = { updatedAt: new Date() };
   if (body.title !== undefined) updates.title = body.title;
   if (body.description !== undefined) updates.description = body.description;
@@ -83,7 +89,19 @@ taskRoutes.patch('/:id', async (c) => {
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
 
   const [task] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
-  if (!task) return c.json({ error: 'Task not found' }, 404);
+
+  // Status change notification
+  if (body.status !== undefined && normalizeStatus(body.status) !== existing.status) {
+    const sourceChannelId = (existing as any).sourceChannelId || (existing as any).source_channel_id;
+    if (sourceChannelId) {
+      try {
+        const { postStatusNotification } = await import('../bots/taskNotify.js');
+        await postStatusNotification(db, task, existing.status, normalizeStatus(body.status), userId);
+      } catch (e) {
+        console.error('[Tasks] Status notification error:', e);
+      }
+    }
+  }
 
   return c.json(task);
 });
@@ -96,5 +114,66 @@ taskRoutes.delete('/:id', async (c) => {
   const [task] = await db.delete(tasks).where(eq(tasks.id, id)).returning();
   if (!task) return c.json({ error: 'Task not found' }, 404);
 
+  return c.json({ ok: true });
+});
+
+// ── Task Comments ──
+
+// List comments
+taskRoutes.get('/:taskId/comments', async (c) => {
+  const db = c.get('db');
+  const taskId = c.req.param('taskId');
+
+  const result = await db.select({
+    id: taskComments.id,
+    taskId: taskComments.taskId,
+    userId: taskComments.userId,
+    content: taskComments.content,
+    createdAt: taskComments.createdAt,
+    userDisplayName: users.displayName,
+  })
+    .from(taskComments)
+    .leftJoin(users, eq(taskComments.userId, users.id))
+    .where(eq(taskComments.taskId, taskId))
+    .orderBy(taskComments.createdAt);
+
+  return c.json(result);
+});
+
+// Add comment
+taskRoutes.post('/:taskId/comments', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const taskId = c.req.param('taskId');
+  const body = await c.req.json<{ content: string }>();
+
+  if (!body.content?.trim()) {
+    return c.json({ error: 'content required' }, 400);
+  }
+
+  // Verify task exists
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+  if (!task) return c.json({ error: 'Task not found' }, 404);
+
+  const [comment] = await db.insert(taskComments).values({
+    taskId,
+    userId,
+    content: body.content.trim(),
+  }).returning();
+
+  return c.json(comment, 201);
+});
+
+// Delete comment (only by author)
+taskRoutes.delete('/:taskId/comments/:commentId', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const commentId = c.req.param('commentId');
+
+  const [comment] = await db.select().from(taskComments).where(eq(taskComments.id, commentId));
+  if (!comment) return c.json({ error: 'Comment not found' }, 404);
+  if (comment.userId !== userId) return c.json({ error: 'Not authorized' }, 403);
+
+  await db.delete(taskComments).where(eq(taskComments.id, commentId));
   return c.json({ ok: true });
 });
