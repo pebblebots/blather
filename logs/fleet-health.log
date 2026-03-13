@@ -11718,3 +11718,683 @@
 [2026-03-12 16:30:01 UTC] OK: Memory 1441MB available
 [2026-03-12 16:30:01 UTC] All checks passed
 [2026-03-12 16:30:01 UTC] --- check complete ---
+[2026-03-12 16:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 16:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 16:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 16:45:01 UTC] OK: VM irma
+[2026-03-12 16:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 16:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 16:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 16:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 16:45:01 UTC] OK: Gateway irma
+[2026-03-12 16:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 16:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 16:45:01 UTC] OK: Blather API
+[2026-03-12 16:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 16:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 16:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 16:45:01 UTC] OK: Postgres
+[2026-03-12 16:45:01 UTC] OK: Disk 46%
+[2026-03-12 16:45:01 UTC] OK: Memory 1473MB available
+[2026-03-12 16:45:01 UTC] All checks passed
+[2026-03-12 16:45:01 UTC] --- check complete ---
+[2026-03-12 17:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 17:00:01 UTC] OK: VM portia-wrangler
+[2026-03-12 17:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 17:00:01 UTC] OK: VM irma
+[2026-03-12 17:00:01 UTC] OK: VM diligence-baby
+[2026-03-12 17:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 17:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 17:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 17:00:01 UTC] OK: Gateway irma
+[2026-03-12 17:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 17:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 17:00:01 UTC] OK: Blather API
+[2026-03-12 17:00:01 UTC] OK: PM2 blather-api
+[2026-03-12 17:00:01 UTC] OK: PM2 blather-web
+[2026-03-12 17:00:01 UTC] OK: PM2 cognee-service
+[2026-03-12 17:00:01 UTC] OK: Postgres
+[2026-03-12 17:00:01 UTC] OK: Disk 46%
+[2026-03-12 17:00:01 UTC] OK: Memory 1455MB available
+[2026-03-12 17:00:01 UTC] All checks passed
+[2026-03-12 17:00:01 UTC] --- check complete ---
+[2026-03-12 17:15:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 17:15:01 UTC] OK: VM portia-wrangler
+[2026-03-12 17:15:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 17:15:01 UTC] OK: VM irma
+[2026-03-12 17:15:01 UTC] OK: VM diligence-baby
+[2026-03-12 17:15:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 17:15:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 17:15:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 17:15:01 UTC] OK: Gateway irma
+[2026-03-12 17:15:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 17:15:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 17:15:01 UTC] OK: Blather API
+[2026-03-12 17:15:01 UTC] OK: PM2 blather-api
+[2026-03-12 17:15:01 UTC] OK: PM2 blather-web
+[2026-03-12 17:15:01 UTC] OK: PM2 cognee-service
+[2026-03-12 17:15:01 UTC] OK: Postgres
+[2026-03-12 17:15:01 UTC] OK: Disk 46%
+[2026-03-12 17:15:01 UTC] OK: Memory 1450MB available
+[2026-03-12 17:15:01 UTC] All checks passed
+[2026-03-12 17:15:01 UTC] --- check complete ---
+[2026-03-12 17:30:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 17:30:01 UTC] OK: VM portia-wrangler
+[2026-03-12 17:30:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 17:30:01 UTC] OK: VM irma
+[2026-03-12 17:30:01 UTC] OK: VM diligence-baby
+[2026-03-12 17:30:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 17:30:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 17:30:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 17:30:01 UTC] OK: Gateway irma
+[2026-03-12 17:30:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 17:30:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 17:30:01 UTC] OK: Blather API
+[2026-03-12 17:30:01 UTC] OK: PM2 blather-api
+[2026-03-12 17:30:01 UTC] OK: PM2 blather-web
+[2026-03-12 17:30:01 UTC] OK: PM2 cognee-service
+[2026-03-12 17:30:01 UTC] OK: Postgres
+[2026-03-12 17:30:01 UTC] OK: Disk 46%
+[2026-03-12 17:30:01 UTC] OK: Memory 1457MB available
+[2026-03-12 17:30:01 UTC] All checks passed
+[2026-03-12 17:30:01 UTC] --- check complete ---
+[2026-03-12 17:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 17:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 17:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 17:45:01 UTC] OK: VM irma
+[2026-03-12 17:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 17:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 17:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 17:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 17:45:01 UTC] OK: Gateway irma
+[2026-03-12 17:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 17:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 17:45:01 UTC] OK: Blather API
+[2026-03-12 17:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 17:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 17:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 17:45:01 UTC] OK: Postgres
+[2026-03-12 17:45:01 UTC] OK: Disk 46%
+[2026-03-12 17:45:01 UTC] OK: Memory 1476MB available
+[2026-03-12 17:45:01 UTC] All checks passed
+[2026-03-12 17:45:01 UTC] --- check complete ---
+[2026-03-12 18:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 18:00:01 UTC] OK: VM portia-wrangler
+[2026-03-12 18:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 18:00:01 UTC] OK: VM irma
+[2026-03-12 18:00:01 UTC] OK: VM diligence-baby
+[2026-03-12 18:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 18:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 18:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 18:00:01 UTC] OK: Gateway irma
+[2026-03-12 18:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 18:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 18:00:01 UTC] OK: Blather API
+[2026-03-12 18:00:01 UTC] OK: PM2 blather-api
+[2026-03-12 18:00:01 UTC] OK: PM2 blather-web
+[2026-03-12 18:00:01 UTC] OK: PM2 cognee-service
+[2026-03-12 18:00:01 UTC] OK: Postgres
+[2026-03-12 18:00:01 UTC] OK: Disk 46%
+[2026-03-12 18:00:01 UTC] OK: Memory 1474MB available
+[2026-03-12 18:00:01 UTC] All checks passed
+[2026-03-12 18:00:01 UTC] --- check complete ---
+[2026-03-12 18:15:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 18:15:01 UTC] OK: VM portia-wrangler
+[2026-03-12 18:15:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 18:15:01 UTC] OK: VM irma
+[2026-03-12 18:15:01 UTC] OK: VM diligence-baby
+[2026-03-12 18:15:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 18:15:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 18:15:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 18:15:01 UTC] OK: Gateway irma
+[2026-03-12 18:15:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 18:15:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 18:15:01 UTC] OK: Blather API
+[2026-03-12 18:15:01 UTC] OK: PM2 blather-api
+[2026-03-12 18:15:01 UTC] OK: PM2 blather-web
+[2026-03-12 18:15:01 UTC] OK: PM2 cognee-service
+[2026-03-12 18:15:01 UTC] OK: Postgres
+[2026-03-12 18:15:01 UTC] OK: Disk 46%
+[2026-03-12 18:15:01 UTC] OK: Memory 1446MB available
+[2026-03-12 18:15:01 UTC] All checks passed
+[2026-03-12 18:15:01 UTC] --- check complete ---
+[2026-03-12 18:30:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 18:30:01 UTC] OK: VM portia-wrangler
+[2026-03-12 18:30:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 18:30:01 UTC] OK: VM irma
+[2026-03-12 18:30:01 UTC] OK: VM diligence-baby
+[2026-03-12 18:30:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 18:30:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 18:30:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 18:30:01 UTC] OK: Gateway irma
+[2026-03-12 18:30:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 18:30:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 18:30:01 UTC] OK: Blather API
+[2026-03-12 18:30:01 UTC] OK: PM2 blather-api
+[2026-03-12 18:30:01 UTC] OK: PM2 blather-web
+[2026-03-12 18:30:01 UTC] OK: PM2 cognee-service
+[2026-03-12 18:30:01 UTC] OK: Postgres
+[2026-03-12 18:30:01 UTC] OK: Disk 46%
+[2026-03-12 18:30:01 UTC] OK: Memory 1438MB available
+[2026-03-12 18:30:01 UTC] All checks passed
+[2026-03-12 18:30:01 UTC] --- check complete ---
+[2026-03-12 18:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 18:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 18:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 18:45:01 UTC] OK: VM irma
+[2026-03-12 18:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 18:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 18:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 18:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 18:45:01 UTC] OK: Gateway irma
+[2026-03-12 18:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 18:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 18:45:01 UTC] OK: Blather API
+[2026-03-12 18:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 18:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 18:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 18:45:01 UTC] OK: Postgres
+[2026-03-12 18:45:01 UTC] OK: Disk 47%
+[2026-03-12 18:45:01 UTC] OK: Memory 1444MB available
+[2026-03-12 18:45:01 UTC] All checks passed
+[2026-03-12 18:45:01 UTC] --- check complete ---
+[2026-03-12 19:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 19:00:01 UTC] OK: VM portia-wrangler
+[2026-03-12 19:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 19:00:01 UTC] OK: VM irma
+[2026-03-12 19:00:01 UTC] OK: VM diligence-baby
+[2026-03-12 19:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 19:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 19:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 19:00:01 UTC] OK: Gateway irma
+[2026-03-12 19:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 19:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 19:00:01 UTC] OK: Blather API
+[2026-03-12 19:00:01 UTC] OK: PM2 blather-api
+[2026-03-12 19:00:01 UTC] OK: PM2 blather-web
+[2026-03-12 19:00:01 UTC] OK: PM2 cognee-service
+[2026-03-12 19:00:01 UTC] OK: Postgres
+[2026-03-12 19:00:01 UTC] OK: Disk 47%
+[2026-03-12 19:00:01 UTC] OK: Memory 1449MB available
+[2026-03-12 19:00:01 UTC] All checks passed
+[2026-03-12 19:00:01 UTC] --- check complete ---
+[2026-03-12 19:15:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 19:15:01 UTC] OK: VM portia-wrangler
+[2026-03-12 19:15:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 19:15:01 UTC] OK: VM irma
+[2026-03-12 19:15:01 UTC] OK: VM diligence-baby
+[2026-03-12 19:15:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 19:15:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 19:15:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 19:15:01 UTC] OK: Gateway irma
+[2026-03-12 19:15:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 19:15:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 19:15:01 UTC] OK: Blather API
+[2026-03-12 19:15:01 UTC] OK: PM2 blather-api
+[2026-03-12 19:15:01 UTC] OK: PM2 blather-web
+[2026-03-12 19:15:01 UTC] OK: PM2 cognee-service
+[2026-03-12 19:15:01 UTC] OK: Postgres
+[2026-03-12 19:15:01 UTC] OK: Disk 47%
+[2026-03-12 19:15:01 UTC] OK: Memory 1426MB available
+[2026-03-12 19:15:01 UTC] All checks passed
+[2026-03-12 19:15:01 UTC] --- check complete ---
+[2026-03-12 19:30:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 19:30:01 UTC] OK: VM portia-wrangler
+[2026-03-12 19:30:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 19:30:01 UTC] OK: VM irma
+[2026-03-12 19:30:01 UTC] OK: VM diligence-baby
+[2026-03-12 19:30:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 19:30:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 19:30:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 19:30:01 UTC] OK: Gateway irma
+[2026-03-12 19:30:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 19:30:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 19:30:01 UTC] OK: Blather API
+[2026-03-12 19:30:01 UTC] OK: PM2 blather-api
+[2026-03-12 19:30:01 UTC] OK: PM2 blather-web
+[2026-03-12 19:30:01 UTC] OK: PM2 cognee-service
+[2026-03-12 19:30:01 UTC] OK: Postgres
+[2026-03-12 19:30:01 UTC] OK: Disk 47%
+[2026-03-12 19:30:01 UTC] OK: Memory 1451MB available
+[2026-03-12 19:30:01 UTC] All checks passed
+[2026-03-12 19:30:01 UTC] --- check complete ---
+[2026-03-12 19:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 19:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 19:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 19:45:01 UTC] OK: VM irma
+[2026-03-12 19:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 19:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 19:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 19:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 19:45:01 UTC] OK: Gateway irma
+[2026-03-12 19:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 19:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 19:45:01 UTC] OK: Blather API
+[2026-03-12 19:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 19:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 19:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 19:45:01 UTC] OK: Postgres
+[2026-03-12 19:45:01 UTC] OK: Disk 47%
+[2026-03-12 19:45:01 UTC] OK: Memory 1432MB available
+[2026-03-12 19:45:01 UTC] All checks passed
+[2026-03-12 19:45:01 UTC] --- check complete ---
+[2026-03-12 20:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 20:00:01 UTC] OK: VM portia-wrangler
+[2026-03-12 20:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 20:00:01 UTC] OK: VM irma
+[2026-03-12 20:00:01 UTC] OK: VM diligence-baby
+[2026-03-12 20:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 20:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 20:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 20:00:01 UTC] OK: Gateway irma
+[2026-03-12 20:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 20:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 20:00:01 UTC] OK: Blather API
+[2026-03-12 20:00:01 UTC] OK: PM2 blather-api
+[2026-03-12 20:00:01 UTC] OK: PM2 blather-web
+[2026-03-12 20:00:01 UTC] OK: PM2 cognee-service
+[2026-03-12 20:00:01 UTC] OK: Postgres
+[2026-03-12 20:00:01 UTC] OK: Disk 47%
+[2026-03-12 20:00:01 UTC] OK: Memory 1385MB available
+[2026-03-12 20:00:01 UTC] All checks passed
+[2026-03-12 20:00:01 UTC] --- check complete ---
+[2026-03-12 20:15:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 20:15:01 UTC] OK: VM portia-wrangler
+[2026-03-12 20:15:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 20:15:01 UTC] OK: VM irma
+[2026-03-12 20:15:01 UTC] OK: VM diligence-baby
+[2026-03-12 20:15:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 20:15:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 20:15:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 20:15:01 UTC] OK: Gateway irma
+[2026-03-12 20:15:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 20:15:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 20:15:01 UTC] OK: Blather API
+[2026-03-12 20:15:01 UTC] OK: PM2 blather-api
+[2026-03-12 20:15:01 UTC] OK: PM2 blather-web
+[2026-03-12 20:15:01 UTC] OK: PM2 cognee-service
+[2026-03-12 20:15:01 UTC] OK: Postgres
+[2026-03-12 20:15:01 UTC] OK: Disk 47%
+[2026-03-12 20:15:01 UTC] OK: Memory 1405MB available
+[2026-03-12 20:15:01 UTC] All checks passed
+[2026-03-12 20:15:01 UTC] --- check complete ---
+[2026-03-12 20:30:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 20:30:01 UTC] OK: VM portia-wrangler
+[2026-03-12 20:30:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 20:30:01 UTC] OK: VM irma
+[2026-03-12 20:30:01 UTC] OK: VM diligence-baby
+[2026-03-12 20:30:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 20:30:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 20:30:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 20:30:01 UTC] OK: Gateway irma
+[2026-03-12 20:30:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 20:30:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 20:30:01 UTC] OK: Blather API
+[2026-03-12 20:30:01 UTC] OK: PM2 blather-api
+[2026-03-12 20:30:01 UTC] OK: PM2 blather-web
+[2026-03-12 20:30:01 UTC] OK: PM2 cognee-service
+[2026-03-12 20:30:01 UTC] OK: Postgres
+[2026-03-12 20:30:01 UTC] OK: Disk 47%
+[2026-03-12 20:30:01 UTC] OK: Memory 1391MB available
+[2026-03-12 20:30:01 UTC] All checks passed
+[2026-03-12 20:30:01 UTC] --- check complete ---
+[2026-03-12 20:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 20:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 20:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 20:45:01 UTC] OK: VM irma
+[2026-03-12 20:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 20:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 20:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 20:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 20:45:01 UTC] OK: Gateway irma
+[2026-03-12 20:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 20:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 20:45:01 UTC] OK: Blather API
+[2026-03-12 20:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 20:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 20:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 20:45:01 UTC] OK: Postgres
+[2026-03-12 20:45:01 UTC] OK: Disk 47%
+[2026-03-12 20:45:01 UTC] OK: Memory 1423MB available
+[2026-03-12 20:45:01 UTC] All checks passed
+[2026-03-12 20:45:01 UTC] --- check complete ---
+[2026-03-12 21:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 21:00:01 UTC] OK: VM portia-wrangler
+[2026-03-12 21:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 21:00:01 UTC] OK: VM irma
+[2026-03-12 21:00:01 UTC] OK: VM diligence-baby
+[2026-03-12 21:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 21:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 21:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 21:00:01 UTC] OK: Gateway irma
+[2026-03-12 21:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 21:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 21:00:01 UTC] OK: Blather API
+[2026-03-12 21:00:01 UTC] OK: PM2 blather-api
+[2026-03-12 21:00:01 UTC] OK: PM2 blather-web
+[2026-03-12 21:00:01 UTC] OK: PM2 cognee-service
+[2026-03-12 21:00:01 UTC] OK: Postgres
+[2026-03-12 21:00:01 UTC] OK: Disk 47%
+[2026-03-12 21:00:01 UTC] OK: Memory 1408MB available
+[2026-03-12 21:00:01 UTC] All checks passed
+[2026-03-12 21:00:01 UTC] --- check complete ---
+[2026-03-12 21:15:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 21:15:01 UTC] OK: VM portia-wrangler
+[2026-03-12 21:15:01 UTC] FAIL: VM aura-farmer-clawdbot unreachable (us-central1-a)
+[2026-03-12 21:15:01 UTC] OK: VM irma
+[2026-03-12 21:15:01 UTC] OK: VM diligence-baby
+[2026-03-12 21:15:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 21:15:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 21:15:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 21:15:01 UTC] OK: Gateway irma
+[2026-03-12 21:15:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 21:15:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 21:15:01 UTC] OK: Blather API
+[2026-03-12 21:15:01 UTC] OK: PM2 blather-api
+[2026-03-12 21:15:01 UTC] OK: PM2 blather-web
+[2026-03-12 21:15:01 UTC] OK: PM2 cognee-service
+[2026-03-12 21:15:01 UTC] OK: Postgres
+[2026-03-12 21:15:01 UTC] OK: Disk 47%
+[2026-03-12 21:15:01 UTC] OK: Memory 1415MB available
+[2026-03-12 21:15:01 UTC] ALERT SENT: 1 failures
+[2026-03-12 21:15:01 UTC] --- check complete ---
+[2026-03-12 21:30:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 21:30:01 UTC] OK: VM portia-wrangler
+[2026-03-12 21:30:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 21:30:01 UTC] OK: VM irma
+[2026-03-12 21:30:01 UTC] OK: VM diligence-baby
+[2026-03-12 21:30:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 21:30:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 21:30:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 21:30:01 UTC] OK: Gateway irma
+[2026-03-12 21:30:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 21:30:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 21:30:01 UTC] OK: Blather API
+[2026-03-12 21:30:01 UTC] OK: PM2 blather-api
+[2026-03-12 21:30:01 UTC] OK: PM2 blather-web
+[2026-03-12 21:30:01 UTC] OK: PM2 cognee-service
+[2026-03-12 21:30:01 UTC] OK: Postgres
+[2026-03-12 21:30:01 UTC] OK: Disk 47%
+[2026-03-12 21:30:01 UTC] OK: Memory 1398MB available
+[2026-03-12 21:30:01 UTC] All checks passed
+[2026-03-12 21:30:01 UTC] --- check complete ---
+[2026-03-12 21:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 21:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 21:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 21:45:01 UTC] OK: VM irma
+[2026-03-12 21:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 21:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 21:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 21:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 21:45:01 UTC] OK: Gateway irma
+[2026-03-12 21:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 21:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 21:45:01 UTC] OK: Blather API
+[2026-03-12 21:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 21:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 21:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 21:45:01 UTC] OK: Postgres
+[2026-03-12 21:45:01 UTC] OK: Disk 47%
+[2026-03-12 21:45:01 UTC] OK: Memory 1414MB available
+[2026-03-12 21:45:01 UTC] All checks passed
+[2026-03-12 21:45:01 UTC] --- check complete ---
+[2026-03-12 22:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 22:00:01 UTC] OK: VM portia-wrangler
+[2026-03-12 22:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 22:00:01 UTC] OK: VM irma
+[2026-03-12 22:00:01 UTC] OK: VM diligence-baby
+[2026-03-12 22:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 22:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 22:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 22:00:01 UTC] OK: Gateway irma
+[2026-03-12 22:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 22:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 22:00:01 UTC] OK: Blather API
+[2026-03-12 22:00:01 UTC] OK: PM2 blather-api
+[2026-03-12 22:00:01 UTC] OK: PM2 blather-web
+[2026-03-12 22:00:01 UTC] OK: PM2 cognee-service
+[2026-03-12 22:00:01 UTC] OK: Postgres
+[2026-03-12 22:00:01 UTC] OK: Disk 47%
+[2026-03-12 22:00:01 UTC] OK: Memory 1430MB available
+[2026-03-12 22:00:01 UTC] All checks passed
+[2026-03-12 22:00:01 UTC] --- check complete ---
+[2026-03-12 22:15:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 22:15:01 UTC] OK: VM portia-wrangler
+[2026-03-12 22:15:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 22:15:01 UTC] OK: VM irma
+[2026-03-12 22:15:01 UTC] OK: VM diligence-baby
+[2026-03-12 22:15:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 22:15:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 22:15:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 22:15:01 UTC] OK: Gateway irma
+[2026-03-12 22:15:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 22:15:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 22:15:01 UTC] OK: Blather API
+[2026-03-12 22:15:01 UTC] OK: PM2 blather-api
+[2026-03-12 22:15:01 UTC] OK: PM2 blather-web
+[2026-03-12 22:15:01 UTC] OK: PM2 cognee-service
+[2026-03-12 22:15:01 UTC] OK: Postgres
+[2026-03-12 22:15:01 UTC] OK: Disk 47%
+[2026-03-12 22:15:01 UTC] OK: Memory 1392MB available
+[2026-03-12 22:15:01 UTC] All checks passed
+[2026-03-12 22:15:01 UTC] --- check complete ---
+[2026-03-12 22:30:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 22:30:01 UTC] OK: VM portia-wrangler
+[2026-03-12 22:30:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 22:30:01 UTC] OK: VM irma
+[2026-03-12 22:30:01 UTC] OK: VM diligence-baby
+[2026-03-12 22:30:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 22:30:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 22:30:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 22:30:01 UTC] OK: Gateway irma
+[2026-03-12 22:30:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 22:30:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 22:30:01 UTC] OK: Blather API
+[2026-03-12 22:30:01 UTC] OK: PM2 blather-api
+[2026-03-12 22:30:01 UTC] OK: PM2 blather-web
+[2026-03-12 22:30:01 UTC] OK: PM2 cognee-service
+[2026-03-12 22:30:01 UTC] OK: Postgres
+[2026-03-12 22:30:01 UTC] OK: Disk 47%
+[2026-03-12 22:30:01 UTC] OK: Memory 1408MB available
+[2026-03-12 22:30:01 UTC] All checks passed
+[2026-03-12 22:30:01 UTC] --- check complete ---
+[2026-03-12 22:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 22:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 22:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 22:45:01 UTC] OK: VM irma
+[2026-03-12 22:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 22:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 22:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 22:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 22:45:01 UTC] OK: Gateway irma
+[2026-03-12 22:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 22:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 22:45:01 UTC] OK: Blather API
+[2026-03-12 22:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 22:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 22:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 22:45:01 UTC] OK: Postgres
+[2026-03-12 22:45:01 UTC] OK: Disk 47%
+[2026-03-12 22:45:01 UTC] OK: Memory 1431MB available
+[2026-03-12 22:45:01 UTC] All checks passed
+[2026-03-12 22:45:01 UTC] --- check complete ---
+[2026-03-12 23:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 23:00:01 UTC] OK: VM portia-wrangler
+[2026-03-12 23:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 23:00:01 UTC] OK: VM irma
+[2026-03-12 23:00:01 UTC] OK: VM diligence-baby
+[2026-03-12 23:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 23:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 23:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 23:00:01 UTC] OK: Gateway irma
+[2026-03-12 23:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 23:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 23:00:01 UTC] OK: Blather API
+[2026-03-12 23:00:01 UTC] OK: PM2 blather-api
+[2026-03-12 23:00:01 UTC] OK: PM2 blather-web
+[2026-03-12 23:00:01 UTC] OK: PM2 cognee-service
+[2026-03-12 23:00:01 UTC] OK: Postgres
+[2026-03-12 23:00:01 UTC] OK: Disk 47%
+[2026-03-12 23:00:01 UTC] OK: Memory 1433MB available
+[2026-03-12 23:00:01 UTC] All checks passed
+[2026-03-12 23:00:01 UTC] --- check complete ---
+[2026-03-12 23:15:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 23:15:01 UTC] OK: VM portia-wrangler
+[2026-03-12 23:15:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 23:15:01 UTC] OK: VM irma
+[2026-03-12 23:15:01 UTC] OK: VM diligence-baby
+[2026-03-12 23:15:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 23:15:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 23:15:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 23:15:01 UTC] OK: Gateway irma
+[2026-03-12 23:15:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 23:15:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 23:15:01 UTC] OK: Blather API
+[2026-03-12 23:15:01 UTC] OK: PM2 blather-api
+[2026-03-12 23:15:01 UTC] OK: PM2 blather-web
+[2026-03-12 23:15:01 UTC] OK: PM2 cognee-service
+[2026-03-12 23:15:01 UTC] OK: Postgres
+[2026-03-12 23:15:01 UTC] OK: Disk 48%
+[2026-03-12 23:15:01 UTC] OK: Memory 1368MB available
+[2026-03-12 23:15:01 UTC] All checks passed
+[2026-03-12 23:15:01 UTC] --- check complete ---
+[2026-03-12 23:30:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 23:30:01 UTC] OK: VM portia-wrangler
+[2026-03-12 23:30:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 23:30:01 UTC] OK: VM irma
+[2026-03-12 23:30:01 UTC] OK: VM diligence-baby
+[2026-03-12 23:30:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 23:30:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 23:30:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 23:30:01 UTC] OK: Gateway irma
+[2026-03-12 23:30:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 23:30:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 23:30:01 UTC] OK: Blather API
+[2026-03-12 23:30:01 UTC] OK: PM2 blather-api
+[2026-03-12 23:30:01 UTC] OK: PM2 blather-web
+[2026-03-12 23:30:01 UTC] OK: PM2 cognee-service
+[2026-03-12 23:30:01 UTC] OK: Postgres
+[2026-03-12 23:30:01 UTC] OK: Disk 48%
+[2026-03-12 23:30:01 UTC] OK: Memory 1361MB available
+[2026-03-12 23:30:01 UTC] All checks passed
+[2026-03-12 23:30:01 UTC] --- check complete ---
+[2026-03-12 23:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-12 23:45:01 UTC] OK: VM portia-wrangler
+[2026-03-12 23:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-12 23:45:01 UTC] OK: VM irma
+[2026-03-12 23:45:01 UTC] OK: VM diligence-baby
+[2026-03-12 23:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-12 23:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-12 23:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-12 23:45:01 UTC] OK: Gateway irma
+[2026-03-12 23:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-12 23:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-12 23:45:01 UTC] OK: Blather API
+[2026-03-12 23:45:01 UTC] OK: PM2 blather-api
+[2026-03-12 23:45:01 UTC] OK: PM2 blather-web
+[2026-03-12 23:45:01 UTC] OK: PM2 cognee-service
+[2026-03-12 23:45:01 UTC] OK: Postgres
+[2026-03-12 23:45:01 UTC] OK: Disk 48%
+[2026-03-12 23:45:01 UTC] OK: Memory 1351MB available
+[2026-03-12 23:45:01 UTC] All checks passed
+[2026-03-12 23:45:01 UTC] --- check complete ---
+[2026-03-13 00:00:02 UTC] OK: VM code-boffin (localhost)
+[2026-03-13 00:00:02 UTC] OK: VM portia-wrangler
+[2026-03-13 00:00:02 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-13 00:00:02 UTC] OK: VM irma
+[2026-03-13 00:00:02 UTC] OK: VM diligence-baby
+[2026-03-13 00:00:02 UTC] OK: VM sourcy-mcfunnel
+[2026-03-13 00:00:02 UTC] OK: Gateway portia-wrangler
+[2026-03-13 00:00:02 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-13 00:00:02 UTC] OK: Gateway irma
+[2026-03-13 00:00:02 UTC] OK: Gateway diligence-baby
+[2026-03-13 00:00:02 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-13 00:00:02 UTC] OK: Blather API
+[2026-03-13 00:00:02 UTC] OK: PM2 blather-api
+[2026-03-13 00:00:02 UTC] OK: PM2 blather-web
+[2026-03-13 00:00:02 UTC] OK: PM2 cognee-service
+[2026-03-13 00:00:02 UTC] OK: Postgres
+[2026-03-13 00:00:02 UTC] OK: Disk 48%
+[2026-03-13 00:00:02 UTC] OK: Memory 1393MB available
+[2026-03-13 00:00:02 UTC] All checks passed
+[2026-03-13 00:00:02 UTC] --- check complete ---
+[2026-03-13 00:15:02 UTC] OK: VM code-boffin (localhost)
+[2026-03-13 00:15:02 UTC] OK: VM portia-wrangler
+[2026-03-13 00:15:02 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-13 00:15:02 UTC] OK: VM irma
+[2026-03-13 00:15:02 UTC] OK: VM diligence-baby
+[2026-03-13 00:15:02 UTC] OK: VM sourcy-mcfunnel
+[2026-03-13 00:15:02 UTC] OK: Gateway portia-wrangler
+[2026-03-13 00:15:02 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-13 00:15:02 UTC] OK: Gateway irma
+[2026-03-13 00:15:02 UTC] OK: Gateway diligence-baby
+[2026-03-13 00:15:02 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-13 00:15:02 UTC] OK: Blather API
+[2026-03-13 00:15:02 UTC] OK: PM2 blather-api
+[2026-03-13 00:15:02 UTC] OK: PM2 blather-web
+[2026-03-13 00:15:02 UTC] OK: PM2 cognee-service
+[2026-03-13 00:15:02 UTC] OK: Postgres
+[2026-03-13 00:15:02 UTC] OK: Disk 48%
+[2026-03-13 00:15:02 UTC] OK: Memory 1368MB available
+[2026-03-13 00:15:02 UTC] All checks passed
+[2026-03-13 00:15:02 UTC] --- check complete ---
+[2026-03-13 00:30:02 UTC] OK: VM code-boffin (localhost)
+[2026-03-13 00:30:02 UTC] OK: VM portia-wrangler
+[2026-03-13 00:30:02 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-13 00:30:02 UTC] OK: VM irma
+[2026-03-13 00:30:02 UTC] OK: VM diligence-baby
+[2026-03-13 00:30:02 UTC] OK: VM sourcy-mcfunnel
+[2026-03-13 00:30:02 UTC] OK: Gateway portia-wrangler
+[2026-03-13 00:30:02 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-13 00:30:02 UTC] OK: Gateway irma
+[2026-03-13 00:30:02 UTC] OK: Gateway diligence-baby
+[2026-03-13 00:30:02 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-13 00:30:02 UTC] OK: Blather API
+[2026-03-13 00:30:02 UTC] OK: PM2 blather-api
+[2026-03-13 00:30:02 UTC] OK: PM2 blather-web
+[2026-03-13 00:30:02 UTC] OK: PM2 cognee-service
+[2026-03-13 00:30:02 UTC] OK: Postgres
+[2026-03-13 00:30:02 UTC] OK: Disk 48%
+[2026-03-13 00:30:02 UTC] OK: Memory 1172MB available
+[2026-03-13 00:30:02 UTC] All checks passed
+[2026-03-13 00:30:02 UTC] --- check complete ---
+[2026-03-13 00:45:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-13 00:45:01 UTC] OK: VM portia-wrangler
+[2026-03-13 00:45:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-13 00:45:01 UTC] OK: VM irma
+[2026-03-13 00:45:01 UTC] OK: VM diligence-baby
+[2026-03-13 00:45:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-13 00:45:01 UTC] OK: Gateway portia-wrangler
+[2026-03-13 00:45:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-13 00:45:01 UTC] OK: Gateway irma
+[2026-03-13 00:45:01 UTC] OK: Gateway diligence-baby
+[2026-03-13 00:45:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-13 00:45:01 UTC] OK: Blather API
+[2026-03-13 00:45:01 UTC] OK: PM2 blather-api
+[2026-03-13 00:45:01 UTC] OK: PM2 blather-web
+[2026-03-13 00:45:01 UTC] OK: PM2 cognee-service
+[2026-03-13 00:45:01 UTC] OK: Postgres
+[2026-03-13 00:45:01 UTC] OK: Disk 48%
+[2026-03-13 00:45:01 UTC] OK: Memory 1153MB available
+[2026-03-13 00:45:01 UTC] All checks passed
+[2026-03-13 00:45:01 UTC] --- check complete ---
+[2026-03-13 01:00:01 UTC] OK: VM code-boffin (localhost)
+[2026-03-13 01:00:01 UTC] OK: VM portia-wrangler
+[2026-03-13 01:00:01 UTC] OK: VM aura-farmer-clawdbot
+[2026-03-13 01:00:01 UTC] OK: VM irma
+[2026-03-13 01:00:01 UTC] OK: VM diligence-baby
+[2026-03-13 01:00:01 UTC] OK: VM sourcy-mcfunnel
+[2026-03-13 01:00:01 UTC] OK: Gateway portia-wrangler
+[2026-03-13 01:00:01 UTC] OK: Gateway aura-farmer-clawdbot
+[2026-03-13 01:00:01 UTC] OK: Gateway irma
+[2026-03-13 01:00:01 UTC] OK: Gateway diligence-baby
+[2026-03-13 01:00:01 UTC] OK: Gateway sourcy-mcfunnel
+[2026-03-13 01:00:01 UTC] OK: Blather API
+[2026-03-13 01:00:01 UTC] OK: PM2 blather-api
+[2026-03-13 01:00:01 UTC] OK: PM2 blather-web
+[2026-03-13 01:00:01 UTC] OK: PM2 cognee-service
+[2026-03-13 01:00:01 UTC] OK: Postgres
+[2026-03-13 01:00:01 UTC] OK: Disk 47%
+[2026-03-13 01:00:01 UTC] OK: Memory 1134MB available
+[2026-03-13 01:00:01 UTC] All checks passed
+[2026-03-13 01:00:01 UTC] --- check complete ---
