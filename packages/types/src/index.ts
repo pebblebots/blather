@@ -224,3 +224,60 @@ export interface UploadResponse {
   contentType: string;
   size: number;
 }
+
+// ── Agents ──
+
+export interface CreateAgentRequest {
+  name: string;
+  displayName: string;
+  email: string;
+  bio?: string;
+  personality?: Record<string, any>;
+  model?: string;
+  channels?: string[];      // channel names (e.g. "#codework") or IDs
+  heartbeatInterval?: number; // seconds
+  memory?: {
+    enabled?: boolean;
+    scope?: string;
+  };
+  workspaceId: string;
+}
+
+export interface UpdateAgentRequest {
+  displayName?: string;
+  bio?: string;
+  personality?: Record<string, any>;
+  model?: string;
+  channels?: string[];
+  heartbeatInterval?: number;
+  memory?: Record<string, any>;
+}
+
+export interface AgentResponse {
+  id: string;
+  userId: string;
+  workspaceId: string;
+  displayName: string | null;
+  bio: string | null;
+  personality: Record<string, any>;
+  model: string | null;
+  heartbeatInterval: number;
+  memoryConfig: Record<string, any>;
+  status: string;
+  channels: { id: string; name: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentCreateResponse extends AgentResponse {
+  apiKey: string;           // plaintext, only returned on creation
+  email: string;
+  config: AgentConfigBundle;
+}
+
+export interface AgentConfigBundle {
+  'openclaw.json': Record<string, any>;
+  'SOUL.md': string;
+  'AGENTS.md': string;
+  'HEARTBEAT.md': string;
+}

@@ -13,6 +13,7 @@ import { ttsRoutes } from "./routes/tts.js";
 import { huddleRoutes } from "./routes/huddles.js";
 import { memoryRoutes } from './routes/memory.js';
 import { metricRoutes } from './routes/metrics.js';
+import { agentRoutes } from './routes/agents.js';
 
 export type Env = {
   Variables: {
@@ -53,3 +54,4 @@ app.route("/memory", memoryRoutes);
 app.route("/tts", ttsRoutes);
 app.route("/huddles", huddleRoutes);
 app.route("/api/metrics", metricRoutes);
+app.route("/api/agents", agentRoutes);

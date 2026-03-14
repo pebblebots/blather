@@ -225,3 +225,28 @@ export const portfolioMetrics = pgTable('portfolio_metrics', {
   companyNameIdx: index('portfolio_metrics_company_name_idx').on(t.companyName),
   reportingDateIdx: index('portfolio_metrics_reporting_date_idx').on(t.reportingDate),
 }));
+
+// ── Agents ──
+
+export const agentStatusEnum = pgEnum('agent_status', ['registered', 'deployed', 'online', 'offline']);
+
+export const agents = pgTable('agents', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  displayName: text('display_name'),
+  bio: text('bio'),
+  personality: jsonb('personality').$type<Record<string, any>>().default({}),
+  model: text('model'),
+  heartbeatInterval: integer('heartbeat_interval').default(1800),
+  memoryConfig: jsonb('memory_config').$type<Record<string, any>>().default({}),
+  instanceHost: text('instance_host'),
+  gatewayToken: text('gateway_token'),
+  status: text('status').default('registered'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  workspaceIdx: index('agents_workspace_id_idx').on(t.workspaceId),
+  userIdx: index('agents_user_id_idx').on(t.userId),
+  unq: unique().on(t.workspaceId, t.userId),
+}));
