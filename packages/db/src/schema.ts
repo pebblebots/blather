@@ -94,6 +94,7 @@ export const messages = pgTable('messages', {
   threadId: uuid('thread_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  canvas: jsonb('canvas'),
 });
 
 // ── Reactions ──
