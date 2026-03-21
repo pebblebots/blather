@@ -1,4 +1,10 @@
 const DEFAULT_JWT_SECRET = 'blather-dev-secret-change-in-production';
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_JWT_SECRET)) {
+  console.error('[FATAL] JWT_SECRET must be set in production. Exiting.');
+  process.exit(1);
+}
 
 export const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
 
