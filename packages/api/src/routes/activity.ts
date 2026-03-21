@@ -128,7 +128,8 @@ export async function isAgentUser(db: any, userId: string): Promise<boolean> {
   try {
     const [user] = await db.select({ isAgent: users.isAgent, email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
     if (!user) return false;
-    return user.isAgent || (user.email && (user.email.endsWith('@pbd.bot') || user.email.endsWith('@system.blather')));
+    const agentDomains = (process.env.AGENT_EMAIL_DOMAIN || 'system.blather').split(',').map(d => d.trim());
+    return user.isAgent || (user.email && agentDomains.some(d => user.email.endsWith(`@${d}`)));
   } catch {
     return false;
   }

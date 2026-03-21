@@ -115,7 +115,7 @@ authRoutes.post('/magic', async (c) => {
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.RESEND_FROM || 'Blather <admin@pbd.bot>',
+        from: process.env.RESEND_FROM || 'Blather <noreply@localhost>',
         to: email.toLowerCase(),
         subject: 'Your Blather login link',
         html: `<p>Click the link below to log in to Blather:</p><p><a href="${magicUrl}">${magicUrl}</a></p><p>This link expires in 15 minutes.</p>`,

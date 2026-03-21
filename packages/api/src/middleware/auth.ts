@@ -4,8 +4,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { apiKeys } from '@blather/db';
 import { createHash } from 'crypto';
 import type { Env } from '../app.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'blather-dev-secret-change-in-production';
+import { JWT_SECRET } from '../config.js';
 
 export function signToken(userId: string): string {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '7d' });

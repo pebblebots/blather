@@ -213,7 +213,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (isPlaying.current || audioQueue.current.length === 0) return;
     isPlaying.current = true;
     const { url, messageId } = audioQueue.current.shift()!;
-    const fullUrl = url.startsWith('http') ? url : `https://blather.pbd.bot/api${url}`;
+    const fullUrl = url.startsWith('http') ? url : `/api${url}`;
     setCurrentPlayingId(messageId);
 
     // Find the userId for this message to set speakingUserId

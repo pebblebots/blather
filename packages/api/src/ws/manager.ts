@@ -6,10 +6,9 @@ import { createHash } from 'crypto';
 import { eq, and, isNull } from 'drizzle-orm';
 import { apiKeys, channels, channelMembers } from '@blather/db';
 import { createDb } from "@blather/db";
+import { JWT_SECRET } from '../config.js';
 
 const db = createDb();
-
-const JWT_SECRET = process.env.JWT_SECRET || 'blather-dev-secret-change-in-production';
 
 const HEARTBEAT_INTERVAL = 30_000;
 const IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes

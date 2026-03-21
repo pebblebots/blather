@@ -15,7 +15,7 @@ Add these in **Settings → Secrets and variables → Actions**:
 npm install -g pm2
 
 # Clone the repo (first time)
-cd ~ && git clone git@github.com:pebblebots/blather.git
+cd ~ && git clone git@github.com:YOUR_ORG/blather.git
 
 # Generate a deploy key pair and add the public key to GitHub deploy keys
 ssh-keygen -t ed25519 -f ~/.ssh/blather_deploy -N ""
