@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
-# Fleet Health Check - runs every 15 minutes via cron
-# Alerts to Blather #codework only on failures
+# Example fleet health check.
+# Configure environment variables locally before using this script.
 
 set -euo pipefail
 
-LOG_DIR="$HOME/blather/logs"
-LOG_FILE="$LOG_DIR/fleet-health.log"
+LOG_DIR="${LOG_DIR:-$PWD/logs}"
+LOG_FILE="${LOG_FILE:-$LOG_DIR/fleet-health.log}"
 mkdir -p "$LOG_DIR"
 
-ALERT_URL="https://blather.pbd.bot/api/channels/023a4be8-d738-4531-a126-4d2af1caf291/messages"
-API_KEY="blather_d3982e5cd14f043c15d8326437306ee0d963804387be07353688292aa4924026"
+ALERT_URL="${ALERT_URL:-}"
+API_KEY="${API_KEY:-}"
+GCP_PROJECT="${GCP_PROJECT:-}"
+VM_TARGETS="${VM_TARGETS:-}"
+GATEWAY_TARGETS="${GATEWAY_TARGETS:-}"
+GATEWAY_HEALTH_URL="${GATEWAY_HEALTH_URL:-http://localhost:18789/}"
+API_HEALTH_URL="${API_HEALTH_URL:-http://localhost:3000/}"
+PM2_PROCESSES="${PM2_PROCESSES:-blather-api blather-web cognee-service}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-blather-db}"
+POSTGRES_USER="${POSTGRES_USER:-blather}"
 FAILURES=()
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
@@ -17,10 +25,17 @@ log() { echo "[$TIMESTAMP] $1" >> "$LOG_FILE"; }
 fail() { FAILURES+=("$1"); log "FAIL: $1"; }
 ok() { log "OK: $1"; }
 
-# --- 1. Agent instances (GCP VMs) ---
+# VM_TARGETS and GATEWAY_TARGETS should be space-separated entries in
+# name:user:zone form, for example:
+#   VM_TARGETS="api-box:deploy:us-central1-a"
 check_vm() {
   local name="$1" user="$2" zone="$3"
-  if gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022 \
+  if [ -z "$GCP_PROJECT" ]; then
+    fail "GCP_PROJECT is not configured for VM checks"
+    return
+  fi
+
+  if gcloud compute ssh "${user}@${name}" --zone="$zone" --project="$GCP_PROJECT" \
     --command="echo OK" --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" \
     &>/dev/null; then
     ok "VM $name"
@@ -29,22 +44,29 @@ check_vm() {
   fi
 }
 
-# localhost
-if echo OK &>/dev/null; then ok "VM code-boffin (localhost)"; fi
+if [ -n "$VM_TARGETS" ]; then
+  for target in $VM_TARGETS; do
+    IFS=':' read -r name user zone <<EOF
+$target
+EOF
+    check_vm "$name" "$user" "$zone"
+  done
+fi
 
-check_vm portia-wrangler vagata us-central1-a
-check_vm aura-farmer-clawdbot admin us-central1-a
-check_vm irma admin us-central1-a
-check_vm diligence-baby vagata us-central1-c
-
-check_vm sourcy-mcfunnel vagata us-west4-a
-
-# Check gateway health (with retry)
 check_gateway() {
   local name="$1" user="$2" zone="$3"
   local attempts=3 delay=5
+
+  if [ -z "$GCP_PROJECT" ]; then
+    fail "GCP_PROJECT is not configured for gateway checks"
+    return
+  fi
+
   for i in $(seq 1 $attempts); do
-    if gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022       --command="curl -sf --max-time 10 http://localhost:18789/ >/dev/null 2>&1"       --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no"       &>/dev/null; then
+    if gcloud compute ssh "${user}@${name}" --zone="$zone" --project="$GCP_PROJECT" \
+      --command="curl -sf --max-time 10 $GATEWAY_HEALTH_URL >/dev/null 2>&1" \
+      --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" \
+      &>/dev/null; then
       ok "Gateway $name"
       return
     fi
@@ -53,24 +75,22 @@ check_gateway() {
   fail "Gateway $name not responding (after $attempts attempts)"
 }
 
-# Gateway checks (3 retries, 5s between)
-check_gateway portia-wrangler vagata us-central1-a
-check_gateway aura-farmer-clawdbot admin us-central1-a
-check_gateway irma admin us-central1-a
-check_gateway diligence-baby vagata us-central1-c
-check_gateway sourcy-mcfunnel admin us-west4-a
+if [ -n "$GATEWAY_TARGETS" ]; then
+  for target in $GATEWAY_TARGETS; do
+    IFS=':' read -r name user zone <<EOF
+$target
+EOF
+    check_gateway "$name" "$user" "$zone"
+  done
+fi
 
-# --- 2. Services on dev box ---
-
-# Blather API
-if curl -sf --max-time 10 http://localhost:3000/ > /dev/null 2>&1; then
+if curl -sf --max-time 10 "$API_HEALTH_URL" > /dev/null 2>&1; then
   ok "Blather API"
 else
   fail "Blather API not responding"
 fi
 
-# PM2 processes
-for proc in blather-api blather-web cognee-service; do
+for proc in $PM2_PROCESSES; do
   status=$(pm2 jlist 2>/dev/null | jq -r ".[] | select(.name==\"$proc\") | .pm2_env.status" 2>/dev/null || echo "unknown")
   if [ "$status" = "online" ]; then
     ok "PM2 $proc"
@@ -79,8 +99,7 @@ for proc in blather-api blather-web cognee-service; do
   fi
 done
 
-# Postgres
-if docker exec blather-db pg_isready -U blather &>/dev/null; then
+if docker exec "$POSTGRES_CONTAINER" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
   ok "Postgres"
 else
   fail "Postgres not ready"
@@ -104,13 +123,17 @@ fi
 
 # --- 3. Alert on failures ---
 if [ ${#FAILURES[@]} -gt 0 ]; then
-  summary=$(printf '• %s\\n' "${FAILURES[@]}")
-  payload=$(jq -n --arg content "🚨 Fleet Alert (${TIMESTAMP}):\n${summary}" '{content: $content}')
-  curl -sf -X POST "$ALERT_URL" \
-    -H "X-API-Key: $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d "$payload" > /dev/null 2>&1 || true
-  log "ALERT SENT: ${#FAILURES[@]} failures"
+  if [ -n "$ALERT_URL" ] && [ -n "$API_KEY" ]; then
+    summary=$(printf '• %s\\n' "${FAILURES[@]}")
+    payload=$(jq -n --arg content "🚨 Fleet Alert (${TIMESTAMP}):\n${summary}" '{content: $content}')
+    curl -sf -X POST "$ALERT_URL" \
+      -H "X-API-Key: $API_KEY" \
+      -H "Content-Type: application/json" \
+      -d "$payload" > /dev/null 2>&1 || true
+    log "ALERT SENT: ${#FAILURES[@]} failures"
+  else
+    log "Failures detected, but alert credentials are not configured"
+  fi
 else
   log "All checks passed"
 fi

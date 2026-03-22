@@ -12,3 +12,4 @@ ecosystem.config.cjs
 
 # Uploaded files (TTS, attachments)
 uploads/
+logs/
