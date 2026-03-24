@@ -28,8 +28,11 @@ ttsRoutes.post("/:messageId", authMiddleware, async (c) => {
   if (!msg) return c.json({ error: "Message not found" }, 404);
 
   // Get author voice
-  const [user] = await db.select().from(users).where(eq(users.id, msg.userId)).limit(1);
-  const voice = user?.voice || "echo";
+  let voice = 'echo';
+  if (msg.userId) {
+    const [user] = await db.select().from(users).where(eq(users.id, msg.userId)).limit(1);
+    voice = user?.voice || 'echo';
+  }
 
   // Truncate
   let text = msg.content || "";

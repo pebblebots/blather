@@ -254,7 +254,8 @@ channelRoutes.post('/:id/messages', async (c) => {
         handleIncidentCommand(db, channelId, body.content.trim(), body.threadId ?? null).catch((err) => console.error("[IncidentBot] Error:", err));
     }
     // Auto-log agent activity
-    isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => {});
+    isAgentUser(db, userId).then(isAgent => { if (isAgent)
+        logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => { });
     return c.json(msg, 201);
 });
 // Get replies for a message thread
@@ -385,7 +386,8 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
         });
     }
     // Auto-log agent reaction
-    isAgentUser(db, userId).then(isAgent => { if (isAgent && channel) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => {});
+    isAgentUser(db, userId).then(isAgent => { if (isAgent && channel)
+        logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => { });
     return c.json(reaction, 201);
 });
 // Mark channel as read

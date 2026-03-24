@@ -1,9 +1,8 @@
 import { logAgentActivity, isAgentUser } from "./activity.js";
 import { Hono } from 'hono';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { tasks, taskComments, users } from '@blather/db';
 import { authMiddleware } from '../middleware/auth.js';
-import { postStatusNotification } from '../bots/taskNotify.js';
 export const taskRoutes = new Hono();
 taskRoutes.use('*', authMiddleware);
 function normalizeStatus(s) {
@@ -12,6 +11,7 @@ function normalizeStatus(s) {
         throw new Error('Invalid status: ' + s);
     return mapped;
 }
+// List tasks for a workspace
 taskRoutes.get('/', async (c) => {
     const db = c.get('db');
     const workspaceId = c.req.query('workspaceId');
@@ -32,6 +32,7 @@ taskRoutes.get('/', async (c) => {
         .orderBy(desc(tasks.createdAt));
     return c.json(result);
 });
+// Create task
 taskRoutes.post('/', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
@@ -49,14 +50,17 @@ taskRoutes.post('/', async (c) => {
         sourceChannelId: body.sourceChannelId ?? null,
     }).returning();
     // Auto-log agent task creation
-    isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: body.workspaceId, userId, action: "task_created", metadata: { taskId: task.id, title: task.title, shortId: task.shortId } }); }).catch(() => {});
+    isAgentUser(db, userId).then(isAgent => { if (isAgent)
+        logAgentActivity(db, { workspaceId: body.workspaceId, userId, action: "task_created", metadata: { taskId: task.id, title: task.title, shortId: task.shortId } }); }).catch(() => { });
     return c.json(task, 201);
 });
+// Update task (with status change notification)
 taskRoutes.patch('/:id', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
     const id = c.req.param('id');
     const body = await c.req.json();
+    // Fetch current task for status comparison
     const [existing] = await db.select().from(tasks).where(eq(tasks.id, id));
     if (!existing)
         return c.json({ error: 'Task not found' }, 404);
@@ -72,20 +76,27 @@ taskRoutes.patch('/:id', async (c) => {
     if (body.assigneeId !== undefined)
         updates.assigneeId = body.assigneeId;
     const [task] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
+    // Status change notification
     if (body.status !== undefined && normalizeStatus(body.status) !== existing.status) {
         const sourceChannelId = existing.sourceChannelId || existing.source_channel_id;
         if (sourceChannelId) {
             try {
+                const { postStatusNotification } = await import('../bots/taskNotify.js');
                 await postStatusNotification(db, task, existing.status, normalizeStatus(body.status), userId);
-            } catch (e) {
+            }
+            catch (e) {
                 console.error('[Tasks] Status notification error:', e);
             }
         }
     }
     // Auto-log agent task update
-    isAgentUser(db, userId).then(isAgent => { if (isAgent) { const act = (body.status === "done") ? "task_completed" : "task_updated"; logAgentActivity(db, { workspaceId: existing.workspaceId, userId, action: act, metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status } }); } }).catch(() => {});
+    isAgentUser(db, userId).then(isAgent => { if (isAgent) {
+        const act = (body.status === "done") ? "task_completed" : "task_updated";
+        logAgentActivity(db, { workspaceId: existing.workspaceId, userId, action: act, metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status } });
+    } }).catch(() => { });
     return c.json(task);
 });
+// Delete task
 taskRoutes.delete('/:id', async (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
@@ -94,7 +105,8 @@ taskRoutes.delete('/:id', async (c) => {
         return c.json({ error: 'Task not found' }, 404);
     return c.json({ ok: true });
 });
-// Task Comments
+// ── Task Comments ──
+// List comments
 taskRoutes.get('/:taskId/comments', async (c) => {
     const db = c.get('db');
     const taskId = c.req.param('taskId');
@@ -112,6 +124,7 @@ taskRoutes.get('/:taskId/comments', async (c) => {
         .orderBy(taskComments.createdAt);
     return c.json(result);
 });
+// Add comment
 taskRoutes.post('/:taskId/comments', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
@@ -120,6 +133,7 @@ taskRoutes.post('/:taskId/comments', async (c) => {
     if (!body.content?.trim()) {
         return c.json({ error: 'content required' }, 400);
     }
+    // Verify task exists
     const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
     if (!task)
         return c.json({ error: 'Task not found' }, 404);
@@ -130,6 +144,7 @@ taskRoutes.post('/:taskId/comments', async (c) => {
     }).returning();
     return c.json(comment, 201);
 });
+// Delete comment (only by author)
 taskRoutes.delete('/:taskId/comments/:commentId', async (c) => {
     const db = c.get('db');
     const userId = c.get('userId');
@@ -142,3 +157,4 @@ taskRoutes.delete('/:taskId/comments/:commentId', async (c) => {
     await db.delete(taskComments).where(eq(taskComments.id, commentId));
     return c.json({ ok: true });
 });
+//# sourceMappingURL=tasks.js.map
