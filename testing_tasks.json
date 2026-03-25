@@ -272,7 +272,7 @@
       "T03",
       "T04"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T36",
@@ -280,7 +280,7 @@
     "depends_on": [
       "T35"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T37",
@@ -288,7 +288,7 @@
     "depends_on": [
       "T36"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T38",
@@ -296,7 +296,7 @@
     "depends_on": [
       "T37"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T39",
@@ -304,7 +304,7 @@
     "depends_on": [
       "T37"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T40",
@@ -312,7 +312,7 @@
     "depends_on": [
       "T36"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T41",
@@ -320,7 +320,7 @@
     "depends_on": [
       "T37"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T42",
@@ -328,7 +328,7 @@
     "depends_on": [
       "T36"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T43",
@@ -338,6 +338,6 @@
       "T21",
       "T35"
     ],
-    "done": false
+    "done": true
   }
 ]
