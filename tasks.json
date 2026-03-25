@@ -47,7 +47,7 @@
     "depends_on": [
       "T05"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T08",
