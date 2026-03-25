@@ -1,5 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || '';
-
+import { apiUrl } from './urls';
 function getToken(): string | null {
   return localStorage.getItem('blather_token');
 }
@@ -20,7 +19,7 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  const res = await fetch(apiUrl(path), { ...opts, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as any).error || `HTTP ${res.status}`);
@@ -149,11 +148,9 @@ export async function uploadFile(
   onProgress?: (pct: number) => void
 ): Promise<{ url: string; filename: string; contentType: string; size: number }> {
   const token = localStorage.getItem('blather_token');
-  const BASE = import.meta.env.VITE_API_URL || '';
-
-  return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${BASE}/uploads`);
+    xhr.open('POST', apiUrl('/uploads'));
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
     xhr.upload.onprogress = (e) => {

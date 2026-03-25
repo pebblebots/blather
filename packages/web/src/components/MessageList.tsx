@@ -1,6 +1,7 @@
 import { MarkdownText } from "./MarkdownText";
 import { MessageReactions, EmojiPicker } from "./MessageReactions";
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { apiUrl } from "../lib/urls";
 
 interface Msg {
   id: string;
@@ -42,15 +43,14 @@ function formatFileSize(bytes: number): string {
 }
 
 function AttachmentRenderer({ attachments }: { attachments: { url: string; filename: string; contentType: string; size: number }[] }) {
-  const BASE = (import.meta as any).env?.VITE_API_URL || "";
   if (!attachments || attachments.length === 0) return null;
   return (
     <div style={{ marginTop: 2, display: "flex", flexWrap: "wrap", gap: 4 }}>
       {attachments.map((att, i) =>
         isImageType(att.contentType) ? (
-          <a key={i} href={`${BASE}${att.url}`} target="_blank" rel="noopener noreferrer">
+          <a key={i} href={apiUrl(att.url)} target="_blank" rel="noopener noreferrer">
             <img
-              src={`${BASE}${att.url}`}
+              src={apiUrl(att.url)}
               alt={att.filename}
               style={{
                 maxWidth: 300,
@@ -66,7 +66,7 @@ function AttachmentRenderer({ attachments }: { attachments: { url: string; filen
         ) : (
           <a
             key={i}
-            href={`${BASE}${att.url}`}
+            href={apiUrl(att.url)}
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -166,12 +166,11 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
     if (ttsLoadingId === messageId) return;
     setTtsLoadingId(messageId);
     try {
-      const BASE = (import.meta as any).env?.VITE_API_URL || "";
-      const token = localStorage.getItem("blather_token") || "";
-      const res = await fetch(`${BASE}/tts/${messageId}`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" } });
+      const token = localStorage.getItem('blather_token') || '';
+      const res = await fetch(apiUrl(`/tts/${messageId}`), { method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" } });
       if (!res.ok) throw new Error("TTS failed");
       const { audioUrl } = await res.json();
-      const audio = new Audio(`${BASE}${audioUrl}`);
+      const audio = new Audio(apiUrl(audioUrl));
       ttsAudioRef.current = audio;
       setTtsPlayingId(messageId);
       audio.onended = () => { setTtsPlayingId(null); ttsAudioRef.current = null; };

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { apiUrl } from '../lib/urls';
 
 const NICK_COLORS = [
   "#c41e3a", "#0057b7", "#16a34a", "#9333ea", "#d97706", "#0891b2",
@@ -43,7 +44,6 @@ interface HuddleModalProps {
 }
 
 export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMap, onClose, onEnded, huddleEvents }: HuddleModalProps) {
-  const BASE = (import.meta as any).env?.VITE_API_URL || '';
   const token = localStorage.getItem('blather_token');
   const [participants, setParticipants] = useState<HuddleParticipant[]>([]);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -78,7 +78,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
 
   // Fetch huddle details + message history on mount
   useEffect(() => {
-    fetch(`${BASE}/huddles/${huddleId}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(apiUrl(`/huddles/${huddleId}`), { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         if (data.participants) setParticipants(data.participants);
@@ -86,7 +86,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
         if (data.status === 'ended') setEnded(true);
         // Fetch message history for the huddle channel
         if (data.channel?.id) {
-          fetch(`${BASE}/channels/${data.channel.id}/messages?limit=100`, {
+          fetch(apiUrl(`/channels/${data.channel.id}/messages?limit=100`), {
             headers: { Authorization: `Bearer ${token}` },
           })
             .then(r => r.json())
@@ -117,7 +117,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
       .catch(() => {});
 
     // Join as listener
-    fetch(`${BASE}/huddles/${huddleId}/join`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }).catch(() => {});
+    fetch(apiUrl(`/huddles/${huddleId}/join`), { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }).catch(() => {});
 
     // Cleanup on unmount — kill audio
     return () => {
@@ -168,7 +168,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
         }
       }
       if (event.type === 'huddle.joined') {
-        fetch(`${BASE}/huddles/${huddleId}`, { headers: { Authorization: `Bearer ${token}` } })
+        fetch(apiUrl(`/huddles/${huddleId}`), { headers: { Authorization: `Bearer ${token}` } })
           .then(r => r.json())
           .then(data => { if (data.participants) setParticipants(data.participants); })
           .catch(() => {});
@@ -213,7 +213,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (isPlaying.current || audioQueue.current.length === 0) return;
     isPlaying.current = true;
     const { url, messageId } = audioQueue.current.shift()!;
-    const fullUrl = url.startsWith('http') ? url : `/api${url}`;
+    const fullUrl = apiUrl(url);
     setCurrentPlayingId(messageId);
 
     // Find the userId for this message to set speakingUserId
@@ -251,7 +251,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (!input.trim() || sending) return;
     setSending(true);
     try {
-      await fetch(`${BASE}/huddles/${huddleId}/speak`, {
+      await fetch(apiUrl(`/huddles/${huddleId}/speak`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: input.trim() }),
@@ -265,7 +265,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (!confirm('End this huddle for everyone?')) return;
     killAudio();
     try {
-      await fetch(`${BASE}/huddles/${huddleId}`, {
+      await fetch(apiUrl(`/huddles/${huddleId}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

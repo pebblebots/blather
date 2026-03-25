@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AppContext, type User } from './lib/store';
+import { apiUrl } from './lib/urls';
 import { AuthPage } from './pages/AuthPage';
 import { MainPage } from './pages/MainPage';
 
@@ -11,7 +12,7 @@ export default function App() {
     const token = localStorage.getItem('blather_token');
     if (!token) { setChecking(false); return; }
 
-    fetch(`${import.meta.env.VITE_API_URL || ''}/workspaces`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(apiUrl('/workspaces'), { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => {
         if (!r.ok) throw new Error();
         const stored = localStorage.getItem('blather_user');

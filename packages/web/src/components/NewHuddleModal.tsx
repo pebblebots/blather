@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
+import { apiUrl } from '../lib/urls';
 
 interface NewHuddleModalProps {
   workspaceId: string;
@@ -9,8 +10,7 @@ interface NewHuddleModalProps {
 }
 
 export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreated }: NewHuddleModalProps) {
-  const BASE = (import.meta as any).env?.VITE_API_URL || '';
-  const token = localStorage.getItem('blather_token');
+  const token = localStorage.getItem('blather_token') || '';
   const [topic, setTopic] = useState('');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,7 +32,7 @@ export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreat
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`${BASE}/huddles`, {
+      const res = await fetch(apiUrl('/huddles'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, topic: topic.trim(), agentIds: selectedAgents }),

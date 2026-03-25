@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { api } from '../lib/api';
+import { wsUrl } from '../lib/urls';
 
 const BACKOFF_INITIAL = 1000;
 const BACKOFF_MAX = 5000;
@@ -57,12 +58,7 @@ export function useWebSocket(
       wsRef.current.close();
     }
     clearTimeout(reconnectTimer.current);
-
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const base = import.meta.env.VITE_API_URL
-      ? new URL(import.meta.env.VITE_API_URL).host
-      : location.host;
-    const url = `${proto}//${base}/ws/events?token=${token}&workspace_id=${wId}`;
+    const url = `${wsUrl('/ws/events')}?token=${encodeURIComponent(token)}&workspace_id=${encodeURIComponent(wId)}`;
 
     log('connecting to', url.replace(/token=[^&]*/, 'token=***'));
     const ws = new WebSocket(url);

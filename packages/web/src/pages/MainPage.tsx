@@ -16,6 +16,7 @@ import { SearchPanel } from '../components/SearchPanel';
 import { ThreadPanel } from '../components/ThreadPanel';
 import { HuddleModal } from '../components/HuddleModal';
 import { NewHuddleModal } from '../components/NewHuddleModal';
+import { apiUrl } from '../lib/urls';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -101,8 +102,7 @@ export function MainPage() {
   useEffect(() => {
     if (!selectedWs) return;
     const token = localStorage.getItem('blather_token');
-    const BASE = (import.meta as any).env?.VITE_API_URL || '';
-    fetch(`${BASE}/huddles?workspaceId=${selectedWs}&status=active`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(apiUrl(`/huddles?workspaceId=${selectedWs}&status=active`), { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(huddles => { if (huddles.length > 0) setActiveHuddle(huddles[0]); else setActiveHuddle(null); })
       .catch(() => {});
