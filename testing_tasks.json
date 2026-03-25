@@ -9,13 +9,13 @@
     "id": "T02",
     "description": "Set up Vitest + React Testing Library for packages/web. Install vitest, @testing-library/react, @testing-library/jest-dom, @testing-library/user-event, jsdom. Create vitest.config.ts with jsdom environment and setup file. Wire into the root 'pnpm test' script.",
     "depends_on": [],
-    "done": false
+    "done": true
   },
   {
     "id": "T03",
     "description": "Set up Playwright for end-to-end tests. Create a top-level e2e/ directory, install @playwright/test, create playwright.config.ts targeting localhost:8080, add an 'e2e' script to the root package.json. Configure the webServer option to start both API and web dev servers.",
     "depends_on": [],
-    "done": false
+    "done": true
   },
   {
     "id": "T04",

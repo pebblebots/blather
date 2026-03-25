@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "openclaw": {
-    "extensions": ["./index.ts"],
+    "extensions": [
+      "./index.ts"
+    ],
     "channel": {
       "id": "blather",
       "label": "Blather",
@@ -15,9 +17,11 @@
     "ws": "^8.0.0"
   },
   "scripts": {
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test",
+    "e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/ws": "^8.0.0",
     "typescript": "^5.7.0"
   }

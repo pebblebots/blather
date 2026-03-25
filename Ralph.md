@@ -12,4 +12,6 @@ will:
  - Update tasks.json
     - complete the target task if complete;
     - create any new subgraph of tasks discovered.
+ - Commit locally, adding any files that are worth tracking
+ - push to origin/main
 
