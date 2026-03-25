@@ -1,0 +1,312 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { and, eq } from 'drizzle-orm';
+import {
+  channelMembers,
+  channelReads,
+  channels,
+  messages,
+  reactions,
+} from '@blather/db';
+import { createApiTestHarness } from '../test/apiHarness.js';
+import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
+
+type MessageRow = {
+  id: string;
+  channelId: string;
+  userId: string | null;
+  content: string;
+  threadId: string | null;
+  attachments: Array<{ url: string; filename: string; contentType: string; size: number }> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
+
+describeWithTestDatabase('channel routes', () => {
+  let testDatabase: TestDatabase;
+  let harness: ReturnType<typeof createApiTestHarness>;
+
+  beforeAll(async () => {
+    testDatabase = await createTestDatabase();
+    harness = createApiTestHarness(testDatabase);
+  });
+
+  beforeEach(async () => {
+    await harness.reset();
+  });
+
+  afterAll(async () => {
+    await harness.close();
+  });
+
+  async function createFixture() {
+    const owner = await harness.factories.createUser({ email: 'owner@example.com', displayName: 'Owner' });
+    const member = await harness.factories.createUser({ email: 'member@example.com', displayName: 'Member' });
+    const workspace = await harness.factories.createWorkspace({ ownerId: owner.id });
+    const channel = await harness.factories.createChannel({
+      workspaceId: workspace.id,
+      name: 'general',
+      slug: 'general',
+      channelType: 'public',
+      createdBy: owner.id,
+    });
+
+    return { owner, member, workspace, channel };
+  }
+
+  it('POST /channels/:id/messages creates a message and rejects exact duplicates within 60 seconds', async () => {
+    const { owner, channel } = await createFixture();
+
+    const first = await harness.request.post<MessageRow>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      json: {
+        content: 'hello from test',
+        attachments: [{ url: 'https://cdn.test/file.txt', filename: 'file.txt', contentType: 'text/plain', size: 42 }],
+      },
+    });
+
+    expect(first.status).toBe(201);
+    expect(first.body).toMatchObject({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'hello from test',
+    });
+
+    const duplicate = await harness.request.post<{ error: string; existingId: string }>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { content: 'hello from test' },
+    });
+
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body?.error).toBe('Duplicate message');
+    expect(duplicate.body?.existingId).toBe(first.body?.id);
+  });
+
+  it('GET /channels/:id/messages supports pagination and excludes thread replies', async () => {
+    const { owner, channel } = await createFixture();
+
+    const first = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'first' });
+    const second = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'second' });
+    await harness.factories.createMessage({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'thread-reply',
+      threadId: first.id,
+    });
+
+    const latestOnly = await harness.request.get<MessageRow[]>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      query: { limit: 1 },
+    });
+
+    expect(latestOnly.status).toBe(200);
+    expect(latestOnly.body).toHaveLength(1);
+    expect(latestOnly.body?.[0]?.id).toBe(second.id);
+
+    const afterFirst = await harness.request.get<MessageRow[]>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      query: { after: first.createdAt.toISOString() },
+    });
+
+    expect(afterFirst.status).toBe(200);
+    const returnedIds = new Set(afterFirst.body?.map((message) => message.id));
+    expect(returnedIds.has(second.id)).toBe(true);
+    expect(returnedIds.has(first.id)).toBe(false);
+  });
+
+  it('POST /channels/:id/messages with threadId creates thread replies and GET replies returns them', async () => {
+    const { owner, member, channel } = await createFixture();
+
+    const parent = await harness.factories.createMessage({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'parent message',
+    });
+
+    const replyResponse = await harness.request.post<MessageRow>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(member.id),
+      json: {
+        content: 'reply message',
+        threadId: parent.id,
+      },
+    });
+
+    expect(replyResponse.status).toBe(201);
+    expect(replyResponse.body?.threadId).toBe(parent.id);
+
+    const replies = await harness.request.get<MessageRow[]>(`/channels/${channel.id}/messages/${parent.id}/replies`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(replies.status).toBe(200);
+    expect(replies.body?.map((message) => message.id)).toContain(replyResponse.body?.id);
+  });
+
+  it('POST /channels/:id/typing returns ok', async () => {
+    const { owner, channel } = await createFixture();
+
+    const response = await harness.request.post<{ ok: boolean }>(`/channels/${channel.id}/typing`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
+  });
+
+  it('can add, list, and remove reactions for a message', async () => {
+    const { owner, channel } = await createFixture();
+    const message = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'react to me' });
+
+    const addReaction = await harness.request.post<{ id: string; emoji: string }>(
+      `/channels/${channel.id}/messages/${message.id}/reactions`,
+      {
+        headers: harness.headers.forUser(owner.id),
+        json: { emoji: '👍' },
+      },
+    );
+
+    expect(addReaction.status).toBe(201);
+    expect(addReaction.body?.emoji).toBe('👍');
+
+    const getReactions = await harness.request.get<Array<{ id: string; emoji: string; userId: string }>>(
+      `/channels/${channel.id}/messages/${message.id}/reactions`,
+      { headers: harness.headers.forUser(owner.id) },
+    );
+
+    expect(getReactions.status).toBe(200);
+    expect(getReactions.body).toHaveLength(1);
+    expect(getReactions.body?.[0]).toMatchObject({ emoji: '👍', userId: owner.id });
+
+    const removeReaction = await harness.request.delete<{ ok: boolean }>(
+      `/channels/${channel.id}/messages/${message.id}/reactions`,
+      {
+        headers: harness.headers.forUser(owner.id),
+        json: { emoji: '👍' },
+      },
+    );
+
+    expect(removeReaction.status).toBe(200);
+    expect(removeReaction.body).toEqual({ ok: true });
+
+    const remaining = await harness.db.select().from(reactions).where(eq(reactions.messageId, message.id));
+    expect(remaining).toHaveLength(0);
+  });
+
+  it('POST /channels/:id/read upserts channel read state', async () => {
+    const { owner, channel } = await createFixture();
+
+    const firstRead = await harness.request.post<{ ok: boolean }>(`/channels/${channel.id}/read`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(firstRead.status).toBe(200);
+    expect(firstRead.body).toEqual({ ok: true });
+
+    const secondRead = await harness.request.post<{ ok: boolean }>(`/channels/${channel.id}/read`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(secondRead.status).toBe(200);
+
+    const reads = await harness.db
+      .select()
+      .from(channelReads)
+      .where(and(eq(channelReads.channelId, channel.id), eq(channelReads.userId, owner.id)));
+
+    expect(reads).toHaveLength(1);
+  });
+
+  it('invites members and GET /channels/:id/members returns the channel member list', async () => {
+    const { owner, member, channel } = await createFixture();
+
+    const invite = await harness.request.post<{ ok: boolean }>(`/channels/${channel.id}/members`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { userId: member.id },
+    });
+
+    expect(invite.status).toBe(201);
+    expect(invite.body).toEqual({ ok: true });
+
+    const membersResponse = await harness.request.get<Array<{ id: string; email: string; displayName: string }>>(
+      `/channels/${channel.id}/members`,
+      { headers: harness.headers.forUser(owner.id) },
+    );
+
+    expect(membersResponse.status).toBe(200);
+    const ids = new Set(membersResponse.body?.map((m) => m.id));
+    expect(ids.has(owner.id)).toBe(true);
+    expect(ids.has(member.id)).toBe(true);
+  });
+
+  it('PATCH /channels/:id/archive archives non-default channels', async () => {
+    const { owner, channel } = await createFixture();
+
+    const response = await harness.request.patch<{ archived: boolean }>(`/channels/${channel.id}/archive`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.archived).toBe(true);
+
+    const [updated] = await harness.db.select().from(channels).where(eq(channels.id, channel.id));
+    expect(updated?.archived).toBe(true);
+  });
+
+  it('PATCH /channels/:channelId/messages/:messageId edits a message', async () => {
+    const { owner, channel } = await createFixture();
+    const message = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'old text' });
+
+    const response = await harness.request.patch<MessageRow>(`/channels/${channel.id}/messages/${message.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { content: 'new text' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.content).toBe('new text');
+
+    const [updated] = await harness.db.select().from(messages).where(eq(messages.id, message.id));
+    expect(updated?.content).toBe('new text');
+  });
+
+  it('DELETE /channels/:channelId/messages/:messageId deletes a message and its reactions', async () => {
+    const { owner, channel } = await createFixture();
+    const message = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'to delete' });
+
+    await harness.db.insert(reactions).values({ messageId: message.id, userId: owner.id, emoji: '🔥' });
+
+    const response = await harness.request.delete<{ ok: boolean }>(`/channels/${channel.id}/messages/${message.id}`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
+
+    const [remainingMessage] = await harness.db.select().from(messages).where(eq(messages.id, message.id));
+    expect(remainingMessage).toBeUndefined();
+
+    const remainingReactions = await harness.db.select().from(reactions).where(eq(reactions.messageId, message.id));
+    expect(remainingReactions).toHaveLength(0);
+  });
+
+  it('DELETE /channels/:id deletes the channel and dependent records', async () => {
+    const { owner, channel } = await createFixture();
+    const message = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'depends on channel' });
+
+    const response = await harness.request.delete<{ ok: boolean }>(`/channels/${channel.id}`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
+
+    const [deletedChannel] = await harness.db.select().from(channels).where(eq(channels.id, channel.id));
+    expect(deletedChannel).toBeUndefined();
+
+    const [deletedMessage] = await harness.db.select().from(messages).where(eq(messages.id, message.id));
+    expect(deletedMessage).toBeUndefined();
+
+    const memberships = await harness.db.select().from(channelMembers).where(eq(channelMembers.channelId, channel.id));
+    expect(memberships).toHaveLength(0);
+  });
+});
