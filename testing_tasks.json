@@ -183,7 +183,7 @@
     "depends_on": [
       "T02"
     ],
-    "done": false
+    "done": true
   },
   {
     "id": "T25",
