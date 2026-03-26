@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { eq, and, or, sql } from 'drizzle-orm';
-import { workspaces, workspaceMembers, channels, channelMembers, users } from '@blather/db';
+import { workspaces, workspaceMembers, channels, channelMembers, channelReads, messages, users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 import type { CreateWorkspaceRequest, CreateChannelRequest, CreateDMRequest } from '@blather/types';
@@ -243,21 +243,37 @@ workspaceRoutes.get('/:id/unread', async (c) => {
   const userId = c.get('userId');
   const workspaceId = c.req.param('id');
 
-  const result = await db.execute(
-    sql`SELECT c.id as channel_id,
-           COUNT(m.id)::int as unread_count
-         FROM channels c
-         JOIN channel_members cm ON cm.channel_id = c.id AND cm.user_id = ${userId}
-         LEFT JOIN channel_reads cr ON cr.channel_id = c.id AND cr.user_id = ${userId}
-         LEFT JOIN messages m ON m.channel_id = c.id AND m.created_at > COALESCE(cr.last_read_at, cm.joined_at)
-         WHERE c.workspace_id = ${workspaceId}
-         GROUP BY c.id
-         HAVING COUNT(m.id) > 0`
-  );
+  const unreadRows = await db
+    .select({
+      channelId: channels.id,
+      unreadCount: sql<number>`count(${messages.id})`.mapWith(Number),
+    })
+    .from(channels)
+    .innerJoin(
+      channelMembers,
+      and(eq(channelMembers.channelId, channels.id), eq(channelMembers.userId, userId))
+    )
+    .leftJoin(
+      channelReads,
+      and(eq(channelReads.channelId, channels.id), eq(channelReads.userId, userId))
+    )
+    .leftJoin(
+      messages,
+      and(
+        eq(messages.channelId, channels.id),
+        sql`case
+              when ${channelReads.lastReadAt} is null then ${messages.createdAt} >= ${channelMembers.joinedAt}
+              else ${messages.createdAt} > ${channelReads.lastReadAt}
+            end`
+      )
+    )
+    .where(eq(channels.workspaceId, workspaceId))
+    .groupBy(channels.id)
+    .having(sql`count(${messages.id}) > 0`);
 
   const counts: Record<string, number> = {};
-  for (const row of resultRows<{ channel_id: string; unread_count: number }>(result)) {
-    counts[row.channel_id] = row.unread_count;
+  for (const row of unreadRows) {
+    counts[row.channelId] = row.unreadCount;
   }
   return c.json(counts);
 });
