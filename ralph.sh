@@ -1,8 +1,20 @@
 #!/bin/bash
 
-npackages=$(find packages -iname \*.ts)
+function npackages() {
+    find packages -iname \*.ts | wc -l
+}
 
-while [ $(grep '"done"' tasks.json | grep false | wc -l) -gt 0 ]; do
-    claude --dangerously-skip-permissions "$(cat Ralph.md)"
-    pnpm test && echo "✅"
+function num_complete( ) {
+    grep '"packages/"' reviewed_modules.json  | wc -l
+}
+
+total=$(npackages)
+while [ $(num_complete) -lt $total ]; do
+    hermes chat -q "$(cat Critiq.md)"
+    if pnpm test; then
+        echo "✅ Ralphed through $(num_complete) / $total"
+        continue
+    fi
+    echo "❌ Failed at $(num_complete) / $total"
+    exit 1
 done

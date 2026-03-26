@@ -1,3 +1,5 @@
+Read learnings.md.
+
 You are running a single invocation of a loop. Each trip through the loop,
 you are tasked with *reviewing* a single module or test in the codebase.
 The module has been hastily cobbled together by a junior member of the
@@ -39,6 +41,9 @@ Your areas of concern:
    characteristics.
 
  - Ensure any new tests pass.
+
+ - Update learnings.md with anything that would have made this loop
+   iteration significantly smoother.
 
  - Commit the changes with an appropriate message, and allow a later human
    reviewer to push to remote origin if standards are met.
