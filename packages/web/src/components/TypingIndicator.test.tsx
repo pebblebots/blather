@@ -57,4 +57,12 @@ describe('TypingIndicator', () => {
     );
     expect(screen.getByText(/Bob and Charlie are/)).toBeInTheDocument();
   });
+
+  it('falls back to truncated id for unknown users', () => {
+    const typing = makeTyping([['unknown-user-long-id', 'ch-1']]);
+    render(
+      <TypingIndicator typingUsers={typing} usersMap={usersMap} currentUserId="u-1" selectedChannelId="ch-1" />
+    );
+    expect(screen.getByText(/unknown- is/)).toBeInTheDocument();
+  });
 });

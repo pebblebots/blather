@@ -50,5 +50,7 @@
   "packages/web/src/components/MarkdownText.test.tsx",
   "packages/web/src/lib/urls.test.ts",
   "packages/web/src/components/MessageInput.tsx",
-  "packages/web/src/components/MessageInput.test.tsx"
+  "packages/web/src/components/MessageInput.test.tsx",
+  "packages/web/src/components/TypingIndicator.tsx",
+  "packages/web/src/components/TypingIndicator.test.tsx"
 ]

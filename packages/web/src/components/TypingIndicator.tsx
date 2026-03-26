@@ -34,7 +34,7 @@ function getVerb(userId: string, isAgent: boolean): string {
 }
 
 function getGroupVerb(ids: string[]): string {
-  const combined = ids.sort().join(':');
+  const combined = [...ids].sort().join(':');
   return GROUP_VERBS[hashId(combined) % GROUP_VERBS.length];
 }
 
