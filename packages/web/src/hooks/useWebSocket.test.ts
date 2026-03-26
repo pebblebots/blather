@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useWebSocket } from './useWebSocket';
+import { api } from '../lib/api';
 
 // Mock api.getMessages for missed-message recovery
 vi.mock('../lib/api', () => ({
@@ -64,6 +65,7 @@ describe('useWebSocket', () => {
     vi.stubGlobal('WebSocket', MockWebSocket);
     localStorage.setItem('blather_token', 'test-jwt');
     vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
   });
 
   afterEach(() => {
@@ -123,12 +125,13 @@ describe('useWebSocket', () => {
     const ws0 = MockWebSocket.instances[0];
     act(() => ws0.simulateOpen());
 
-    // First disconnect
     act(() => ws0.simulateClose());
     expect(MockWebSocket.instances).toHaveLength(1);
 
-    // Advance past initial backoff (1000ms + jitter)
-    act(() => vi.advanceTimersByTime(2000));
+    act(() => vi.advanceTimersByTime(999));
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    act(() => vi.advanceTimersByTime(1));
     expect(MockWebSocket.instances).toHaveLength(2);
   });
 
@@ -155,5 +158,40 @@ describe('useWebSocket', () => {
 
     unmount();
     expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+  });
+
+  it('replays missed messages after reconnect using the live event shape', async () => {
+    vi.mocked(api.getMessages).mockResolvedValueOnce([
+      { id: 'm-2', createdAt: '2026-03-25T10:01:00.000Z' },
+      { id: 'm-1', createdAt: '2026-03-25T10:00:30.000Z' },
+    ] as any[]);
+
+    const onEvent = vi.fn();
+    renderHook(() => useWebSocket('ws-1', onEvent, 'ch-1'));
+
+    act(() => {
+      MockWebSocket.instances[0].simulateMessage({
+        type: 'message.created',
+        data: { id: 'seed', createdAt: '2026-03-25T10:00:00.000Z' },
+      });
+      MockWebSocket.instances[0].simulateOpen();
+    });
+
+    await vi.waitFor(() => {
+      expect(api.getMessages).toHaveBeenCalledWith('ch-1', 100, '2026-03-25T10:00:00.000Z');
+    });
+
+    expect(onEvent).toHaveBeenNthCalledWith(1, {
+      type: 'message.created',
+      data: { id: 'seed', createdAt: '2026-03-25T10:00:00.000Z' },
+    });
+    expect(onEvent).toHaveBeenNthCalledWith(2, {
+      type: 'message.created',
+      data: { id: 'm-1', createdAt: '2026-03-25T10:00:30.000Z' },
+    });
+    expect(onEvent).toHaveBeenNthCalledWith(3, {
+      type: 'message.created',
+      data: { id: 'm-2', createdAt: '2026-03-25T10:01:00.000Z' },
+    });
   });
 });

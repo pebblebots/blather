@@ -13,6 +13,10 @@ function backoffMs(attempt: number): number {
   return base + jitter;
 }
 
+function getEventCreatedAt(event: any): string | null {
+  return event?.data?.createdAt ?? event?.payload?.createdAt ?? null;
+}
+
 export function useWebSocket(
   workspaceId: string | null,
   onEvent: (event: any) => void,
@@ -37,10 +41,10 @@ export function useWebSocket(
     if (!chId || !since) return;
     try {
       const missed = await api.getMessages(chId, 100, since);
-      const sorted = [...missed].reverse();
-      log('fetched', sorted.length, 'missed messages');
-      for (const msg of sorted) {
-        onEventRef.current({ type: 'new_message', payload: msg });
+      const recoveredMessages = [...missed].reverse();
+      log('fetched', recoveredMessages.length, 'missed messages');
+      for (const message of recoveredMessages) {
+        onEventRef.current({ type: 'message.created', data: message });
       }
     } catch (e) {
       log('fetchMissedMessages error:', e);
@@ -85,8 +89,9 @@ export function useWebSocket(
     ws.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data);
-        if (event.payload?.createdAt) {
-          lastEventTimeRef.current = event.payload.createdAt;
+        const createdAt = getEventCreatedAt(event);
+        if (createdAt) {
+          lastEventTimeRef.current = createdAt;
         }
         onEventRef.current(event);
       } catch {}

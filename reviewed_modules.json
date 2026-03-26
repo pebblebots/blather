@@ -1,0 +1,4 @@
+[
+  "packages/api/src/app.ts",
+  "packages/web/src/hooks/useWebSocket.ts"
+]
