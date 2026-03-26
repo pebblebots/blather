@@ -106,8 +106,8 @@ taskRoutes.patch('/:id', async (c) => {
     const sourceChannelId = existing.sourceChannelId;
     if (sourceChannelId) {
       try {
-        const { postStatusNotification } = await import('../bots/taskNotify.js');
-        await postStatusNotification(db, task, existing.status, normalizeStatus(body.status), userId);
+        const { notifyStatusChange } = await import('../bots/tasks.js');
+        await notifyStatusChange(db, task, existing.status, normalizeStatus(body.status), userId);
       } catch (e) {
         console.error('[Tasks] Status notification error:', e);
       }

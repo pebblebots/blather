@@ -1,4 +1,4 @@
-import { eq, and, or, sql, ne } from 'drizzle-orm';
+import { eq, and, sql, ne } from 'drizzle-orm';
 import { tasks, users, messages, channels, channelMembers, workspaceMembers } from '@blather/db';
 import type { Db } from '@blather/db';
 import { emitEvent } from '../ws/events.js';
@@ -280,7 +280,7 @@ async function cmdComment(db: Db, channelId: string, args: string[], threadId?: 
   await postBotMessage(db, channelId, `💬 Comment added to **${task.title}** \`${sid}\``, threadId);
 }
 
-async function notifyStatusChange(db: Db, task: any, prevStatus: string, newStatus: string, userId?: string) {
+export async function notifyStatusChange(db: Db, task: any, prevStatus: string, newStatus: string, userId?: string) {
   if (prevStatus === newStatus) return;
   const sourceChannelId = task.sourceChannelId || task.source_channel_id;
   if (!sourceChannelId) return;
