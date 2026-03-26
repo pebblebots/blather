@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CreateChannelModal } from './CreateChannelModal';
 import { CreateWorkspaceModal } from './CreateWorkspaceModal';
@@ -14,6 +14,10 @@ afterEach(() => cleanup());
 const mockCreateChannel = vi.fn();
 const mockCreateWorkspace = vi.fn();
 const mockInviteMember = vi.fn();
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 vi.mock('../lib/api', () => ({
   api: {
@@ -105,11 +109,12 @@ describe('InviteMemberModal', () => {
     { id: 'u-2', displayName: 'Bob' },
   ];
 
-  it('renders member select and buttons', () => {
+  it('renders member select and action buttons', () => {
     render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={vi.fn()} />);
-    expect(screen.getByText('Select a user to invite:')).toBeInTheDocument();
-    expect(screen.getByText('Cancel')).toBeInTheDocument();
-    expect(screen.getByText('Invite')).toBeDisabled();
+
+    expect(screen.getByLabelText('Select a user to invite:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Invite' })).toBeDisabled();
   });
 
   it('enables invite after selecting a member', async () => {
@@ -117,14 +122,47 @@ describe('InviteMemberModal', () => {
     render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={vi.fn()} />);
 
     await user.selectOptions(screen.getByRole('combobox'), 'u-2');
-    expect(screen.getByText('Invite')).toBeEnabled();
+
+    expect(screen.getByRole('button', { name: 'Invite' })).toBeEnabled();
+  });
+
+  it('invites the selected member and closes on success', async () => {
+    mockInviteMember.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={onClose} />);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'u-2');
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
+
+    await waitFor(() => {
+      expect(mockInviteMember).toHaveBeenCalledWith('ch-1', 'u-2');
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('shows the API error and stays open when invite fails', async () => {
+    mockInviteMember.mockRejectedValue(new Error('Already invited'));
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={onClose} />);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'u-2');
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Already invited');
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('calls onClose on cancel', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={onClose} />);
-    await user.click(screen.getByText('Cancel'));
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
     expect(onClose).toHaveBeenCalled();
   });
 });
