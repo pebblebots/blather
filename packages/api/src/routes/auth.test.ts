@@ -1,35 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { apiKeys, magicTokens, users } from '@blather/db';
+import type { AuthResponse } from '@blather/types';
 import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
-
-type MagicResponse = {
-  ok: boolean;
-  message: string;
-};
-
-type VerifyMagicResponse = {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    displayName: string;
-    isAgent: boolean;
-    createdAt: string;
-  };
-};
-
-type AuthResponse = {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    displayName: string;
-    isAgent: boolean;
-    createdAt: string;
-  };
-};
 
 describe('auth routes', () => {
   let testDatabase: TestDatabase;
@@ -48,8 +22,10 @@ describe('auth routes', () => {
     await harness.close();
   });
 
+  // ── Magic Links ──
+
   it('POST /auth/magic accepts an email and stores a magic token', async () => {
-    const response = await harness.request.post<MagicResponse>('/auth/magic', {
+    const response = await harness.request.post<{ ok: boolean; message: string }>('/auth/magic', {
       json: { email: 'Alice@Example.com' },
       headers: { origin: 'http://localhost:8080' },
     });
@@ -67,7 +43,16 @@ describe('auth routes', () => {
     expect(storedToken?.usedAt).toBeNull();
   });
 
-  it('POST /auth/magic/verify with valid token returns JWT and marks token used', async () => {
+  it('POST /auth/magic rejects an invalid email', async () => {
+    const response = await harness.request.post('/auth/magic', {
+      json: { email: 'not-an-email' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'Valid email required' });
+  });
+
+  it('POST /auth/magic/verify with valid token returns JWT and creates user', async () => {
     await harness.request.post('/auth/magic', {
       json: { email: 'verify@example.com' },
       headers: { origin: 'http://localhost:8080' },
@@ -81,7 +66,7 @@ describe('auth routes', () => {
 
     expect(storedToken).toBeDefined();
 
-    const verifyResponse = await harness.request.post<VerifyMagicResponse>('/auth/magic/verify', {
+    const verifyResponse = await harness.request.post<AuthResponse>('/auth/magic/verify', {
       json: { token: storedToken!.token },
     });
 
@@ -89,6 +74,7 @@ describe('auth routes', () => {
     expect(verifyResponse.body?.token).toBeTypeOf('string');
     expect(verifyResponse.body?.user.email).toBe('verify@example.com');
 
+    // Token should be marked used
     const [updatedToken] = await harness.db
       .select()
       .from(magicTokens)
@@ -98,13 +84,22 @@ describe('auth routes', () => {
     expect(updatedToken?.usedAt).toBeInstanceOf(Date);
   });
 
-  it('POST /auth/magic/verify rejects expired or used tokens', async () => {
+  it('POST /auth/magic/verify rejects expired tokens', async () => {
     await harness.db.insert(magicTokens).values({
       email: 'expired@example.com',
       token: 'expired-token',
       expiresAt: new Date(Date.now() - 60_000),
     });
 
+    const response = await harness.request.post('/auth/magic/verify', {
+      json: { token: 'expired-token' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid or expired token' });
+  });
+
+  it('POST /auth/magic/verify rejects already-used tokens', async () => {
     await harness.db.insert(magicTokens).values({
       email: 'used@example.com',
       token: 'used-token',
@@ -112,23 +107,27 @@ describe('auth routes', () => {
       usedAt: new Date(),
     });
 
-    const expiredResponse = await harness.request.post('/auth/magic/verify', {
-      json: { token: 'expired-token' },
-    });
-
-    const usedResponse = await harness.request.post('/auth/magic/verify', {
+    const response = await harness.request.post('/auth/magic/verify', {
       json: { token: 'used-token' },
     });
 
-    expect(expiredResponse.status).toBe(401);
-    expect(expiredResponse.body).toEqual({ error: 'Invalid or expired token' });
-
-    expect(usedResponse.status).toBe(401);
-    expect(usedResponse.body).toEqual({ error: 'Invalid or expired token' });
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid or expired token' });
   });
 
-  it('POST /auth/register creates a user and POST /auth/login accepts correct password and rejects incorrect password', async () => {
-    const registerResponse = await harness.request.post<AuthResponse>('/auth/register', {
+  it('POST /auth/magic/verify rejects a nonexistent token', async () => {
+    const response = await harness.request.post('/auth/magic/verify', {
+      json: { token: 'does-not-exist' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid or expired token' });
+  });
+
+  // ── Legacy Register / Login ──
+
+  it('POST /auth/register creates a new user', async () => {
+    const response = await harness.request.post<AuthResponse>('/auth/register', {
       json: {
         email: 'register@example.com',
         password: 'correct-horse-battery-staple',
@@ -136,39 +135,47 @@ describe('auth routes', () => {
       },
     });
 
-    expect(registerResponse.status).toBe(201);
-    expect(registerResponse.body?.user.email).toBe('register@example.com');
-    expect(registerResponse.body?.token).toBeTypeOf('string');
-
-    const [registeredUser] = await harness.db
-      .select()
-      .from(users)
-      .where(eq(users.email, 'register@example.com'))
-      .limit(1);
-
-    expect(registeredUser).toBeDefined();
-    expect(registeredUser?.passwordHash).toBeTypeOf('string');
-
-    const loginSuccess = await harness.request.post<AuthResponse>('/auth/login', {
-      json: {
-        email: 'register@example.com',
-        password: 'correct-horse-battery-staple',
-      },
-    });
-
-    expect(loginSuccess.status).toBe(200);
-    expect(loginSuccess.body?.user.id).toBe(registeredUser?.id);
-
-    const loginFailure = await harness.request.post('/auth/login', {
-      json: {
-        email: 'register@example.com',
-        password: 'totally-wrong-password',
-      },
-    });
-
-    expect(loginFailure.status).toBe(401);
-    expect(loginFailure.body).toEqual({ error: 'Invalid credentials' });
+    expect(response.status).toBe(201);
+    expect(response.body?.user.email).toBe('register@example.com');
+    expect(response.body?.token).toBeTypeOf('string');
   });
+
+  it('POST /auth/login succeeds with correct credentials', async () => {
+    await harness.request.post('/auth/register', {
+      json: {
+        email: 'login@example.com',
+        password: 'correct-horse',
+        displayName: 'Login User',
+      },
+    });
+
+    const response = await harness.request.post<AuthResponse>('/auth/login', {
+      json: { email: 'login@example.com', password: 'correct-horse' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.user.email).toBe('login@example.com');
+    expect(response.body?.token).toBeTypeOf('string');
+  });
+
+  it('POST /auth/login rejects incorrect password', async () => {
+    await harness.request.post('/auth/register', {
+      json: {
+        email: 'wrong-pw@example.com',
+        password: 'correct-horse',
+        displayName: 'Wrong PW',
+      },
+    });
+
+    const response = await harness.request.post('/auth/login', {
+      json: { email: 'wrong-pw@example.com', password: 'totally-wrong-password' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid credentials' });
+  });
+
+  // ── API Keys ──
 
   it('POST /auth/api-keys creates an API key for an authenticated user', async () => {
     const user = await harness.factories.createUser();
@@ -187,6 +194,8 @@ describe('auth routes', () => {
     expect(stored[0]?.name).toBe('CLI Key');
   });
 
+  // ── Current User ──
+
   it('GET /auth/me returns the currently authenticated user', async () => {
     const user = await harness.factories.createUser({
       email: 'me@example.com',
@@ -204,5 +213,11 @@ describe('auth routes', () => {
       displayName: 'Me User',
       isAgent: false,
     });
+  });
+
+  it('GET /auth/me returns 401 without authentication', async () => {
+    const response = await harness.request.get('/auth/me');
+
+    expect(response.status).toBe(401);
   });
 });

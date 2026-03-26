@@ -6,8 +6,21 @@ import { users, apiKeys, magicTokens, workspaces, workspaceMembers, channels, ch
 import type { Env } from '../app.js';
 import { signToken, hashApiKey, authMiddleware } from '../middleware/auth.js';
 import type { RegisterRequest, LoginRequest, CreateApiKeyRequest } from '@blather/types';
+import type { Db } from '@blather/db';
 import { Resend } from 'resend';
 import { publishEvent } from '../ws/manager.js';
+
+/** Map a DB user row to the public JSON shape returned by auth endpoints. */
+function userToPublic(user: { id: string; email: string; displayName: string; avatarUrl: string | null; isAgent: boolean; createdAt: Date }) {
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    isAgent: user.isAgent,
+    createdAt: user.createdAt.toISOString(),
+  };
+}
 
 let _resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -24,7 +37,7 @@ function emailDomain(email: string): string {
 }
 
 // ── Helper: auto-join workspaces that allow this domain ──
-async function autoJoinDomainWorkspaces(db: any, userId: string, email: string) {
+async function autoJoinDomainWorkspaces(db: Db, userId: string, email: string) {
   const domain = emailDomain(email);
   if (!domain) return;
 
@@ -167,17 +180,7 @@ authRoutes.post('/magic/verify', async (c) => {
   await autoJoinDomainWorkspaces(db, user.id, user.email);
 
   const jwt = signToken(user.id);
-  return c.json({
-    token: jwt,
-    user: {
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      avatarUrl: user.avatarUrl,
-      isAgent: user.isAgent,
-      createdAt: user.createdAt.toISOString(),
-    },
-  });
+  return c.json({ token: jwt, user: userToPublic(user) });
 });
 
 // ── Legacy: Register (kept for agents) ──
@@ -261,12 +264,5 @@ authRoutes.get("/me", authMiddleware, async (c) => {
   const userId = c.get("userId");
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) return c.json({ error: "User not found" }, 404);
-  return c.json({
-    id: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
-    isAgent: user.isAgent,
-    createdAt: user.createdAt.toISOString(),
-  });
+  return c.json(userToPublic(user));
 });
