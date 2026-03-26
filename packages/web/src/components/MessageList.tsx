@@ -91,9 +91,12 @@ function AttachmentRenderer({ attachments }: { attachments: { url: string; filen
   );
 }
 
+/** Threshold (ms) below which an update is considered a save artifact, not an edit. */
+const EDIT_THRESHOLD_MS = 1000;
+
 function isEdited(msg: Msg): boolean {
   if (!msg.updatedAt || !msg.createdAt) return false;
-  return new Date(msg.updatedAt).getTime() - new Date(msg.createdAt).getTime() > 1000;
+  return new Date(msg.updatedAt).getTime() - new Date(msg.createdAt).getTime() > EDIT_THRESHOLD_MS;
 }
 
 interface Props {
