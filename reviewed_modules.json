@@ -1,5 +1,6 @@
 [
   "packages/api/src/app.ts",
+  "packages/api/src/middleware/auth.ts",
   "packages/web/src/hooks/useWebSocket.ts",
   "packages/types/src/index.ts"
 ]

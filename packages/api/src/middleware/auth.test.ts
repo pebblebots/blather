@@ -56,6 +56,21 @@ describe('auth middleware', () => {
     expect(response.body).toEqual({ error: 'Invalid token' });
   });
 
+  it('falls back to a valid API key when the bearer token is invalid', async () => {
+    const user = await harness.factories.createUser();
+    const rawKey = await harness.tokens.apiKeyForUser(user.id);
+
+    const response = await harness.request.get<{ id: string }>('/auth/me', {
+      headers: {
+        ...harness.headers.bearer('this-is-not-a-jwt'),
+        ...harness.headers.apiKey(rawKey),
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.id).toBe(user.id);
+  });
+
   it('valid API key grants access', async () => {
     const user = await harness.factories.createUser();
     const rawKey = await harness.tokens.apiKeyForUser(user.id);

@@ -14,22 +14,29 @@ export function hashApiKey(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }
 
-export const authMiddleware = createMiddleware<Env>(async (c, next) => {
-  const db = c.get('db');
-
-  // Try Bearer token first
-  const authHeader = c.req.header('Authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    try {
-      const payload = jwt.verify(authHeader.slice(7), JWT_SECRET) as { sub: string };
-      c.set('userId', payload.sub);
-      return next();
-    } catch {
-      return c.json({ error: 'Invalid token' }, 401);
-    }
+function verifyBearerToken(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
   }
 
-  // Try API key
+  try {
+    const payload = jwt.verify(authHeader.slice(7), JWT_SECRET) as { sub: string };
+    return payload.sub;
+  } catch {
+    return null;
+  }
+}
+
+export const authMiddleware = createMiddleware<Env>(async (c, next) => {
+  const db = c.get('db');
+  const authHeader = c.req.header('Authorization');
+  const bearerUserId = verifyBearerToken(authHeader);
+
+  if (bearerUserId) {
+    c.set('userId', bearerUserId);
+    return next();
+  }
+
   const apiKey = c.req.header('X-API-Key');
   if (apiKey) {
     const hash = hashApiKey(apiKey);
@@ -43,6 +50,10 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       return next();
     }
     return c.json({ error: 'Invalid API key' }, 401);
+  }
+
+  if (authHeader?.startsWith('Bearer ')) {
+    return c.json({ error: 'Invalid token' }, 401);
   }
 
   return c.json({ error: 'Authentication required' }, 401);
