@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { workspaces, workspaceMembers, channels, channelMembers, channelReads, messages, users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -8,14 +8,6 @@ import { emitEvent } from '../ws/events.js';
 
 export const workspaceRoutes = new Hono<Env>();
 workspaceRoutes.use('*', authMiddleware);
-
-function resultRows<T>(result: unknown): T[] {
-  if (Array.isArray(result)) return result as T[];
-  if (result && typeof result === 'object' && Array.isArray((result as { rows?: unknown[] }).rows)) {
-    return (result as { rows: T[] }).rows;
-  }
-  return [];
-}
 
 // List workspaces for current user
 workspaceRoutes.get('/', async (c) => {
@@ -29,8 +21,8 @@ workspaceRoutes.get('/', async (c) => {
   if (memberships.length === 0) return c.json([]);
 
   const ids = memberships.map((m) => m.workspaceId);
-  const result = await db.select().from(workspaces);
-  return c.json(result.filter((w) => ids.includes(w.id)));
+  const result = await db.select().from(workspaces).where(inArray(workspaces.id, ids));
+  return c.json(result);
 });
 
 // Create workspace
@@ -241,7 +233,7 @@ workspaceRoutes.post('/:id/dm', async (c) => {
       isDefault: dmChannel.isDefault,
       topic: dmChannel.topic,
       createdBy: dmChannel.createdBy,
-      createdAt: dmChannel.createdAt?.toISOString?.() ?? null,
+      createdAt: dmChannel.createdAt.toISOString(),
     },
   });
 

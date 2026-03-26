@@ -6,7 +6,6 @@ import {
   channels,
   messages,
   workspaceMembers,
-  workspaces,
 } from '@blather/db';
 import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
@@ -342,8 +341,12 @@ describe('workspace routes', () => {
     expect(response.body).toEqual([]);
   });
 
-  it('GET /workspaces returns empty array when user is not in any workspace', async () => {
+  it('GET /workspaces returns empty array when user is not a member of any workspace', async () => {
     const user = await harness.factories.createUser();
+    const otherUser = await harness.factories.createUser();
+
+    // A workspace exists, but our user is not a member
+    await harness.factories.createWorkspace({ ownerId: otherUser.id });
 
     const response = await harness.request.get('/workspaces', {
       headers: harness.headers.forUser(user.id),
@@ -351,8 +354,5 @@ describe('workspace routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual([]);
-
-    const totalWorkspaces = await harness.db.select().from(workspaces);
-    expect(totalWorkspaces).toHaveLength(0);
   });
 });
