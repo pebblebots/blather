@@ -21,9 +21,8 @@ describe('incident routes', () => {
 
   async function createFixture() {
     const owner = await harness.factories.createUser({ email: 'owner@example.com', displayName: 'Owner' });
-    const otherUser = await harness.factories.createUser({ email: 'other@example.com', displayName: 'Other User' });
     const workspace = await harness.factories.createWorkspace({ ownerId: owner.id });
-    return { owner, otherUser, workspace };
+    return { owner, workspace };
   }
 
   // ── List incidents ──
@@ -193,7 +192,7 @@ describe('incident routes', () => {
   });
 
   it('POST /incidents returns 403 for non-member', async () => {
-    const { member, workspace } = await createFixture();
+    const { workspace } = await createFixture();
 
     const outsider = await harness.factories.createUser({ email: 'outsider@example.com', displayName: 'Outsider' });
 
@@ -248,8 +247,9 @@ describe('incident routes', () => {
     expect(res.body.resolution).toBe('Fixed the root cause');
   });
 
-  it('PATCH /incidents/:id transitions acked -> resolved', async () => {
-    const { owner, otherUser, workspace } = await createFixture();
+  it('PATCH /incidents/:id transitions acked -> resolved by another member', async () => {
+    const { owner, workspace } = await createFixture();
+    const otherUser = await harness.factories.createUser({ email: 'other@example.com', displayName: 'Other' });
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
