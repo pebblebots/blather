@@ -8,14 +8,47 @@ import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
 
 const UPLOAD_DIR = process.env.BLATHER_UPLOAD_DIR || join(process.env.HOME || "/home/code", "blather", "uploads");
+const TTS_DIR = process.env.BLATHER_TTS_DIR || join(UPLOAD_DIR, "tts");
 const MAX_SIZE = 25 * 1024 * 1024; // 25MB
 const ALLOWED_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp",
   "application/pdf", "text/plain",
 ]);
+const MIME_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain",
+};
 
-// Ensure uploads dir exists
-if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+function ensureDirectory(path: string) {
+  if (!existsSync(path)) {
+    mkdirSync(path, { recursive: true });
+  }
+}
+
+function isInvalidFilename(filename: string) {
+  return filename.includes("..") || filename.includes("/");
+}
+
+function createFileResponse(filePath: string, contentType: string) {
+  const stat = statSync(filePath);
+  const stream = createReadStream(filePath);
+
+  return new Response(ReadableStream.from(stream as any) as any, {
+    headers: {
+      "Content-Type": contentType,
+      "Content-Length": String(stat.size),
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
+}
+
+ensureDirectory(UPLOAD_DIR);
+ensureDirectory(TTS_DIR);
 
 export const uploadRoutes = new Hono<Env>();
 
@@ -50,32 +83,21 @@ uploadRoutes.post("/", authMiddleware, async (c) => {
 // Serve TTS audio files
 uploadRoutes.get("/tts/:filename", async (c) => {
   const filename = c.req.param("filename");
-  if (filename.includes("..") || filename.includes("/")) {
+  if (isInvalidFilename(filename)) {
     return c.json({ error: "Invalid filename" }, 400);
   }
-  const filePath = join(UPLOAD_DIR, "tts", filename);
+  const filePath = join(TTS_DIR, filename);
   if (!existsSync(filePath)) {
     return c.json({ error: "File not found" }, 404);
   }
-  const stat = statSync(filePath);
-  const stream = createReadStream(filePath);
-  return new Response(
-    ReadableStream.from(stream as any) as any,
-    {
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Length": String(stat.size),
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    }
-  );
+
+  return createFileResponse(filePath, "audio/mpeg");
 });
 
 // Serve uploaded files (no auth needed for viewing)
 uploadRoutes.get("/:filename", async (c) => {
   const filename = c.req.param("filename");
-  // Prevent path traversal
-  if (filename.includes("..") || filename.includes("/")) {
+  if (isInvalidFilename(filename)) {
     return c.json({ error: "Invalid filename" }, 400);
   }
   const filePath = join(UPLOAD_DIR, filename);
@@ -83,24 +105,8 @@ uploadRoutes.get("/:filename", async (c) => {
     return c.json({ error: "File not found" }, 404);
   }
 
-  const stat = statSync(filePath);
   const ext = extname(filename).toLowerCase();
-  const mimeMap: Record<string, string> = {
-    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-    ".gif": "image/gif", ".webp": "image/webp",
-    ".pdf": "application/pdf", ".txt": "text/plain",
-  };
-  const contentType = mimeMap[ext] || "application/octet-stream";
+  const contentType = MIME_TYPES[ext] || "application/octet-stream";
 
-  const stream = createReadStream(filePath);
-  return new Response(
-    ReadableStream.from(stream as any) as any,
-    {
-      headers: {
-        "Content-Type": contentType,
-        "Content-Length": String(stat.size),
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    }
-  );
+  return createFileResponse(filePath, contentType);
 });
