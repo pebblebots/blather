@@ -343,6 +343,66 @@ describe('channel routes', () => {
     expect(remainingReactions).toHaveLength(0);
   });
 
+  it('rejects messages to DM channels from non-members', async () => {
+    const { owner, member, workspace } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'outsider@example.com', displayName: 'Outsider' });
+    const dm = await harness.factories.createChannel({
+      workspaceId: workspace.id,
+      name: 'dm',
+      slug: 'dm-1',
+      channelType: 'dm',
+      createdBy: owner.id,
+    });
+
+    // Owner is auto-added as member by createChannel. Add member too.
+    await harness.db.insert(channelMembers).values({ channelId: dm.id, userId: member.id });
+
+    // Non-member cannot post
+    const rejected = await harness.request.post<{ error: string }>(`/channels/${dm.id}/messages`, {
+      headers: harness.headers.forUser(outsider.id),
+      json: { content: 'sneaky' },
+    });
+    expect(rejected.status).toBe(403);
+
+    // Non-member cannot read
+    const readRejected = await harness.request.get<{ error: string }>(`/channels/${dm.id}/messages`, {
+      headers: harness.headers.forUser(outsider.id),
+    });
+    expect(readRejected.status).toBe(403);
+
+    // Member can post
+    const allowed = await harness.request.post<MessageRow>(`/channels/${dm.id}/messages`, {
+      headers: harness.headers.forUser(member.id),
+      json: { content: 'hello from dm' },
+    });
+    expect(allowed.status).toBe(201);
+  });
+
+  it('rejects messages that look like raw API errors', async () => {
+    const { owner, channel } = await createFixture();
+
+    const apiErrorTexts = [
+      'Error: 429 rate_limit_error: You have exceeded your API quota',
+      'HTTP 500 internal server error from anthropic',
+      'rate_limit_exceeded: Please try again in a moment',
+    ];
+
+    for (const errorText of apiErrorTexts) {
+      const response = await harness.request.post<{ error: string }>(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { content: errorText },
+      });
+      expect(response.status).toBe(422);
+    }
+
+    // Normal messages are still allowed
+    const normal = await harness.request.post<MessageRow>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { content: 'This is a totally normal message about error handling' },
+    });
+    expect(normal.status).toBe(201);
+  });
+
   it('DELETE /channels/:id deletes the channel and dependent records', async () => {
     const { owner, channel } = await createFixture();
     const message = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'depends on channel' });

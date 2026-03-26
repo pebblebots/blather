@@ -46,7 +46,6 @@ channelRoutes.get('/:id/messages', async (c) => {
 
   // "around" query: fetch messages surrounding a specific message ID
   if (around) {
-    const { users } = await import('@blather/db');
     // Get the target message's timestamp
     const [target] = await db.select({ createdAt: messages.createdAt }).from(messages).where(eq(messages.id, around)).limit(1);
     if (!target) return c.json({ error: 'Message not found' }, 404);
@@ -92,8 +91,6 @@ channelRoutes.get('/:id/messages', async (c) => {
     }
     return c.json(aroundMapped);
   }
-
-  const { users } = await import('@blather/db');
 
   // Subquery for reply counts
   const replyCountSq = db
@@ -202,8 +199,7 @@ channelRoutes.post('/:id/messages', async (c) => {
   }).returning();
 
   // Get user info for the payload
-  const { users: usersTable } = await import('@blather/db');
-  const [msgUser] = await db.select({ displayName: usersTable.displayName, isAgent: usersTable.isAgent }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const [msgUser] = await db.select({ displayName: users.displayName, isAgent: users.isAgent }).from(users).where(eq(users.id, userId)).limit(1);
 
   await emitEvent(db, {
     workspaceId: channel.workspaceId,
@@ -248,10 +244,10 @@ channelRoutes.post('/:id/messages', async (c) => {
   if (!msgUser?.isAgent) {
     try {
       const members = await db
-        .select({ userId: channelMembers.userId, isAgent: usersTable.isAgent })
+        .select({ userId: channelMembers.userId, isAgent: users.isAgent })
         .from(channelMembers)
-        .innerJoin(usersTable, eq(channelMembers.userId, usersTable.id))
-        .where(and(eq(channelMembers.channelId, channelId), eq(usersTable.isAgent, true)));
+        .innerJoin(users, eq(channelMembers.userId, users.id))
+        .where(and(eq(channelMembers.channelId, channelId), eq(users.isAgent, true)));
       for (const agent of members) {
         fetch("http://localhost:3002/ingest", {
           method: "POST",
@@ -285,8 +281,6 @@ channelRoutes.post('/:id/messages', async (c) => {
   // @incident bot handler
   if (body.content.trim().startsWith("@incident")) {
     handleIncidentCommand(db, channelId, body.content.trim(), body.threadId ?? null).catch((err) => console.error("[IncidentBot] Error:", err));
-  
-
   }
   // Auto-log agent activity
   isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => {});
@@ -301,9 +295,6 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100);
   const after = c.req.query('after');
   const before = c.req.query('before');
-  const around = c.req.query('around');
-
-  const { users } = await import('@blather/db');
 
   const conditions: any[] = [eq(messages.threadId, messageId)];
   if (after) conditions.push(gt(messages.createdAt, new Date(after)));
@@ -523,7 +514,6 @@ channelRoutes.get('/:id/members', async (c) => {
   const db = c.get('db');
   const channelId = c.req.param('id');
 
-  const { users } = await import('@blather/db');
   const members = await db
     .select({ id: users.id, displayName: users.displayName, email: users.email })
     .from(channelMembers)

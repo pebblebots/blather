@@ -16,5 +16,7 @@
   "packages/api/src/routes/tasks.ts",
   "packages/api/src/routes/tasks.test.ts",
   "packages/api/src/routes/huddles.ts",
-  "packages/api/src/routes/huddles.test.ts"
+  "packages/api/src/routes/huddles.test.ts",
+  "packages/api/src/routes/channels.ts",
+  "packages/api/src/routes/channels.test.ts"
 ]
