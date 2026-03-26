@@ -44,5 +44,6 @@
   "packages/web/src/lib/api.test.ts",
   "packages/web/src/lib/store.ts",
   "packages/web/src/lib/store.test.tsx",
-  "packages/web/src/hooks/useWebSocket.test.ts"
+  "packages/web/src/hooks/useWebSocket.test.ts",
+  "packages/web/src/lib/urls.ts"
 ]

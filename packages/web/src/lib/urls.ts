@@ -1,12 +1,15 @@
 const DEFAULT_DEV_API_URL = 'http://localhost:3000';
 
+/** Matches strings that already start with a protocol (e.g. "http://", "https://"). */
+const HAS_PROTOCOL = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
+
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
 function normalizeConfiguredApiUrl(rawValue: string): string {
   const value = rawValue.trim();
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
+  if (HAS_PROTOCOL.test(value)) {
     return trimTrailingSlash(value);
   }
 
@@ -32,24 +35,28 @@ function resolveApiBaseUrl(): string {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+function ensureLeadingSlash(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
 export function apiUrl(path: string): string {
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(path)) {
+  if (HAS_PROTOCOL.test(path)) {
     return path;
   }
 
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedPath = ensureLeadingSlash(path);
   return API_BASE_URL ? `${API_BASE_URL}${normalizedPath}` : normalizedPath;
 }
 
 export function wsUrl(path: string): string {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedPath = ensureLeadingSlash(path);
 
   if (API_BASE_URL) {
     const base = new URL(API_BASE_URL);
-    const protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${base.host}${normalizedPath}`;
+    const wsProtocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${base.host}${normalizedPath}`;
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}${normalizedPath}`;
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProtocol}//${window.location.host}${normalizedPath}`;
 }
