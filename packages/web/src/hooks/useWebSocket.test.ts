@@ -15,7 +15,7 @@ vi.mock('../lib/urls', () => ({
 
 // ── Minimal WebSocket mock ──
 
-type WsHandler = ((this: WebSocket, ev: any) => any) | null;
+type Handler = ((ev: any) => any) | null;
 
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
@@ -26,10 +26,10 @@ class MockWebSocket {
 
   url: string;
   readyState = MockWebSocket.CONNECTING;
-  onopen: WsHandler = null;
-  onclose: WsHandler = null;
-  onerror: WsHandler = null;
-  onmessage: WsHandler = null;
+  onopen: Handler = null;
+  onclose: Handler = null;
+  onerror: Handler = null;
+  onmessage: Handler = null;
 
   constructor(url: string) {
     this.url = url;
@@ -139,16 +139,17 @@ describe('useWebSocket', () => {
     renderHook(() => useWebSocket('ws-1', vi.fn()));
     const ws0 = MockWebSocket.instances[0];
     act(() => ws0.simulateOpen());
-    // Null onclose to prevent reconnect scheduling (simulating a stale WS)
+    // Simulate a stale WS that silently died (no close event fired)
     ws0.onclose = null;
     ws0.readyState = MockWebSocket.CLOSED;
 
+    const countBefore = MockWebSocket.instances.length;
     act(() => {
       document.dispatchEvent(new Event('visibilitychange'));
     });
 
-    // Should have created a new connection
-    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(2);
+    // At least one new connection should have been created
+    expect(MockWebSocket.instances.length).toBeGreaterThan(countBefore);
   });
 
   it('cleans up WebSocket on unmount', () => {
@@ -160,7 +161,7 @@ describe('useWebSocket', () => {
     expect(ws.readyState).toBe(MockWebSocket.CLOSED);
   });
 
-  it('replays missed messages after reconnect using the live event shape', async () => {
+  it('fetches and replays missed messages on connect', async () => {
     vi.mocked(api.getMessages).mockResolvedValueOnce([
       { id: 'm-2', createdAt: '2026-03-25T10:01:00.000Z' },
       { id: 'm-1', createdAt: '2026-03-25T10:00:30.000Z' },
@@ -169,6 +170,7 @@ describe('useWebSocket', () => {
     const onEvent = vi.fn();
     renderHook(() => useWebSocket('ws-1', onEvent, 'ch-1'));
 
+    // Deliver a message first to seed lastEventTime, then open triggers fetchMissedMessages
     act(() => {
       MockWebSocket.instances[0].simulateMessage({
         type: 'message.created',
