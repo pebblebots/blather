@@ -136,7 +136,7 @@ channelRoutes.get('/:id/messages', async (c) => {
     return c.json(result);
 });
 // Detect raw API error messages that should never be broadcast
-const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|\bAI service is temporarily overloaded\b|\bPlease try again in a moment\b/i;
+const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|\bAI service is temporarily overloaded\b|\bPlease try again in a moment\b|LLM error|api_error|Internal server error|request_id:|authentication_error|permission_error|invalid_request_error|not_found_error|\{type:\s*"error"|\{"type"\s*:\s*"error"|This request would exceed/i;
 function looksLikeApiError(content) {
     return API_ERROR_PATTERN.test(content);
 }

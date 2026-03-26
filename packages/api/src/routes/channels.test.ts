@@ -85,6 +85,57 @@ describe('channel routes', () => {
     expect(duplicate.body?.existingId).toBe(first.body?.id);
   });
 
+  it('POST /channels/:id/messages rejects API error messages with 422', async () => {
+    const { owner, channel } = await createFixture();
+
+    // Test cases that should be rejected
+    const errorMessages = [
+      'LLM error api_error: Internal server error (request_id: req_011CZS9d9fjBP1s2wPcSii9f)',
+      'api_error: Rate limit exceeded',
+      'Internal server error occurred while processing request',
+      'Error with request_id: req_abc123',
+      'authentication_error: Invalid API key',
+      'permission_error: Access denied',
+      'invalid_request_error: Bad request format',
+      'not_found_error: Resource not found',
+      '{"type": "error", "message": "Something went wrong"}',
+      '{type: "error", code: 500}',
+      'This request would exceed your rate limit',
+      'LLM error: Something went wrong with the model',
+    ];
+
+    for (const content of errorMessages) {
+      const response = await harness.request.post(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { content },
+      });
+
+      expect(response.status).toBe(422);
+      expect(response.body?.error).toMatch(/Message rejected.*API error/);
+    }
+
+    // Test cases that should be accepted (normal messages)
+    const normalMessages = [
+      'This is a normal message',
+      'I got an error in my code but this is just chat',
+      'API documentation says to use POST',
+      'The internal server is working fine',
+      'My request_id for the support ticket is 12345',
+      'authentication works well',
+      'permission to proceed granted',
+    ];
+
+    for (const content of normalMessages) {
+      const response = await harness.request.post<MessageRow>(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { content },
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body?.content).toBe(content);
+    }
+  });
+
   it('GET /channels/:id/messages supports pagination and excludes thread replies', async () => {
     const { owner, channel } = await createFixture();
 
