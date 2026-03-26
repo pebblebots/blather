@@ -7,13 +7,6 @@ import { authMiddleware } from '../middleware/auth.js';
 export const incidentRoutes = new Hono<Env>();
 incidentRoutes.use('*', authMiddleware);
 
-// Normalize status: accept both hyphens and underscores
-function normalizeStatus(s: string): 'open' | 'acked' | 'resolved' {
-  const mapped = s.replace(/-/g, '_');
-  if (!['open', 'acked', 'resolved'].includes(mapped)) throw new Error('Invalid status: ' + s);
-  return mapped as any;
-}
-
 // List incidents for a workspace
 incidentRoutes.get('/', async (c) => {
   const db = c.get('db');
@@ -96,7 +89,6 @@ incidentRoutes.patch('/:id', async (c) => {
     } else if (body.status === 'resolved') {
       updates.resolvedBy = userId;
       updates.resolvedAt = new Date();
-      if (body.resolution) updates.resolution = body.resolution;
     }
   }
   

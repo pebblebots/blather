@@ -8,5 +8,6 @@
   "packages/api/src/ws/events.ts",
   "packages/api/src/ws/manager.ts",
   "packages/api/src/test/apiHarness.test.ts",
-  "packages/api/src/routes/activity.ts"
+  "packages/api/src/routes/activity.ts",
+  "packages/api/src/routes/incidents.ts"
 ]

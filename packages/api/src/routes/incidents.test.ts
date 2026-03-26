@@ -21,9 +21,9 @@ describe('incident routes', () => {
 
   async function createFixture() {
     const owner = await harness.factories.createUser({ email: 'owner@example.com', displayName: 'Owner' });
-    const member = await harness.factories.createUser({ email: 'member@example.com', displayName: 'Member' });
+    const otherUser = await harness.factories.createUser({ email: 'other@example.com', displayName: 'Other User' });
     const workspace = await harness.factories.createWorkspace({ ownerId: owner.id });
-    return { owner, member, workspace };
+    return { owner, otherUser, workspace };
   }
 
   // ── List incidents ──
@@ -249,7 +249,7 @@ describe('incident routes', () => {
   });
 
   it('PATCH /incidents/:id transitions acked -> resolved', async () => {
-    const { owner, member, workspace } = await createFixture();
+    const { owner, otherUser, workspace } = await createFixture();
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
@@ -262,16 +262,16 @@ describe('incident routes', () => {
       json: { status: 'acked' },
     });
 
-    // Then resolve (by different user)
+    // Then resolve (by a different user)
     const res = await harness.request.patch<any>(`/incidents/${createRes.body.id}`, {
-      headers: harness.headers.forUser(member.id),
+      headers: harness.headers.forUser(otherUser.id),
       json: { status: 'resolved', resolution: 'All clear' },
     });
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('resolved');
     expect(res.body.ackedBy).toBe(owner.id);
-    expect(res.body.resolvedBy).toBe(member.id);
+    expect(res.body.resolvedBy).toBe(otherUser.id);
     expect(res.body.resolution).toBe('All clear');
   });
 
