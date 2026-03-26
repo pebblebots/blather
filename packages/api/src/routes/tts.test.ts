@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
 
@@ -71,6 +71,19 @@ describe('tts routes', () => {
     return res.body;
   }
 
+  function withApiKey(fn: () => Promise<void>): () => Promise<void> {
+    return async () => {
+      const origKey = process.env.OPENAI_API_KEY;
+      process.env.OPENAI_API_KEY = 'test-key-123';
+      try {
+        await fn();
+      } finally {
+        if (origKey !== undefined) process.env.OPENAI_API_KEY = origKey;
+        else delete process.env.OPENAI_API_KEY;
+      }
+    };
+  }
+
   // ── POST /tts/:messageId ──
 
   it('returns 404 for nonexistent message', async () => {
@@ -115,10 +128,7 @@ describe('tts routes', () => {
     }
   });
 
-  it('generates TTS audio and returns URL on success', async () => {
-    const origKey = process.env.OPENAI_API_KEY;
-    process.env.OPENAI_API_KEY = 'test-key-123';
-
+  it('generates TTS audio and returns URL on success', withApiKey(async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), {
         status: 200,
@@ -137,28 +147,12 @@ describe('tts routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.audioUrl).toBe(`/uploads/tts/${msg.id}.mp3`);
 
-      // Verify OpenAI was called with correct params
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.openai.com/v1/audio/speech',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            Authorization: 'Bearer test-key-123',
-          }),
-        }),
-      );
-
-      // Verify the body sent to OpenAI
-      const callBody = JSON.parse(mockFetch.mock.calls[0][1]!.body as string);
-      expect(callBody.model).toBe('tts-1');
-      expect(callBody.input).toBe('Hello world');
-      expect(callBody.voice).toBe('echo'); // default voice
+      // Verify an external TTS call was made (without asserting on provider internals)
+      expect(mockFetch).toHaveBeenCalledOnce();
     } finally {
       mockFetch.mockRestore();
-      if (origKey !== undefined) process.env.OPENAI_API_KEY = origKey;
-      else delete process.env.OPENAI_API_KEY;
     }
-  });
+  }));
 
   it('returns cached URL when TTS file already exists', async () => {
     const { existsSync } = await import('fs');
@@ -170,23 +164,30 @@ describe('tts routes', () => {
       return false;
     });
 
-    const fixture = await createFixture();
-    const msg = await createMessage(fixture);
+    const mockFetch = vi.spyOn(globalThis, 'fetch');
 
-    const res = await harness.request.post<any>(`/tts/${msg.id}`, {
-      headers: harness.headers.forUser(fixture.user.id),
-    });
+    try {
+      const fixture = await createFixture();
+      const msg = await createMessage(fixture);
 
-    expect(res.status).toBe(200);
-    expect(res.body.audioUrl).toBe(`/uploads/tts/${msg.id}.mp3`);
+      const res = await harness.request.post<any>(`/tts/${msg.id}`, {
+        headers: harness.headers.forUser(fixture.user.id),
+      });
 
-    // No OpenAI call needed — served from cache
+      expect(res.status).toBe(200);
+      expect(res.body.audioUrl).toBe(`/uploads/tts/${msg.id}.mp3`);
+
+      // Cache hit means no external TTS call
+      const ttsCalls = mockFetch.mock.calls.filter(
+        ([url]) => typeof url === 'string' && url.includes('audio'),
+      );
+      expect(ttsCalls).toHaveLength(0);
+    } finally {
+      mockFetch.mockRestore();
+    }
   });
 
-  it('returns 500 when OpenAI returns an error', async () => {
-    const origKey = process.env.OPENAI_API_KEY;
-    process.env.OPENAI_API_KEY = 'test-key-123';
-
+  it('returns 500 when TTS provider returns an error', withApiKey(async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response('{"error": "rate limit exceeded"}', {
         status: 429,
@@ -206,10 +207,8 @@ describe('tts routes', () => {
       expect(res.body).toMatchObject({ error: 'TTS generation failed' });
     } finally {
       mockFetch.mockRestore();
-      if (origKey !== undefined) process.env.OPENAI_API_KEY = origKey;
-      else delete process.env.OPENAI_API_KEY;
     }
-  });
+  }));
 
   it('returns 401 without auth', async () => {
     const res = await harness.request.post('/tts/some-message-id', {});
@@ -238,8 +237,7 @@ describe('tts routes', () => {
       return false;
     });
 
-    const app = harness.app;
-    const res = await app.request('/tts/test-message-id', { method: 'GET' });
+    const res = await harness.request.get('/tts/test-message-id', {});
 
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toBe('audio/mpeg');

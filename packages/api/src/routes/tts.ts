@@ -8,7 +8,8 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { ReadableStream } from "stream/web";
 
-const TTS_DIR = process.env.BLATHER_TTS_DIR || join(process.env.BLATHER_UPLOAD_DIR || join(process.env.HOME || "/home/code", "blather", "uploads"), "tts");
+const UPLOAD_BASE = process.env.BLATHER_UPLOAD_DIR || join(process.env.HOME || "/home/code", "blather", "uploads");
+const TTS_DIR = process.env.BLATHER_TTS_DIR || join(UPLOAD_BASE, "tts");
 if (!existsSync(TTS_DIR)) mkdirSync(TTS_DIR, { recursive: true });
 
 export const ttsRoutes = new Hono<Env>();

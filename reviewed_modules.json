@@ -22,5 +22,7 @@
   "packages/api/src/routes/messages.ts",
   "packages/api/src/routes/messages.test.ts",
   "packages/api/src/routes/workspaces.ts",
-  "packages/api/src/routes/workspaces.test.ts"
+  "packages/api/src/routes/workspaces.test.ts",
+  "packages/api/src/routes/tts.ts",
+  "packages/api/src/routes/tts.test.ts"
 ]
