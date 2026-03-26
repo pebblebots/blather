@@ -21,11 +21,6 @@ export function markTyping(channelId: string, userId: string): void {
   }, TYPING_TIMEOUT_MS));
 }
 
-export function getTypingUsers(channelId: string): string[] {
-  const channel = typingMap.get(channelId);
-  return channel ? [...channel.keys()] : [];
-}
-
 // --- Channel cache (id -> { workspaceId, channelType }) ---
 interface CachedChannel {
   workspaceId: string;
