@@ -54,5 +54,7 @@
   "packages/web/src/components/TypingIndicator.tsx",
   "packages/web/src/components/TypingIndicator.test.tsx",
   "packages/web/src/components/MessageReactions.tsx",
-  "packages/web/src/components/MessageReactions.test.tsx"
+  "packages/web/src/components/MessageReactions.test.tsx",
+  "packages/web/src/components/SearchPanel.tsx",
+  "packages/web/src/components/SearchPanel.test.tsx"
 ]

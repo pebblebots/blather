@@ -1,6 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { api } from "../lib/api";
 
+interface SearchResult {
+  id: string;
+  channelId: string;
+  content: string;
+  userName: string;
+  channelName: string;
+  createdAt: string;
+}
+
 interface SearchPanelProps {
   workspaceId: string;
   onNavigate: (channelId: string, messageId: string) => void;
@@ -9,7 +18,7 @@ interface SearchPanelProps {
 
 export function SearchPanel({ workspaceId, onNavigate, onClose }: SearchPanelProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -17,6 +26,9 @@ export function SearchPanel({ workspaceId, onNavigate, onClose }: SearchPanelPro
 
   useEffect(() => {
     inputRef.current?.focus();
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   const doSearch = useCallback(
@@ -45,10 +57,11 @@ export function SearchPanel({ workspaceId, onNavigate, onClose }: SearchPanelPro
 
   const highlight = (text: string, q: string) => {
     if (!q.trim()) return text;
-    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(${escaped})`, "gi");
     const parts = text.split(re);
     return parts.map((p, i) =>
-      re.test(p) ? (
+      p.toLowerCase() === q.trim().toLowerCase() ? (
         <span key={i} style={{ background: "#FFFF00", fontWeight: "bold" }}>
           {p}
         </span>
