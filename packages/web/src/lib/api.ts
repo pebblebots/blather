@@ -51,11 +51,17 @@ export const api = {
   createChannel: (workspaceId: string, data: { name: string; slug: string; topic?: string; channelType?: string; isDefault?: boolean }) =>
     request<any>(`/workspaces/${workspaceId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
 
-  getMessages: (channelId: string, limit = 50, after?: string, before?: string) =>
-    request<any[]>(`/channels/${channelId}/messages?limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}${before ? `&before=${encodeURIComponent(before)}` : ''}`),
+  getMessages: (channelId: string, limit = 50, after?: string, before?: string) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (after) params.set('after', after);
+    if (before) params.set('before', before);
+    return request<any[]>(`/channels/${channelId}/messages?${params}`);
+  },
 
-  getMessagesAround: (channelId: string, messageId: string, limit = 50) =>
-    request<any[]>(`/channels/${channelId}/messages?limit=${limit}&around=${encodeURIComponent(messageId)}`),
+  getMessagesAround: (channelId: string, messageId: string, limit = 50) => {
+    const params = new URLSearchParams({ limit: String(limit), around: messageId });
+    return request<any[]>(`/channels/${channelId}/messages?${params}`);
+  },
 
   sendMessage: (channelId: string, content: string, attachments?: any[]) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content, attachments }) }),
@@ -93,8 +99,11 @@ export const api = {
   getChannelMembers: (channelId: string) =>
     request<any[]>(`/channels/${channelId}/members`),
 
-  getThreadReplies: (channelId: string, messageId: string, limit = 50, after?: string) =>
-    request<any[]>(`/channels/${channelId}/messages/${messageId}/replies?limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}`),
+  getThreadReplies: (channelId: string, messageId: string, limit = 50, after?: string) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (after) params.set('after', after);
+    return request<any[]>(`/channels/${channelId}/messages/${messageId}/replies?${params}`);
+  },
 
   sendThreadReply: (channelId: string, content: string, threadId: string, attachments?: any[]) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content, threadId, attachments }) }),
@@ -143,12 +152,12 @@ export const taskApi = {
 };
 
 // File uploads
-export async function uploadFile(
+export function uploadFile(
   file: File,
   onProgress?: (pct: number) => void
 ): Promise<{ url: string; filename: string; contentType: string; size: number }> {
-  const token = localStorage.getItem('blather_token');
-    return new Promise((resolve, reject) => {
+  const token = getToken();
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', apiUrl('/uploads'));
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);

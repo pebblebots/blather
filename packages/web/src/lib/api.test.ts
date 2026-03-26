@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { api, unreadApi, presenceApi, taskApi, setToken, clearToken } from './api';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { api, unreadApi, presenceApi, taskApi, setToken, clearToken, uploadFile } from './api';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -202,6 +202,25 @@ describe('API client', () => {
     expect(fetchedOpts().method).toBe('DELETE');
   });
 
+  // ── Channel members ──
+
+  it('getChannelMembers sends GET', async () => {
+    mockFetch.mockReturnValue(jsonResponse([]));
+    await api.getChannelMembers('ch-1');
+    expect(fetchedPath()).toBe('/channels/ch-1/members');
+  });
+
+  // ── Messages around ──
+
+  it('getMessagesAround sends GET with around and limit params', async () => {
+    mockFetch.mockReturnValue(jsonResponse([]));
+    await api.getMessagesAround('ch-1', 'msg-center', 25);
+    const path = fetchedPath();
+    expect(path).toContain('/channels/ch-1/messages');
+    expect(path).toContain('around=msg-center');
+    expect(path).toContain('limit=25');
+  });
+
   // ── Thread endpoints ──
 
   it('getThreadReplies sends GET', async () => {
@@ -327,5 +346,87 @@ describe('API client', () => {
     setToken('my-token');
     clearToken();
     expect(localStorage.getItem('blather_token')).toBeNull();
+  });
+
+  // ── Upload ──
+
+  it('uploadFile sends FormData via XMLHttpRequest', async () => {
+    const mockXhr = {
+      open: vi.fn(),
+      setRequestHeader: vi.fn(),
+      send: vi.fn(),
+      upload: { onprogress: null as any },
+      onload: null as any,
+      onerror: null as any,
+      status: 200,
+      responseText: JSON.stringify({ url: '/f.png', filename: 'f.png', contentType: 'image/png', size: 42 }),
+    };
+    vi.stubGlobal('XMLHttpRequest', vi.fn(() => mockXhr));
+
+    setToken('upload-jwt');
+    const file = new File(['data'], 'f.png', { type: 'image/png' });
+    const promise = uploadFile(file);
+
+    // Simulate success
+    mockXhr.onload!();
+    const result = await promise;
+
+    expect(mockXhr.open).toHaveBeenCalledWith('POST', expect.stringContaining('/uploads'));
+    expect(mockXhr.setRequestHeader).toHaveBeenCalledWith('Authorization', 'Bearer upload-jwt');
+    expect(result).toEqual({ url: '/f.png', filename: 'f.png', contentType: 'image/png', size: 42 });
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal('fetch', mockFetch); // restore fetch mock
+  });
+
+  it('uploadFile rejects on XHR error', async () => {
+    const mockXhr = {
+      open: vi.fn(),
+      setRequestHeader: vi.fn(),
+      send: vi.fn(),
+      upload: { onprogress: null as any },
+      onload: null as any,
+      onerror: null as any,
+      status: 0,
+      responseText: '',
+    };
+    vi.stubGlobal('XMLHttpRequest', vi.fn(() => mockXhr));
+
+    const file = new File(['data'], 'f.png', { type: 'image/png' });
+    const promise = uploadFile(file);
+
+    mockXhr.onerror!();
+    await expect(promise).rejects.toThrow('Upload failed');
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal('fetch', mockFetch);
+  });
+
+  it('uploadFile calls onProgress callback', async () => {
+    const mockXhr = {
+      open: vi.fn(),
+      setRequestHeader: vi.fn(),
+      send: vi.fn(),
+      upload: { onprogress: null as any },
+      onload: null as any,
+      onerror: null as any,
+      status: 200,
+      responseText: JSON.stringify({ url: '/f.png', filename: 'f.png', contentType: 'image/png', size: 42 }),
+    };
+    vi.stubGlobal('XMLHttpRequest', vi.fn(() => mockXhr));
+
+    const onProgress = vi.fn();
+    const file = new File(['data'], 'f.png', { type: 'image/png' });
+    const promise = uploadFile(file, onProgress);
+
+    // Simulate progress event
+    mockXhr.upload.onprogress({ lengthComputable: true, loaded: 50, total: 100 } as any);
+    expect(onProgress).toHaveBeenCalledWith(50);
+
+    mockXhr.onload!();
+    await promise;
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal('fetch', mockFetch);
   });
 });
