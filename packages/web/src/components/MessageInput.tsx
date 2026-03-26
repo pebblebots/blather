@@ -50,7 +50,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
       return;
     }
     const afterColon = before.slice(colonIdx + 1);
-    // Must not contain spaces and must be 2+ chars
+    // Must not contain spaces or additional colons, and must be at least 1 char
     if (afterColon.includes(' ') || afterColon.includes(':') || afterColon.length < 1) {
       setEmojiQuery(null);
       return;
@@ -61,9 +61,8 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
 
   const filteredEmojis = useMemo(() => {
     if (!emojiQuery) return [];
-    const q = emojiQuery.toLowerCase();
     return EMOJI_DATA.filter(e =>
-      e.name.includes(q) || (e.keywords && e.keywords.some(k => k.includes(q)))
+      e.name.includes(emojiQuery) || (e.keywords && e.keywords.some(k => k.includes(emojiQuery)))
     ).slice(0, 10);
   }, [emojiQuery]);
 
@@ -85,10 +84,10 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     });
   }, [text]);
 
-  // Scroll selected emoji into view
+  // Scroll selected emoji into view (children[0] is the header, items start at [1])
   useEffect(() => {
     if (emojiListRef.current) {
-      const selected = emojiListRef.current.children[emojiSelectedIdx] as HTMLElement;
+      const selected = emojiListRef.current.children[emojiSelectedIdx + 1] as HTMLElement;
       if (selected) selected.scrollIntoView({ block: 'nearest' });
     }
   }, [emojiSelectedIdx]);
@@ -127,7 +126,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
         setFiles((prev) => prev.map((f) => f.file === af.file ? { ...f, uploading: false, error: err.message } : f));
       });
     });
-  }, [files.length]);
+  }, []);
 
   const removeFile = (file: File) => {
     setFiles((prev) => {
@@ -145,7 +144,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     if (stillUploading) return;
     if (!trimmed && uploadedAttachments.length === 0) return;
 
-    onSend(trimmed || ' ', uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+    onSend(trimmed, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
     setText('');
     setEmojiQuery(null);
     files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
@@ -165,12 +164,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
         setEmojiSelectedIdx(prev => (prev + 1) % filteredEmojis.length);
         return;
       }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        insertEmoji(filteredEmojis[emojiSelectedIdx].emoji);
-        return;
-      }
-      if (e.key === 'Tab') {
+      if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
         insertEmoji(filteredEmojis[emojiSelectedIdx].emoji);
         return;

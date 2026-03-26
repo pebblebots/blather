@@ -48,5 +48,7 @@
   "packages/web/src/lib/urls.ts",
   "packages/web/src/components/MarkdownText.tsx",
   "packages/web/src/components/MarkdownText.test.tsx",
-  "packages/web/src/lib/urls.test.ts"
+  "packages/web/src/lib/urls.test.ts",
+  "packages/web/src/components/MessageInput.tsx",
+  "packages/web/src/components/MessageInput.test.tsx"
 ]

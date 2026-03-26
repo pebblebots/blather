@@ -12,10 +12,7 @@ afterEach(() => cleanup());
 
 /** The visible text input (not the hidden file input) */
 function getInput() {
-  // The component uses an <input> with class "mac-input" for the message text
-  return screen.getAllByPlaceholderText(/message|drop/i).find(
-    el => (el as HTMLInputElement).type === 'text'
-  ) as HTMLInputElement;
+  return screen.getByPlaceholderText('Type a message...') as HTMLInputElement;
 }
 
 describe('MessageInput', () => {
@@ -81,6 +78,17 @@ describe('MessageInput', () => {
     await user.type(getInput(), 'hi');
     const btn = screen.getByRole('button', { name: /send/i });
     expect(btn).toBeEnabled();
+  });
+
+  it('calls onSend when clicking the Send button', async () => {
+    const onSend = vi.fn();
+    const user = userEvent.setup();
+    render(<MessageInput onSend={onSend} />);
+
+    await user.type(getInput(), 'click send');
+    await user.click(screen.getByRole('button', { name: /send/i }));
+
+    expect(onSend).toHaveBeenCalledWith('click send', undefined);
   });
 
   it('disables input when disabled prop is true', () => {
