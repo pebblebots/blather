@@ -6,5 +6,6 @@
   "packages/types/src/index.ts",
   "packages/api/src/routes/metrics.ts",
   "packages/api/src/ws/events.ts",
-  "packages/api/src/ws/manager.ts"
+  "packages/api/src/ws/manager.ts",
+  "packages/api/src/test/apiHarness.test.ts"
 ]
