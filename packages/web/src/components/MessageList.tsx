@@ -125,7 +125,6 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
-  const emojiAnchorRef = useRef<HTMLButtonElement>(null);
   const skipAutoScrollRef = useRef(false);
 
   // Scroll to highlighted message (retry to handle channel switch / render delay)
@@ -346,7 +345,6 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
               <span style={{ position: "absolute", right: 4, top: 0, display: "inline-flex", gap: 2 }}>
                 {onToggleReaction && (
                   <button
-                    ref={emojiPickerMsgId === msg.id ? emojiAnchorRef : undefined}
                     onClick={() => setEmojiPickerMsgId(emojiPickerMsgId === msg.id ? null : msg.id)}
                     className="mac-btn"
                     style={{ minWidth: 0, padding: "0 4px", fontSize: 10, borderRadius: 3, lineHeight: "18px" }}
@@ -388,7 +386,6 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
             {/* Emoji picker */}
             {emojiPickerMsgId === msg.id && onToggleReaction && (
               <EmojiPicker
-                anchorRef={emojiAnchorRef as any}
                 onSelect={(emoji) => {
                   const hasReacted = (msg.reactions || []).some(r => r.emoji === emoji && r.userId === currentUserId);
                   onToggleReaction(msg.id, emoji, hasReacted);

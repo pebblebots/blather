@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import { MessageReactions } from './MessageReactions';
+import { MessageReactions, EmojiPicker } from './MessageReactions';
 
 afterEach(() => cleanup());
 
@@ -46,5 +46,51 @@ describe('MessageReactions', () => {
     render(<MessageReactions reactions={reactions} onToggleReaction={onToggle} />);
     fireEvent.click(screen.getByTitle('👍 2'));
     expect(onToggle).toHaveBeenCalledWith('👍');
+  });
+});
+
+describe('EmojiPicker', () => {
+  it('renders quick emoji buttons in compact mode', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    // Quick emojis should be visible as buttons
+    expect(screen.getByText('👍')).toBeInTheDocument();
+    expect(screen.getByText('❤️')).toBeInTheDocument();
+    expect(screen.getByText('🔥')).toBeInTheDocument();
+    // Search input should NOT be visible in compact mode
+    expect(screen.queryByPlaceholderText('Search emoji...')).not.toBeInTheDocument();
+  });
+
+  it('calls onSelect and onClose when a quick emoji is clicked', () => {
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+    render(<EmojiPicker onSelect={onSelect} onClose={onClose} />);
+    fireEvent.click(screen.getByText('🎉'));
+    expect(onSelect).toHaveBeenCalledWith('🎉');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('expands to full picker when "⋯" button is clicked', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText('⋯'));
+    // Full picker shows search input
+    expect(screen.getByPlaceholderText('Search emoji...')).toBeInTheDocument();
+  });
+
+  it('filters emojis by search term in full mode', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    // Expand to full picker
+    fireEvent.click(screen.getByText('⋯'));
+    const searchInput = screen.getByPlaceholderText('Search emoji...');
+    fireEvent.change(searchInput, { target: { value: 'fire' } });
+    // Should show fire emoji (matched by keyword)
+    expect(screen.getByTitle(':fire:')).toBeInTheDocument();
+  });
+
+  it('calls onClose when clicking outside the picker', () => {
+    const onClose = vi.fn();
+    render(<EmojiPicker onSelect={vi.fn()} onClose={onClose} />);
+    // Click on document body (outside the picker)
+    fireEvent.mouseDown(document.body);
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

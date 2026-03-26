@@ -52,5 +52,7 @@
   "packages/web/src/components/MessageInput.tsx",
   "packages/web/src/components/MessageInput.test.tsx",
   "packages/web/src/components/TypingIndicator.tsx",
-  "packages/web/src/components/TypingIndicator.test.tsx"
+  "packages/web/src/components/TypingIndicator.test.tsx",
+  "packages/web/src/components/MessageReactions.tsx",
+  "packages/web/src/components/MessageReactions.test.tsx"
 ]

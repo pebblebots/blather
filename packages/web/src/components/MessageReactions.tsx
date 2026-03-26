@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { EMOJI_DATA } from "./emojiData";
+import { EMOJI_DATA, type EmojiEntry } from "./emojiData";
 
 interface Reaction {
   id: string;
@@ -70,12 +70,11 @@ export function MessageReactions({ reactions, currentUserId, onToggleReaction }:
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLElement>;
 }
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🔥", "✅"];
 
-export function EmojiPicker({ onSelect, onClose, anchorRef }: EmojiPickerProps) {
+export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [showFull, setShowFull] = useState(false);
@@ -88,12 +87,13 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: EmojiPickerProps) 
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
+  const query = search.toLowerCase();
   const filtered = search
     ? EMOJI_DATA.filter(
-        (e: any) =>
-          e.name.includes(search.toLowerCase()) ||
+        (e) =>
+          e.name.includes(query) ||
           e.emoji === search ||
-          e.keywords?.some((k: string) => k.includes(search.toLowerCase()))
+          e.keywords?.some((k) => k.includes(query))
       ).slice(0, 40)
     : EMOJI_DATA.slice(0, 40);
 
@@ -179,7 +179,7 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: EmojiPickerProps) 
               overflowY: "auto",
             }}
           >
-            {filtered.map((e: any, i: number) => (
+            {filtered.map((e: EmojiEntry, i: number) => (
               <button
                 key={`${e.emoji}-${i}`}
                 onClick={() => { onSelect(e.emoji); onClose(); }}
