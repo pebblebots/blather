@@ -1,25 +1,67 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
+import type { Channel, CreateChannelRequest } from '@blather/types';
 import { Modal } from './Modal';
 import { api } from '../lib/api';
 
-export function CreateChannelModal({ workspaceId, onClose, onCreated }: { workspaceId: string; onClose: () => void; onCreated: (ch: any) => void }) {
+interface CreateChannelModalProps {
+  workspaceId: string;
+  onClose: () => void;
+  onCreated: (channel: Channel) => void;
+}
+
+function buildChannelSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Failed to create channel';
+}
+
+export function CreateChannelModal({ workspaceId, onClose, onCreated }: CreateChannelModalProps) {
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const trimmedName = name.trim();
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError('');
+
+    if (!trimmedName) {
+      setError('Channel name is required');
+      return;
+    }
+
+    const slug = buildChannelSlug(trimmedName);
+
+    if (!slug) {
+      setError('Channel name must include letters or numbers');
+      return;
+    }
+
+    const payload: CreateChannelRequest = {
+      name: trimmedName,
+      slug,
+      topic: topic.trim() || undefined,
+      channelType: isPrivate ? 'private' : 'public',
+    };
+
+    setLoading(true);
+
     try {
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const ch = await api.createChannel(workspaceId, { name, slug, topic: topic || undefined, channelType: isPrivate ? 'private' : 'public' });
-      onCreated(ch);
+      const channel = await api.createChannel(workspaceId, payload);
+      onCreated(channel);
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -29,34 +71,43 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: { worksp
     <Modal title="Create Channel" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Name:</label>
+          <label htmlFor="channel-name" style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Name:</label>
           <input
+            id="channel-name"
             className="mac-input"
             style={{ flex: 1 }}
             placeholder="channel name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(event) => setName(event.target.value)}
             required
             autoFocus
           />
         </div>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Private:</label>
-          <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+          <label htmlFor="channel-private" style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Private:</label>
+          <input
+            id="channel-private"
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(event) => setIsPrivate(event.target.checked)}
+          />
           <span style={{ fontSize: 11, color: '#666' }}>🔒 Only invited members can see this channel</span>
         </div>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Topic:</label>
+          <label htmlFor="channel-topic" style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Topic:</label>
           <input
+            id="channel-topic"
             className="mac-input"
             style={{ flex: 1 }}
             placeholder="optional"
             value={topic}
-            onChange={(e) => setTopic(e.target.value)}
+            onChange={(event) => setTopic(event.target.value)}
           />
         </div>
         {error && (
-          <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold', color: '#CC0000' }}>⚠ {error}</div>
+          <div role="alert" style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold', color: '#CC0000' }}>
+            ⚠ {error}
+          </div>
         )}
         <hr className="mac-separator" style={{ margin: '12px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

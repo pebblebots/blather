@@ -52,31 +52,96 @@ describe('Modal', () => {
 });
 
 describe('CreateChannelModal', () => {
-  it('renders form fields', () => {
+  it('renders labeled form fields and action buttons', () => {
     render(<CreateChannelModal workspaceId="ws-1" onClose={vi.fn()} onCreated={vi.fn()} />);
-    expect(screen.getByPlaceholderText('channel name')).toBeInTheDocument();
-    expect(screen.getByText('Cancel')).toBeInTheDocument();
-    expect(screen.getByText('Create')).toBeInTheDocument();
+
+    expect(screen.getByLabelText('Name:')).toBeInTheDocument();
+    expect(screen.getByLabelText('Private:')).toBeInTheDocument();
+    expect(screen.getByLabelText('Topic:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument();
   });
 
-  it('submits with name and calls onCreated', async () => {
-    mockCreateChannel.mockResolvedValue({ id: 'ch-new', name: 'test' });
+  it('shows a validation error and skips the API call when the name is blank after trimming', async () => {
     const onCreated = vi.fn();
     const onClose = vi.fn();
     const user = userEvent.setup();
 
     render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
-    await user.type(screen.getByPlaceholderText('channel name'), 'test-channel');
-    await user.click(screen.getByText('Create'));
 
-    expect(mockCreateChannel).toHaveBeenCalledWith('ws-1', expect.objectContaining({ name: 'test-channel' }));
+    await user.type(screen.getByLabelText('Name:'), '   ');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Channel name is required');
+    expect(mockCreateChannel).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('normalizes the payload before submitting and closes on success', async () => {
+    mockCreateChannel.mockResolvedValue({ id: 'ch-new', name: 'Project Alpha' });
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
+
+    await user.type(screen.getByLabelText('Name:'), '  Project Alpha  ');
+    await user.click(screen.getByLabelText('Private:'));
+    await user.type(screen.getByLabelText('Topic:'), '  Launch plans  ');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => {
+      expect(mockCreateChannel).toHaveBeenCalledWith('ws-1', {
+        name: 'Project Alpha',
+        slug: 'project-alpha',
+        topic: 'Launch plans',
+        channelType: 'private',
+      });
+    });
+    expect(onCreated).toHaveBeenCalledWith({ id: 'ch-new', name: 'Project Alpha' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a validation error when the name cannot produce a usable slug', async () => {
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
+
+    await user.type(screen.getByLabelText('Name:'), '!!!');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Channel name must include letters or numbers');
+    expect(mockCreateChannel).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows the API error and stays open when channel creation fails', async () => {
+    mockCreateChannel.mockRejectedValue(new Error('Channel slug already exists'));
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
+
+    await user.type(screen.getByLabelText('Name:'), 'Roadmap');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Channel slug already exists');
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('calls onClose on cancel', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={vi.fn()} />);
-    await user.click(screen.getByText('Cancel'));
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
     expect(onClose).toHaveBeenCalled();
   });
 });
