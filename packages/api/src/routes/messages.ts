@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, and, ilike, gt, lt, sql, inArray } from "drizzle-orm";
+import { eq, and, ilike, gt, lt, sql, inArray, type SQL } from "drizzle-orm";
 import { messages, channels, channelMembers, users } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
@@ -64,7 +64,7 @@ messageRoutes.get("/search", async (c) => {
   const searchChannelIds = channelId ? [channelId] : accessibleChannelIds;
 
   // Build conditions
-  const conditions: any[] = [
+  const conditions: SQL[] = [
     inArray(messages.channelId, searchChannelIds),
     ilike(messages.content, `%${q}%`),
   ];

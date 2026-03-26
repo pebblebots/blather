@@ -153,6 +153,59 @@ describe('message routes', () => {
     });
   });
 
+  it('GET /messages/search returns 400 when required params are missing', async () => {
+    const { requester, workspace } = await createFixture();
+    const headers = harness.headers.forUser(requester.id);
+
+    // Missing both q and workspaceId
+    const noParams = await harness.request.get('/messages/search', { headers });
+    expect(noParams.status).toBe(400);
+
+    // Missing q
+    const noQ = await harness.request.get('/messages/search', {
+      headers,
+      query: { workspaceId: workspace.id },
+    });
+    expect(noQ.status).toBe(400);
+
+    // Missing workspaceId
+    const noWs = await harness.request.get('/messages/search', {
+      headers,
+      query: { q: 'hello' },
+    });
+    expect(noWs.status).toBe(400);
+  });
+
+  it('GET /messages/search excludes messages from private channels the user is not a member of', async () => {
+    const { requester, teammate, workspace } = await createFixture();
+
+    // Create a private channel that only teammate is a member of
+    const secret = await harness.factories.createChannel({
+      workspaceId: workspace.id,
+      name: 'secret',
+      slug: 'secret',
+      channelType: 'private',
+      createdBy: teammate.id,
+    });
+    // createChannel auto-adds createdBy as a member
+
+    // Teammate posts a matching message in the private channel
+    await harness.factories.createMessage({
+      channelId: secret.id,
+      userId: teammate.id,
+      content: 'classified budget projections',
+    });
+
+    // Requester (non-member) searches for it — should not find it
+    const response = await harness.request.get<SearchResult[]>('/messages/search', {
+      headers: harness.headers.forUser(requester.id),
+      query: { workspaceId: workspace.id, q: 'classified' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+
   it('GET /messages/search returns an empty array when no messages match', async () => {
     const { requester, workspace, general } = await createFixture();
 
