@@ -148,11 +148,10 @@ export function onMessageCreated(channelId: string, messageData: {
     scheduleTurnTaking(orch);
   }
 
-  if (messageData.isAgent || messageData.userId) {
-    handleHuddleMessage(orch, messageData).catch(err => {
-      console.error(`[Huddle] TTS error for message ${messageData.id}:`, err);
-    });
-  }
+  // Generate TTS audio for every huddle message
+  handleHuddleMessage(orch, messageData).catch(err => {
+    console.error(`[Huddle] TTS error for message ${messageData.id}:`, err);
+  });
 }
 
 function getNextQuietAgent(orch: ActiveOrchestrator): AgentState | null {
@@ -177,12 +176,6 @@ function scheduleTurnTaking(orch: ActiveOrchestrator) {
   }, delay);
 }
 
-function getLastAgentMessage(orch: ActiveOrchestrator): { speaker: string; content: string } | null {
-  // We don't have message history in memory, so we'll use a generic reference
-  const lastSpeaker = orch.agents.find(a => a.userId === orch.lastSpeakerId);
-  return lastSpeaker ? { speaker: lastSpeaker.displayName, content: "" } : null;
-}
-
 async function postTargetedNudge(orch: ActiveOrchestrator, agent: AgentState) {
   if (orch.stopped) return;
   if (agent.pendingNudge) return;
@@ -203,10 +196,9 @@ async function postTargetedNudge(orch: ActiveOrchestrator, agent: AgentState) {
       .orderBy(desc(messages.createdAt))
       .limit(3);
     
-    const recentReversed = [...recentMessages];
     let recapLines = "";
-    if (recentReversed.length > 0) {
-      const lines = recentReversed.map(m => `- ${m.displayName}: "${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}"`).join("\n");
+    if (recentMessages.length > 0) {
+      const lines = recentMessages.map(m => `- ${m.displayName}: "${m.content.substring(0, 100)}${m.content.length > 100 ? '...' : ''}"`).join("\n");
       recapLines = `\n\nRecent conversation:\n${lines}\n`;
     }
 
@@ -469,10 +461,6 @@ export async function endHuddle(huddleId: string, endedBy: string) {
       data: { huddleId },
     });
   }
-}
-
-export function getOrchestrator(huddleId: string) {
-  return activeOrchestrators.get(huddleId);
 }
 
 export function isHuddleChannel(channelId: string): boolean {

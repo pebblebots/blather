@@ -37,5 +37,7 @@
   "packages/api/src/bots/tasks.ts",
   "packages/api/src/bots/incidents.ts",
   "packages/api/src/state/typingState.ts",
-  "packages/api/src/state/typingState.test.ts"
+  "packages/api/src/state/typingState.test.ts",
+  "packages/api/src/huddle/orchestrator.ts",
+  "packages/api/src/huddle/tts.ts"
 ]
