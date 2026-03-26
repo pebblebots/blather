@@ -47,5 +47,6 @@
   "packages/web/src/hooks/useWebSocket.test.ts",
   "packages/web/src/lib/urls.ts",
   "packages/web/src/components/MarkdownText.tsx",
-  "packages/web/src/components/MarkdownText.test.tsx"
+  "packages/web/src/components/MarkdownText.test.tsx",
+  "packages/web/src/lib/urls.test.ts"
 ]
