@@ -1,13 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { taskApi } from '../lib/api';
-import { useApp } from '../lib/store';
 import { Modal } from './Modal';
-
-const PRIORITY_COLORS: Record<string, string> = {
-  urgent: '#CC3333',
-  normal: '#336699',
-  low: '#999999',
-};
 
 const PRIORITY_ICONS: Record<string, string> = {
   urgent: '🔴',
@@ -27,14 +20,13 @@ interface TaskPanelProps {
 }
 
 export function TaskPanel({ workspaceId, members }: TaskPanelProps) {
-  const { user } = useApp();
   const [tasks, setTasks] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
-    const filters = filter !== 'all' && filter !== 'done' ? { status: filter } : filter === 'done' ? { status: 'done' } : undefined;
+    const filters = filter === 'all' ? undefined : { status: filter };
     taskApi.list(workspaceId, filters).then((t) => { setTasks(t); setLoading(false); }).catch(() => setLoading(false));
   }, [workspaceId, filter]);
 
