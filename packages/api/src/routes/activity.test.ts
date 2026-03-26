@@ -26,6 +26,13 @@ describe('activity routes', () => {
     return { agent, workspace, channel };
   }
 
+  async function logActivity(agentId: string, body: Record<string, unknown>) {
+    return harness.request.post('/activity', {
+      headers: harness.headers.forUser(agentId),
+      json: body,
+    });
+  }
+
   // ── Log activity ──
 
   it('POST /activity logs an activity entry', async () => {
@@ -90,14 +97,8 @@ describe('activity routes', () => {
   it('GET /activity returns logged entries for an agent', async () => {
     const { agent, workspace } = await createFixture();
 
-    await harness.request.post('/activity', {
-      headers: harness.headers.forUser(agent.id),
-      json: { workspaceId: workspace.id, agentUserId: agent.id, action: 'message_sent' },
-    });
-    await harness.request.post('/activity', {
-      headers: harness.headers.forUser(agent.id),
-      json: { workspaceId: workspace.id, agentUserId: agent.id, action: 'search_performed' },
-    });
+    await logActivity(agent.id, { workspaceId: workspace.id, agentUserId: agent.id, action: 'message_sent' });
+    await logActivity(agent.id, { workspaceId: workspace.id, agentUserId: agent.id, action: 'search_performed' });
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
@@ -112,10 +113,7 @@ describe('activity routes', () => {
     const { agent, workspace } = await createFixture();
 
     for (let i = 0; i < 5; i++) {
-      await harness.request.post('/activity', {
-        headers: harness.headers.forUser(agent.id),
-        json: { workspaceId: workspace.id, agentUserId: agent.id, action: `action_${i}` },
-      });
+      await logActivity(agent.id, { workspaceId: workspace.id, agentUserId: agent.id, action: `action_${i}` });
     }
 
     const res = await harness.request.get<any[]>('/activity', {
@@ -125,6 +123,29 @@ describe('activity routes', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(2);
+  });
+
+  it('GET /activity falls back to the default limit when limit is invalid', async () => {
+    const { agent, workspace } = await createFixture();
+
+    for (let i = 0; i < 55; i++) {
+      const response = await logActivity(agent.id, {
+        workspaceId: workspace.id,
+        agentUserId: agent.id,
+        action: `action_${i}`,
+      });
+      expect(response.status).toBe(201);
+    }
+
+    const res = await harness.request.get<any[]>('/activity', {
+      headers: harness.headers.forUser(agent.id),
+      query: { agentId: agent.id, limit: 'bogus' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(50);
+    expect(res.body.map((entry) => entry.action)).toContain('action_54');
+    expect(res.body.map((entry) => entry.action)).not.toContain('action_0');
   });
 
   // ── Summary endpoint ──
