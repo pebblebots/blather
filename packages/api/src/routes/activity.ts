@@ -30,6 +30,46 @@ type ActivitySummaryRow = {
   metas: unknown[];
 };
 
+function plural(count: number, singular: string, pluralForm?: string): string {
+  if (count === 1) return singular;
+  return pluralForm ?? singular + 's';
+}
+
+function formatTaskIds(metas: ActivityMetadata[]): string {
+  const ids = metas
+    .map((m) => m.shortId)
+    .filter((id): id is string | number => id !== undefined && id !== null)
+    .map((id) => `T#${id}`)
+    .join(', ');
+  return ids ? ': ' + ids : '';
+}
+
+type ActionFormatter = (count: number, channelName: string | null, metas: ActivityMetadata[]) => string;
+
+function inChannel(channelName: string | null): string {
+  return channelName ? ` in #${channelName}` : '';
+}
+
+const ACTION_LABELS: Record<string, ActionFormatter> = {
+  message_sent: (count, ch) =>
+    `Sent ${count} ${plural(count, 'message')}${inChannel(ch)}`,
+  task_created: (count, _ch, metas) =>
+    `Created ${count} ${plural(count, 'task')}${formatTaskIds(metas)}`,
+  task_completed: (count, _ch, metas) =>
+    `Completed ${count} ${plural(count, 'task')}${formatTaskIds(metas)}`,
+  task_updated: (count) =>
+    `Updated ${count} ${plural(count, 'task')}`,
+  reaction_added: (count, ch, metas) => {
+    const emojis = [...new Set(metas.map((m) => m.emoji).filter((e): e is string => typeof e === 'string' && e.length > 0))].join(' ');
+    const prefix = emojis ? `${emojis} ` : '';
+    return `Reacted ${prefix}to ${count} ${plural(count, 'message')}${inChannel(ch)}`;
+  },
+  file_uploaded: (count, ch) =>
+    `Uploaded ${count} ${plural(count, 'file')}${inChannel(ch)}`,
+  search_performed: (count) =>
+    `Performed ${count} ${plural(count, 'search', 'searches')}`,
+};
+
 function resultRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
   if (result && typeof result === "object" && Array.isArray((result as { rows?: unknown[] }).rows)) {
@@ -146,43 +186,14 @@ activityRoutes.get("/summary", async (c) => {
   `);
   const summaryRows = resultRows<ActivitySummaryRow>(rows);
 
-  type ActionFormatter = (count: number, channelName: string | null, metas: ActivityMetadata[]) => string;
-  const actionLabels: Record<string, ActionFormatter> = {
-    message_sent: (count, channelName) => `Sent ${count} message${count > 1 ? 's' : ''}${channelName ? ' in #' + channelName : ''}`,
-    task_created: (count, _channelName, metas) => {
-      const ids = metas
-        .map((meta) => meta.shortId)
-        .filter((shortId): shortId is string | number => shortId !== undefined && shortId !== null)
-        .map((shortId) => `T#${shortId}`)
-        .join(', ');
-      return `Created ${count} task${count > 1 ? 's' : ''}${ids ? ': ' + ids : ''}`;
-    },
-    task_completed: (count, _channelName, metas) => {
-      const ids = metas
-        .map((meta) => meta.shortId)
-        .filter((shortId): shortId is string | number => shortId !== undefined && shortId !== null)
-        .map((shortId) => `T#${shortId}`)
-        .join(', ');
-      return `Completed ${count} task${count > 1 ? 's' : ''}${ids ? ': ' + ids : ''}`;
-    },
-    task_updated: (count) => `Updated ${count} task${count > 1 ? 's' : ''}`,
-    reaction_added: (count, channelName, metas) => {
-      const emojis = [...new Set(metas.map((meta) => meta.emoji).filter((emoji): emoji is string => typeof emoji === 'string' && emoji.length > 0))].join(' ');
-      const emojiPrefix = emojis ? `${emojis} ` : '';
-      return `Reacted ${emojiPrefix}to ${count} message${count > 1 ? 's' : ''}${channelName ? ' in #' + channelName : ''}`;
-    },
-    file_uploaded: (count, channelName) => `Uploaded ${count} file${count > 1 ? 's' : ''}${channelName ? ' in #' + channelName : ''}`,
-    search_performed: (count) => `Performed ${count} search${count > 1 ? 'es' : ''}`,
-  };
-
   const lines = [`## Activity since ${since}`];
   for (const row of summaryRows) {
-    const formatAction = actionLabels[row.action];
+    const formatAction = ACTION_LABELS[row.action];
     const metas = metadataList(row.metas);
     if (formatAction) {
       lines.push('- ' + formatAction(row.cnt, row.channel_name, metas));
     } else {
-      lines.push(`- ${row.action}: ${row.cnt} time${row.cnt > 1 ? 's' : ''}${row.channel_name ? ' in #' + row.channel_name : ''}`);
+      lines.push(`- ${row.action}: ${row.cnt} ${plural(row.cnt, 'time')}${inChannel(row.channel_name)}`);
     }
   }
 

@@ -24,5 +24,6 @@
   "packages/api/src/routes/workspaces.ts",
   "packages/api/src/routes/workspaces.test.ts",
   "packages/api/src/routes/tts.ts",
-  "packages/api/src/routes/tts.test.ts"
+  "packages/api/src/routes/tts.test.ts",
+  "packages/api/src/routes/activity.test.ts"
 ]
