@@ -7,9 +7,7 @@ import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
 import { hashApiKey, signToken } from './auth.js';
 import { JWT_SECRET } from '../config.js';
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('auth middleware', () => {
+describe('auth middleware', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

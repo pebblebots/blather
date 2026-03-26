@@ -2,9 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApiTestHarness } from './apiHarness.js';
 import { createTestDatabase, type TestDatabase } from './testDb.js';
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('api test harness', () => {
+describe('api test harness', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

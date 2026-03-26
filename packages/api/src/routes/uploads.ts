@@ -7,7 +7,7 @@ import { ReadableStream } from "stream/web";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
 
-const UPLOAD_DIR = join(process.env.HOME || "/home/code", "blather", "uploads");
+const UPLOAD_DIR = process.env.BLATHER_UPLOAD_DIR || join(process.env.HOME || "/home/code", "blather", "uploads");
 const MAX_SIZE = 25 * 1024 * 1024; // 25MB
 const ALLOWED_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp",

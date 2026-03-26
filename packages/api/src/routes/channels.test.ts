@@ -21,9 +21,7 @@ type MessageRow = {
   updatedAt: string;
 };
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('channel routes', () => {
+describe('channel routes', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 
@@ -53,6 +51,10 @@ describeWithTestDatabase('channel routes', () => {
     });
 
     return { owner, member, workspace, channel };
+  }
+
+  async function tick() {
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
 
   it('POST /channels/:id/messages creates a message and rejects exact duplicates within 60 seconds', async () => {
@@ -87,6 +89,7 @@ describeWithTestDatabase('channel routes', () => {
     const { owner, channel } = await createFixture();
 
     const first = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'first' });
+    await tick();
     const second = await harness.factories.createMessage({ channelId: channel.id, userId: owner.id, content: 'second' });
     await harness.factories.createMessage({
       channelId: channel.id,

@@ -3,9 +3,7 @@ import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
 import { tasks } from '@blather/db';
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('task routes', () => {
+describe('task routes', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

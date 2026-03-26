@@ -20,9 +20,7 @@ vi.mock('../ws/events.js', () => ({
   emitEvent: vi.fn(async () => {}),
 }));
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('huddle routes', () => {
+describe('huddle routes', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

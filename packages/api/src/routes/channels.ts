@@ -174,7 +174,25 @@ channelRoutes.post('/:id/messages', async (c) => {
     return c.json({ error: 'Message rejected: appears to be a raw API error. These should be handled by the sender, not posted to chat.' }, 422);
   }
 
-// ── Dedupe guard: reject exact duplicate from same user within 60s ──  const sixtySecsAgo = new Date(Date.now() - 60_000);  const [dupe] = await db.select({ id: messages.id }).from(messages)    .where(and(      eq(messages.channelId, channelId),      eq(messages.userId, userId),      eq(messages.content, body.content),      gt(messages.createdAt, sixtySecsAgo)    ))    .limit(1);  if (dupe) {    console.warn(`[dedupe] Rejected duplicate message from user=${userId} channel=${channelId}`);    return c.json({ error: "Duplicate message", existingId: dupe.id }, 409);  }
+  // Reject exact duplicates from the same user within 60 seconds.
+  const recentMessages = await db.select({
+    id: messages.id,
+    createdAt: messages.createdAt,
+  }).from(messages)
+    .where(and(
+      eq(messages.channelId, channelId),
+      eq(messages.userId, userId),
+      eq(messages.content, body.content),
+    ))
+    .orderBy(desc(messages.createdAt))
+    .limit(5);
+
+  const duplicate = recentMessages.find((message) => message.createdAt.getTime() > Date.now() - 60_000);
+  if (duplicate) {
+    console.warn(`[dedupe] Rejected duplicate message from user=${userId} channel=${channelId}`);
+    return c.json({ error: 'Duplicate message', existingId: duplicate.id }, 409);
+  }
+
   const [msg] = await db.insert(messages).values({
     channelId,
     userId,

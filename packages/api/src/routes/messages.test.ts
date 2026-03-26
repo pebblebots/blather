@@ -17,9 +17,7 @@ type SearchResult = {
   channelType: 'public' | 'private' | 'dm';
 };
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('message routes', () => {
+describe('message routes', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

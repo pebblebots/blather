@@ -9,6 +9,14 @@ import { emitEvent } from '../ws/events.js';
 export const workspaceRoutes = new Hono<Env>();
 workspaceRoutes.use('*', authMiddleware);
 
+function resultRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (result && typeof result === 'object' && Array.isArray((result as { rows?: unknown[] }).rows)) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
+
 // List workspaces for current user
 workspaceRoutes.get('/', async (c) => {
   const db = c.get('db');
@@ -248,7 +256,7 @@ workspaceRoutes.get('/:id/unread', async (c) => {
   );
 
   const counts: Record<string, number> = {};
-  for (const row of result as any[]) {
+  for (const row of resultRows<{ channel_id: string; unread_count: number }>(result)) {
     counts[row.channel_id] = row.unread_count;
   }
   return c.json(counts);

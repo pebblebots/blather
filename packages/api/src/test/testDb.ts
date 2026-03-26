@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres, { type Sql } from 'postgres';
+import { PGlite } from '@electric-sql/pglite';
+import { migrate } from 'drizzle-orm/pglite/migrator';
+import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import {
   channelMembers,
   channels,
@@ -13,15 +13,13 @@ import {
 } from '@blather/db';
 import * as schema from '@blather/db';
 
-const DEFAULT_TEST_DATABASE_URL = 'postgresql://blather:blather@127.0.0.1:5432/blather_test';
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../../db/drizzle', import.meta.url));
+const TEST_DATABASE_LABEL = 'pglite://memory';
 
-const migratedDatabases = new Set<string>();
-
-type Db = PostgresJsDatabase<typeof schema>;
+type Db = PgliteDatabase<typeof schema>;
 
 type CreateTestDatabaseOptions = {
-  databaseUrl?: string;
+  dataDir?: string;
   runMigrations?: boolean;
 };
 
@@ -69,7 +67,7 @@ export type TestFactories = {
 
 export type TestDatabase = {
   databaseUrl: string;
-  sql: Sql;
+  sql: PGlite;
   db: Db;
   factories: TestFactories;
   reset(): Promise<void>;
@@ -80,11 +78,7 @@ function uniqueSuffix(): string {
   return randomUUID().slice(0, 8);
 }
 
-function resolveDatabaseUrl(databaseUrl?: string): string {
-  return databaseUrl ?? process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL;
-}
-
-async function truncateAllTables(sql: Sql): Promise<void> {
+async function truncateAllTables(sql: PGlite): Promise<void> {
   const tableNames = [
     'agent_activity_log',
     'task_comments',
@@ -107,7 +101,7 @@ async function truncateAllTables(sql: Sql): Promise<void> {
   ];
 
   const quotedTables = tableNames.map((name) => `"${name}"`).join(', ');
-  await sql.unsafe(`TRUNCATE TABLE ${quotedTables} RESTART IDENTITY CASCADE`);
+  await sql.exec(`TRUNCATE TABLE ${quotedTables} RESTART IDENTITY CASCADE`);
 }
 
 function createTestFactories(db: Db): TestFactories {
@@ -193,19 +187,17 @@ function createTestFactories(db: Db): TestFactories {
 }
 
 export async function createTestDatabase(options: CreateTestDatabaseOptions = {}): Promise<TestDatabase> {
-  const databaseUrl = resolveDatabaseUrl(options.databaseUrl);
-  const sql = postgres(databaseUrl, { max: 1 });
+  const sql = new PGlite(options.dataDir);
   const db = drizzle(sql, { schema });
 
-  if (options.runMigrations !== false && !migratedDatabases.has(databaseUrl)) {
+  if (options.runMigrations !== false) {
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-    migratedDatabases.add(databaseUrl);
   }
 
   await truncateAllTables(sql);
 
   return {
-    databaseUrl,
+    databaseUrl: TEST_DATABASE_LABEL,
     sql,
     db,
     factories: createTestFactories(db),
@@ -213,7 +205,7 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
       await truncateAllTables(sql);
     },
     close: async () => {
-      await sql.end();
+      await sql.close();
     },
   };
 }

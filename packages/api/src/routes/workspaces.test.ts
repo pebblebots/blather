@@ -29,9 +29,7 @@ type Channel = {
   archived: boolean;
 };
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('workspace routes', () => {
+describe('workspace routes', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

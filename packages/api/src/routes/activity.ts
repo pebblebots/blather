@@ -7,6 +7,14 @@ import { authMiddleware } from "../middleware/auth.js";
 export const activityRoutes = new Hono<Env>();
 activityRoutes.use("*", authMiddleware);
 
+function resultRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (result && typeof result === "object" && Array.isArray((result as { rows?: unknown[] }).rows)) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
+
 // POST /activity — log an activity entry
 activityRoutes.post("/", async (c) => {
   const db = c.get("db");
@@ -28,7 +36,8 @@ activityRoutes.post("/", async (c) => {
     VALUES (${workspaceId}, ${agentUserId}, ${sessionKey || ''}, ${action}, ${targetChannelId || null}, ${targetMessageId || null}, ${JSON.stringify(metadata || {})}::jsonb)
     RETURNING id, created_at
   `);
-  return c.json({ id: (result as any)[0].id, createdAt: (result as any)[0].created_at }, 201);
+  const [row] = resultRows<{ id: string; created_at: string | Date }>(result);
+  return c.json({ id: row?.id, createdAt: row?.created_at }, 201);
 });
 
 // GET /activity — query recent activity
@@ -46,7 +55,7 @@ activityRoutes.get("/", async (c) => {
     ORDER BY created_at DESC
     LIMIT ${limit}
   `);
-  return c.json(rows);
+  return c.json(resultRows(rows));
 });
 
 // GET /activity/summary — condensed text summary
@@ -65,6 +74,12 @@ activityRoutes.get("/summary", async (c) => {
     GROUP BY a.action, c.name, a.target_channel_id
     ORDER BY cnt DESC
   `);
+  const summaryRows = resultRows<{
+    action: string;
+    channel_name: string | null;
+    cnt: number;
+    metas: unknown[];
+  }>(rows);
 
   type ActionFormatter = (cnt: number, ch: string | null, metas: any[]) => string;
   const actionLabels: Record<string, ActionFormatter> = {
@@ -87,7 +102,7 @@ activityRoutes.get("/summary", async (c) => {
   };
 
   const lines = [`## Activity since ${since}`];
-  for (const row of rows as any[]) {
+  for (const row of summaryRows) {
     const fn = actionLabels[row.action];
     const ch = row.channel_name;
     const metas = Array.isArray(row.metas) ? row.metas : [];
@@ -98,9 +113,9 @@ activityRoutes.get("/summary", async (c) => {
     }
   }
 
-  if ((rows as any[]).length === 0) lines.push('- No activity recorded');
+  if (summaryRows.length === 0) lines.push('- No activity recorded');
 
-  return c.json({ summary: lines.join('\n'), rows });
+  return c.json({ summary: lines.join('\n'), rows: summaryRows });
 });
 
 // Helper: log activity (exported for use by other routes)

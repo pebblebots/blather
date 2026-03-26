@@ -31,9 +31,7 @@ vi.mock('fs/promises', async () => ({
 vi.mock('../ws/events.js', () => ({ emitEvent: vi.fn(async () => {}) }));
 vi.mock('../ws/manager.js', () => ({ publishEvent: vi.fn(async () => {}) }));
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('tts routes', () => {
+describe('tts routes', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

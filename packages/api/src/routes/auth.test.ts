@@ -31,9 +31,7 @@ type AuthResponse = {
   };
 };
 
-const describeWithTestDatabase = process.env.TEST_DATABASE_URL ? describe : describe.skip;
-
-describeWithTestDatabase('auth routes', () => {
+describe('auth routes', () => {
   let testDatabase: TestDatabase;
   let harness: ReturnType<typeof createApiTestHarness>;
 

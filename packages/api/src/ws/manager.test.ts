@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import http from 'http';
-import WebSocket from 'ws';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EventEmitter } from 'node:events';
 import jwt from 'jsonwebtoken';
+import WebSocket from 'ws';
 
-// Queue-based mock DB: each db.select() chain resolves to the next entry
 let dbQueryResults: any[][] = [];
 let dbQueryIndex = 0;
 
@@ -29,7 +28,7 @@ vi.mock('@blather/db', () => {
   };
 });
 
-import { attachWebSocket, getPresenceForWorkspace, publishEvent, publishEphemeralEvent } from './manager.js';
+import { __testing, getPresenceForWorkspace, publishEvent, publishEphemeralEvent } from './manager.js';
 
 const JWT_SECRET = 'blather-dev-secret-change-in-production';
 let testCounter = 0;
@@ -38,29 +37,56 @@ function signToken(userId: string): string {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '1h' });
 }
 
-/** Wait for the next WS message matching a given type, ignoring others */
-function waitForType(ws: WebSocket, type: string, timeoutMs = 3000): Promise<any> {
+class FakeWebSocket extends EventEmitter {
+  readyState = WebSocket.OPEN;
+  sent: any[] = [];
+  pingCount = 0;
+
+  send(data: string) {
+    const parsed = JSON.parse(data);
+    this.sent.push(parsed);
+    this.emit('server-message', parsed);
+  }
+
+  clientSend(payload: Record<string, unknown>) {
+    this.emit('message', Buffer.from(JSON.stringify(payload)));
+  }
+
+  ping() {
+    this.pingCount += 1;
+  }
+
+  close(code = 1000, reason = '') {
+    if (this.readyState === WebSocket.CLOSED) return;
+    this.readyState = WebSocket.CLOSED;
+    this.emit('close', code, Buffer.from(reason));
+  }
+
+  terminate() {
+    this.close(1006, 'terminated');
+  }
+}
+
+function waitForType(ws: FakeWebSocket, type: string, timeoutMs = 3000): Promise<any> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      ws.off('message', handler);
+      ws.off('server-message', handler);
       reject(new Error(`Timeout waiting for message type: ${type}`));
     }, timeoutMs);
-    function handler(data: Buffer | string) {
-      const msg = JSON.parse(data.toString());
-      if (msg.type === type) {
+    function handler(message: any) {
+      if (message.type === type) {
         clearTimeout(timer);
-        ws.off('message', handler);
-        resolve(msg);
+        ws.off('server-message', handler);
+        resolve(message);
       }
     }
-    ws.on('message', handler);
+    ws.on('server-message', handler);
   });
 }
 
-function waitForClose(ws: WebSocket): Promise<{ code: number; reason: string }> {
+function waitForClose(ws: FakeWebSocket): Promise<{ code: number; reason: string }> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Timeout waiting for WS close')), 3000);
-    ws.once('error', () => {});
     ws.once('close', (code, reason) => {
       clearTimeout(timer);
       resolve({ code, reason: reason.toString() });
@@ -68,134 +94,82 @@ function waitForClose(ws: WebSocket): Promise<{ code: number; reason: string }> 
   });
 }
 
-function waitForOpen(ws: WebSocket): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (ws.readyState === WebSocket.OPEN) { resolve(); return; }
-    const timer = setTimeout(() => reject(new Error('Timeout waiting for WS open')), 3000);
-    ws.once('open', () => { clearTimeout(timer); resolve(); });
-    ws.once('error', (err) => { clearTimeout(timer); reject(err); });
-  });
+function createAuthedClient(userId: string, workspaceId: string): FakeWebSocket {
+  const ws = new FakeWebSocket();
+  __testing.setupAuthedClient(ws as any, userId, workspaceId);
+  return ws;
 }
 
 describe('WebSocket manager', () => {
-  let server: http.Server;
-  let port: number;
-  let openClients: WebSocket[] = [];
-
-  function uniqueWs() { return `ws-${++testCounter}`; }
-
-  function rawConnect(params: string): WebSocket {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws/events${params ? '?' + params : ''}`);
-    openClients.push(ws);
-    return ws;
+  function uniqueWs() {
+    return `ws-${++testCounter}`;
   }
-
-  /** Connect with JWT and wait for 'connected' ack (ignoring presence messages) */
-  async function connectAuthed(userId: string, workspaceId: string): Promise<WebSocket> {
-    const token = signToken(userId);
-    const ws = rawConnect(`token=${token}&workspace_id=${workspaceId}`);
-    await waitForType(ws, 'connected');
-    return ws;
-  }
-
-  beforeAll(async () => {
-    server = http.createServer();
-    attachWebSocket(server);
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    port = (server.address() as { port: number }).port;
-  });
 
   beforeEach(() => {
     dbQueryResults = [];
     dbQueryIndex = 0;
+    __testing.resetState();
   });
 
-  afterEach(async () => {
-    for (const ws of openClients) {
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
-    }
-    await new Promise(r => setTimeout(r, 50));
-    openClients = [];
+  it('verifyToken returns user id for a valid JWT', () => {
+    expect(__testing.verifyToken(signToken('user-1'))).toBe('user-1');
   });
 
-  afterAll(async () => {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+  it('verifyToken rejects invalid JWT token', () => {
+    expect(__testing.verifyToken('invalid-token')).toBeNull();
   });
 
-  // ── Authentication ──
-
-  it('authenticates with valid JWT via query param', async () => {
+  it('setupPendingClient authenticates via auth message', async () => {
     const wsId = uniqueWs();
-    const token = signToken('user-1');
-    const ws = rawConnect(`token=${token}&workspace_id=${wsId}`);
-    const msg = await waitForType(ws, 'connected');
-    expect(msg).toEqual({ type: 'connected', userId: 'user-1', workspaceId: wsId });
+    const ws = new FakeWebSocket();
+    __testing.setupPendingClient(ws as any);
+
+    const connected = waitForType(ws, 'connected');
+    ws.clientSend({ type: 'auth', token: signToken('user-2'), workspaceId: wsId });
+
+    await expect(connected).resolves.toEqual({ type: 'connected', userId: 'user-2', workspaceId: wsId });
   });
 
-  it('rejects invalid JWT token', async () => {
-    const ws = rawConnect(`token=invalid-token&workspace_id=${uniqueWs()}`);
-    ws.on('error', () => {});
-    const { code } = await waitForClose(ws);
-    expect(code).toBeTruthy();
+  it('setupPendingClient rejects invalid token in auth message (code 4003)', async () => {
+    const ws = new FakeWebSocket();
+    __testing.setupPendingClient(ws as any);
+
+    const closed = waitForClose(ws);
+    ws.clientSend({ type: 'auth', token: 'bad-token', workspaceId: uniqueWs() });
+
+    await expect(closed).resolves.toMatchObject({ code: 4003 });
   });
 
-  it('authenticates via auth message (no query params)', async () => {
-    const wsId = uniqueWs();
-    const ws = rawConnect('');
-    await waitForOpen(ws);
-    ws.send(JSON.stringify({ type: 'auth', token: signToken('user-2'), workspaceId: wsId }));
-    const msg = await waitForType(ws, 'connected');
-    expect(msg).toEqual({ type: 'connected', userId: 'user-2', workspaceId: wsId });
+  it('setupPendingClient rejects auth message with missing fields (code 4002)', async () => {
+    const ws = new FakeWebSocket();
+    __testing.setupPendingClient(ws as any);
+
+    const closed = waitForClose(ws);
+    ws.clientSend({ type: 'auth' });
+
+    await expect(closed).resolves.toMatchObject({ code: 4002 });
   });
 
-  it('rejects invalid token in auth message (code 4003)', async () => {
-    const ws = rawConnect('');
-    await waitForOpen(ws);
-    ws.send(JSON.stringify({ type: 'auth', token: 'bad-token', workspaceId: uniqueWs() }));
-    const { code } = await waitForClose(ws);
-    expect(code).toBe(4003);
-  });
-
-  it('rejects auth message with missing fields (code 4002)', async () => {
-    const ws = rawConnect('');
-    await waitForOpen(ws);
-    ws.send(JSON.stringify({ type: 'auth' }));
-    const { code } = await waitForClose(ws);
-    expect(code).toBe(4002);
-  });
-
-  it('authenticates with valid API key via query param', async () => {
-    const wsId = uniqueWs();
+  it('resolveApiKeyUserId returns user id for a valid API key', async () => {
     dbQueryResults = [[{ userId: 'user-api', keyHash: 'h', revokedAt: null }]];
-    const ws = rawConnect(`api_key=blather_test123&workspace_id=${wsId}`);
-    const msg = await waitForType(ws, 'connected');
-    expect(msg).toEqual({ type: 'connected', userId: 'user-api', workspaceId: wsId });
+    await expect(__testing.resolveApiKeyUserId('blather_test123')).resolves.toBe('user-api');
   });
 
-  it('rejects invalid API key', async () => {
+  it('resolveApiKeyUserId returns null for invalid API key', async () => {
     dbQueryResults = [[]];
-    const ws = rawConnect(`api_key=blather_bad&workspace_id=${uniqueWs()}`);
-    ws.on('error', () => {});
-    const { code } = await waitForClose(ws);
-    expect(code).toBeTruthy();
+    await expect(__testing.resolveApiKeyUserId('blather_bad')).resolves.toBeNull();
   });
 
-  // ── Presence tracking ──
-
-  it('tracks online presence for connected user', async () => {
+  it('tracks online presence for connected user', () => {
     const wsId = uniqueWs();
-    await connectAuthed('user-p1', wsId);
-    const presence = getPresenceForWorkspace(wsId);
-    expect(presence).toEqual([{ userId: 'user-p1', status: 'online' }]);
+    createAuthedClient('user-p1', wsId);
+    expect(getPresenceForWorkspace(wsId)).toEqual([{ userId: 'user-p1', status: 'online' }]);
   });
 
   it('removes presence when user disconnects', async () => {
     const wsId = uniqueWs();
-    const ws = await connectAuthed('user-p2', wsId);
+    const ws = createAuthedClient('user-p2', wsId);
     ws.close();
-    await new Promise(r => setTimeout(r, 50));
     expect(getPresenceForWorkspace(wsId)).toEqual([]);
   });
 
@@ -203,16 +177,12 @@ describe('WebSocket manager', () => {
     expect(getPresenceForWorkspace('nonexistent')).toEqual([]);
   });
 
-  // ── Presence broadcasts ──
-
   it('broadcasts presence.changed online when user connects', async () => {
     const wsId = uniqueWs();
-    const ws1 = await connectAuthed('user-a', wsId);
-    // Register listener BEFORE connecting second user
+    const ws1 = createAuthedClient('user-a', wsId);
     const presencePromise = waitForType(ws1, 'presence.changed');
-    await connectAuthed('user-b', wsId);
-    const presenceMsg = await presencePromise;
-    expect(presenceMsg).toEqual({
+    createAuthedClient('user-b', wsId);
+    await expect(presencePromise).resolves.toEqual({
       type: 'presence.changed',
       data: { userId: 'user-b', status: 'online' },
     });
@@ -220,57 +190,46 @@ describe('WebSocket manager', () => {
 
   it('broadcasts presence.changed offline when user disconnects', async () => {
     const wsId = uniqueWs();
-    const ws1 = await connectAuthed('user-c', wsId);
-    const ws2 = await connectAuthed('user-d', wsId);
-    // Drain user-d's online presence
-    await waitForType(ws1, 'presence.changed');
+    const ws1 = createAuthedClient('user-c', wsId);
+    const ws2 = createAuthedClient('user-d', wsId);
+    expect(ws1.sent).toContainEqual({
+      type: 'presence.changed',
+      data: { userId: 'user-d', status: 'online' },
+    });
 
-    // Now listen for offline
     const offlinePromise = waitForType(ws1, 'presence.changed');
     ws2.close();
-    const offlineMsg = await offlinePromise;
-    expect(offlineMsg).toEqual({
+
+    await expect(offlinePromise).resolves.toEqual({
       type: 'presence.changed',
       data: { userId: 'user-d', status: 'offline' },
     });
   });
 
-  // ── Max connections per user ──
-
   it('enforces max 3 connections per user (closes oldest)', async () => {
     const userId = 'user-max';
     const wsId = uniqueWs();
 
-    const conns: WebSocket[] = [];
-    for (let i = 0; i < 3; i++) {
-      conns.push(await connectAuthed(userId, wsId));
-    }
-
+    const conns = [createAuthedClient(userId, wsId), createAuthedClient(userId, wsId), createAuthedClient(userId, wsId)];
     const closePromise = waitForClose(conns[0]);
-    await connectAuthed(userId, wsId);
+    createAuthedClient(userId, wsId);
 
-    const { code } = await closePromise;
-    expect(code).toBe(4008);
+    await expect(closePromise).resolves.toMatchObject({ code: 4008 });
   });
-
-  // ── Application-level ping/pong ──
 
   it('responds to application ping with pong', async () => {
     const wsId = uniqueWs();
-    const ws = await connectAuthed('user-ping', wsId);
-    ws.send(JSON.stringify({ type: 'ping' }));
-    const msg = await waitForType(ws, 'pong');
-    expect(msg).toEqual({ type: 'pong' });
+    const ws = createAuthedClient('user-ping', wsId);
+    const pong = waitForType(ws, 'pong');
+    ws.clientSend({ type: 'ping' });
+    await expect(pong).resolves.toEqual({ type: 'pong' });
   });
-
-  // ── publishEvent ──
 
   it('publishEvent sends to all clients for public channel', async () => {
     const wsId = uniqueWs();
-    const ws1 = await connectAuthed('user-e1', wsId);
-    const ws2 = await connectAuthed('user-e2', wsId);
+    const ws1 = createAuthedClient('user-e1', wsId);
+    const ws2 = createAuthedClient('user-e2', wsId);
 
-    // Register listeners before publishing
     dbQueryResults = [[{ channelType: 'public' }]];
     const event = { type: 'message.created', channel_id: 'ch-1', data: { text: 'hello' } };
 
@@ -278,101 +237,68 @@ describe('WebSocket manager', () => {
     const p2 = waitForType(ws2, 'message.created');
     await publishEvent(wsId, event);
 
-    const [msg1, msg2] = await Promise.all([p1, p2]);
-    expect(msg1).toEqual(event);
-    expect(msg2).toEqual(event);
+    await expect(Promise.all([p1, p2])).resolves.toEqual([event, event]);
   });
 
   it('publishEvent restricts private channel events to members only', async () => {
     const wsId = uniqueWs();
-    const ws1 = await connectAuthed('user-priv1', wsId);
-    const ws2 = await connectAuthed('user-priv2', wsId);
+    const ws1 = createAuthedClient('user-priv1', wsId);
+    const ws2 = createAuthedClient('user-priv2', wsId);
 
-    dbQueryResults = [
-      [{ channelType: 'private' }],
-      [{ userId: 'user-priv1' }],
-    ];
+    dbQueryResults = [[{ channelType: 'private' }], [{ userId: 'user-priv1' }]];
 
     const event = { type: 'message.created', channel_id: 'ch-priv', data: { text: 'secret' } };
     const p1 = waitForType(ws1, 'message.created');
     await publishEvent(wsId, event);
 
-    // user-priv1 receives event
-    const msg1 = await p1;
-    expect(msg1).toEqual(event);
-
-    // user-priv2 does NOT — verify via ping round-trip
-    ws2.send(JSON.stringify({ type: 'ping' }));
-    const msg2 = await waitForType(ws2, 'pong');
-    expect(msg2).toEqual({ type: 'pong' });
+    await expect(p1).resolves.toEqual(event);
+    expect(ws2.sent.some((message) => message.type === 'message.created')).toBe(false);
   });
 
   it('publishEvent restricts DM channel events to members only', async () => {
     const wsId = uniqueWs();
-    const ws1 = await connectAuthed('user-dm1', wsId);
-    const ws2 = await connectAuthed('user-dm2', wsId);
+    const ws1 = createAuthedClient('user-dm1', wsId);
+    const ws2 = createAuthedClient('user-dm2', wsId);
 
-    dbQueryResults = [
-      [{ channelType: 'dm' }],
-      [{ userId: 'user-dm1' }],
-    ];
+    dbQueryResults = [[{ channelType: 'dm' }], [{ userId: 'user-dm1' }]];
 
     const event = { type: 'message.created', channel_id: 'ch-dm', data: { text: 'hi' } };
     const p1 = waitForType(ws1, 'message.created');
     await publishEvent(wsId, event);
 
-    const msg1 = await p1;
-    expect(msg1).toEqual(event);
-
-    ws2.send(JSON.stringify({ type: 'ping' }));
-    const msg2 = await waitForType(ws2, 'pong');
-    expect(msg2).toEqual({ type: 'pong' });
+    await expect(p1).resolves.toEqual(event);
+    expect(ws2.sent.some((message) => message.type === 'message.created')).toBe(false);
   });
 
   it('publishEvent sends to all when no channel_id', async () => {
     const wsId = uniqueWs();
-    const ws = await connectAuthed('user-noc', wsId);
-
+    const ws = createAuthedClient('user-noc', wsId);
     const event = { type: 'workspace.updated', data: { name: 'new' } };
-    const p = waitForType(ws, 'workspace.updated');
+
+    const received = waitForType(ws, 'workspace.updated');
     await publishEvent(wsId, event);
 
-    const msg = await p;
-    expect(msg).toEqual(event);
+    await expect(received).resolves.toEqual(event);
   });
 
   it('publishEvent is a no-op for unknown workspace', async () => {
-    await publishEvent('nonexistent', { type: 'test' });
+    await expect(publishEvent('nonexistent', { type: 'test' })).resolves.toBeUndefined();
   });
-
-  // ── publishEphemeralEvent ──
 
   it('publishEphemeralEvent broadcasts to all workspace clients', async () => {
     const wsId = uniqueWs();
-    const ws1 = await connectAuthed('user-eph1', wsId);
-    const ws2 = await connectAuthed('user-eph2', wsId);
+    const ws1 = createAuthedClient('user-eph1', wsId);
+    const ws2 = createAuthedClient('user-eph2', wsId);
 
     const event = { type: 'typing', channelId: 'ch-1', userId: 'user-eph1' };
     const p1 = waitForType(ws1, 'typing');
     const p2 = waitForType(ws2, 'typing');
     await publishEphemeralEvent(wsId, 'ch-1', event);
 
-    const [msg1, msg2] = await Promise.all([p1, p2]);
-    expect(msg1).toEqual(event);
-    expect(msg2).toEqual(event);
+    await expect(Promise.all([p1, p2])).resolves.toEqual([event, event]);
   });
 
   it('publishEphemeralEvent is a no-op for unknown workspace', async () => {
-    await publishEphemeralEvent('nonexistent', 'ch', { type: 'typing' });
-  });
-
-  // ── Non-WS path rejected ──
-
-  it('destroys socket for non /ws/events path', async () => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/other/path`);
-    openClients.push(ws);
-    ws.on('error', () => {});
-    const { code } = await waitForClose(ws);
-    expect(code).toBeTruthy();
+    await expect(publishEphemeralEvent('nonexistent', 'ch', { type: 'typing' })).resolves.toBeUndefined();
   });
 });

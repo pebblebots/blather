@@ -139,6 +139,14 @@ function verifyToken(token: string): string | null {
   }
 }
 
+async function resolveApiKeyUserId(apiKeyParam: string): Promise<string | null> {
+  const hash = createHash('sha256').update(apiKeyParam).digest('hex');
+  const [found] = await db.select().from(apiKeys).where(
+    and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
+  ).limit(1);
+  return found?.userId ?? null;
+}
+
 export function attachWebSocket(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
 
@@ -214,18 +222,14 @@ export function attachWebSocket(server: Server) {
       }
       // API key auth
       if (apiKeyParam) {
-        // using module-level db
-        const hash = createHash('sha256').update(apiKeyParam).digest('hex');
-        db.select().from(apiKeys).where(
-          and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
-        ).limit(1).then(([found]) => {
-          if (!found) {
+        resolveApiKeyUserId(apiKeyParam).then((foundUserId) => {
+          if (!foundUserId) {
             socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
             socket.destroy();
             return;
           }
           wss.handleUpgrade(req, socket, head, (ws) => {
-            setupAuthedClient(ws, found.userId, workspaceId);
+            setupAuthedClient(ws, foundUserId, workspaceId);
           });
         }).catch(() => {
           socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
@@ -287,3 +291,13 @@ function setupPendingClient(ws: WebSocket) {
     }
   });
 }
+
+export const __testing = {
+  resetState() {
+    workspaceClients.clear();
+  },
+  setupAuthedClient,
+  setupPendingClient,
+  verifyToken,
+  resolveApiKeyUserId,
+};
