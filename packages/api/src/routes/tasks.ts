@@ -1,17 +1,20 @@
 import { logAgentActivity, isAgentUser } from "./activity.js";
 import { Hono } from 'hono';
-import { eq, and, desc, sql } from 'drizzle-orm';
-import { tasks, taskComments, users, workspaceMembers } from '@blather/db';
+import { eq, and, desc } from 'drizzle-orm';
+import { tasks, taskComments, users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 export const taskRoutes = new Hono<Env>();
 taskRoutes.use('*', authMiddleware);
 
-function normalizeStatus(s: string): 'queued' | 'in_progress' | 'done' {
+type TaskStatus = 'queued' | 'in_progress' | 'done';
+const VALID_STATUSES: TaskStatus[] = ['queued', 'in_progress', 'done'];
+
+function normalizeStatus(s: string): TaskStatus {
   const mapped = s.replace(/-/g, '_');
-  if (!['queued', 'in_progress', 'done'].includes(mapped)) throw new Error('Invalid status: ' + s);
-  return mapped as any;
+  if (!VALID_STATUSES.includes(mapped as TaskStatus)) throw new Error('Invalid status: ' + s);
+  return mapped as TaskStatus;
 }
 
 // List tasks for a workspace
@@ -22,7 +25,7 @@ taskRoutes.get('/', async (c) => {
 
   const conditions: any[] = [eq(tasks.workspaceId, workspaceId)];
   const status = c.req.query('status');
-  if (status) conditions.push(eq(tasks.status, status.replace(/-/g, '_') as any));
+  if (status) conditions.push(eq(tasks.status, normalizeStatus(status)));
   const priority = c.req.query('priority');
   if (priority) conditions.push(eq(tasks.priority, priority as any));
   const assignee = c.req.query('assigneeId');
@@ -62,8 +65,13 @@ taskRoutes.post('/', async (c) => {
     sourceChannelId: body.sourceChannelId ?? null,
   } as any).returning();
 
-  // Auto-log agent task creation
-  isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: body.workspaceId, userId, action: "task_created", metadata: { taskId: task.id, title: task.title, shortId: (task as any).shortId } }); }).catch(() => {});
+  // Auto-log agent task creation (fire-and-forget)
+  isAgentUser(db, userId).then(isAgent => {
+    if (isAgent) logAgentActivity(db, {
+      workspaceId: body.workspaceId, userId, action: 'task_created',
+      metadata: { taskId: task.id, title: task.title, shortId: task.shortId },
+    });
+  }).catch(() => {});
   return c.json(task, 201);
 });
 
@@ -95,7 +103,7 @@ taskRoutes.patch('/:id', async (c) => {
 
   // Status change notification
   if (body.status !== undefined && normalizeStatus(body.status) !== existing.status) {
-    const sourceChannelId = (existing as any).sourceChannelId || (existing as any).source_channel_id;
+    const sourceChannelId = existing.sourceChannelId;
     if (sourceChannelId) {
       try {
         const { postStatusNotification } = await import('../bots/taskNotify.js');
@@ -106,8 +114,15 @@ taskRoutes.patch('/:id', async (c) => {
     }
   }
 
-  // Auto-log agent task update
-  isAgentUser(db, userId).then(isAgent => { if (isAgent) { const act = (body.status === "done") ? "task_completed" : "task_updated"; logAgentActivity(db, { workspaceId: existing.workspaceId, userId, action: act, metadata: { taskId: task.id, title: task.title, shortId: (task as any).shortId, status: body.status } }); } }).catch(() => {});
+  // Auto-log agent task update (fire-and-forget)
+  isAgentUser(db, userId).then(isAgent => {
+    if (!isAgent) return;
+    const action = body.status === 'done' ? 'task_completed' : 'task_updated';
+    logAgentActivity(db, {
+      workspaceId: existing.workspaceId, userId, action,
+      metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status },
+    });
+  }).catch(() => {});
   return c.json(task);
 });
 
