@@ -1,4 +1,4 @@
-import { eq, and, or, sql, ne } from 'drizzle-orm';
+import { eq, and, sql, ne } from 'drizzle-orm';
 import { incidents, users, messages, channels, channelMembers, workspaceMembers } from '@blather/db';
 import type { Db } from '@blather/db';
 import { emitEvent } from '../ws/events.js';
@@ -56,10 +56,31 @@ async function postBotMessage(db: Db, channelId: string, content: string, thread
     channelId,
     userId: uid,
     content,
-    threadId,
+    threadId: threadId ?? null,
+    attachments: [],
   }).returning();
 
-  // Event already emitted by DB trigger / caller
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (channel) {
+    await emitEvent(db, {
+      workspaceId: channel.workspaceId,
+      channelId,
+      userId: uid,
+      type: 'message.created',
+      payload: {
+        id: msg.id,
+        channelId: msg.channelId,
+        userId: msg.userId,
+        content: msg.content,
+        threadId: msg.threadId,
+        createdAt: msg.createdAt.toISOString(),
+        attachments: [],
+        user: { displayName: '🚨 IncidentBot', isAgent: true },
+      },
+    });
+  }
+
+  return msg;
 }
 
 export async function handleIncidentCommand(db: Db, channelId: string, content: string, threadId?: string | null) {

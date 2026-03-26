@@ -34,5 +34,6 @@
   "packages/api/src/ws/manager.test.ts",
   "packages/api/src/middleware/auth.test.ts",
   "packages/api/src/bots/taskNotify.ts",
-  "packages/api/src/bots/tasks.ts"
+  "packages/api/src/bots/tasks.ts",
+  "packages/api/src/bots/incidents.ts"
 ]
