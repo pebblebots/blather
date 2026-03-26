@@ -58,5 +58,7 @@
   "packages/web/src/components/SearchPanel.tsx",
   "packages/web/src/components/SearchPanel.test.tsx",
   "packages/web/src/components/MessageList.tsx",
-  "packages/web/src/components/MessageList.test.tsx"
+  "packages/web/src/components/MessageList.test.tsx",
+  "packages/web/src/components/TaskPanel.tsx",
+  "packages/web/src/components/TaskPanel.test.tsx"
 ]
