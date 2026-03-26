@@ -8,13 +8,19 @@ type MetricPayload = {
   reportingDate: string;
   revenueArrUsd: number;
   source: 'form' | 'agent';
-  headcount?: number;
-  runwayMonths?: number;
-  yoyGrowthPct?: number;
-  keyMilestoneText?: string;
-  contactEmail?: string;
+  revenueAsOfDate?: string | null;
+  headcount?: number | null;
+  runwayMonths?: number | null;
+  yoyGrowthPct?: number | null;
+  lastRoundSizeUsd?: number | null;
+  lastRoundValuationUsd?: number | null;
+  lastRoundDate?: string | null;
+  lastRoundType?: string | null;
+  keyMilestoneText?: string | null;
+  nextFundraiseTiming?: string | null;
+  contactEmail?: string | null;
   permissionToShare?: boolean;
-  confidence?: number;
+  confidence?: number | null;
 };
 
 describe('metric routes', () => {
@@ -60,6 +66,15 @@ describe('metric routes', () => {
     return response.body;
   }
 
+  // ── Auth ──
+
+  it('rejects unauthenticated requests', async () => {
+    const response = await harness.request.get('/metrics');
+    expect(response.status).toBe(401);
+  });
+
+  // ── POST /metrics ──
+
   it('POST /metrics creates a metric with required fields', async () => {
     const { headers } = await authedUser();
 
@@ -95,9 +110,23 @@ describe('metric routes', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(Number(response.body.headcount)).toBe(50);
+    // headcount is an integer column — returns a number directly
+    expect(response.body.headcount).toBe(50);
+    // runwayMonths is a decimal column — Postgres returns strings for decimals
     expect(Number(response.body.runwayMonths)).toBe(18);
     expect(response.body.permissionToShare).toBe(true);
+  });
+
+  it('POST /metrics accepts zero revenueArrUsd', async () => {
+    const { headers } = await authedUser();
+
+    const response = await harness.request.post<any>('/metrics', {
+      headers,
+      json: makeMetric({ revenueArrUsd: 0 }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(Number(response.body.revenueArrUsd)).toBe(0);
   });
 
   it('POST /metrics returns 400 when required fields are missing', async () => {
@@ -122,6 +151,8 @@ describe('metric routes', () => {
     expect(response.status).toBe(400);
   });
 
+  // ── GET /metrics ──
+
   it('GET /metrics lists all metrics', async () => {
     const { headers } = await authedUser();
 
@@ -132,6 +163,19 @@ describe('metric routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveLength(2);
+  });
+
+  it('GET /metrics returns results ordered by reportingDate descending', async () => {
+    const { headers } = await authedUser();
+
+    await createMetricRecord(headers, { reportingDate: '2026-01-01', companyName: 'Earlier' });
+    await createMetricRecord(headers, { reportingDate: '2026-06-01', companyName: 'Later' });
+
+    const response = await harness.request.get<any[]>('/metrics', { headers });
+
+    expect(response.status).toBe(200);
+    expect(response.body![0].companyName).toBe('Later');
+    expect(response.body![1].companyName).toBe('Earlier');
   });
 
   it('GET /metrics filters by fund', async () => {
@@ -147,7 +191,7 @@ describe('metric routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveLength(1);
-    expect(response.body[0].fund).toBe('Fund I');
+    expect(response.body![0].fund).toBe('Fund I');
   });
 
   it('GET /metrics filters by company_name with a case-insensitive partial match', async () => {
@@ -163,7 +207,7 @@ describe('metric routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveLength(1);
-    expect(response.body[0].companyName).toBe('Acme Corp');
+    expect(response.body![0].companyName).toBe('Acme Corp');
   });
 
   it('GET /metrics filters by date range', async () => {
@@ -179,8 +223,10 @@ describe('metric routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveLength(1);
-    expect(response.body[0].companyName).toBe('Later');
+    expect(response.body![0].companyName).toBe('Later');
   });
+
+  // ── GET /metrics/:id ──
 
   it('GET /metrics/:id returns a single metric', async () => {
     const { headers } = await authedUser();
@@ -200,6 +246,8 @@ describe('metric routes', () => {
     expect(response.status).toBe(404);
   });
 
+  // ── PATCH /metrics/:id ──
+
   it('PATCH /metrics/:id updates fields', async () => {
     const { headers } = await authedUser();
     const createdMetric = await createMetricRecord(headers);
@@ -210,7 +258,7 @@ describe('metric routes', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(Number(response.body.headcount)).toBe(100);
+    expect(response.body.headcount).toBe(100);
     expect(Number(response.body.runwayMonths)).toBe(24);
   });
 
@@ -236,6 +284,8 @@ describe('metric routes', () => {
 
     expect(response.status).toBe(404);
   });
+
+  // ── DELETE /metrics/:id ──
 
   it('DELETE /metrics/:id deletes a metric', async () => {
     const { headers } = await authedUser();

@@ -26,5 +26,6 @@
   "packages/api/src/routes/tts.ts",
   "packages/api/src/routes/tts.test.ts",
   "packages/api/src/routes/activity.test.ts",
-  "packages/api/src/routes/uploads.test.ts"
+  "packages/api/src/routes/uploads.test.ts",
+  "packages/api/src/routes/metrics.test.ts"
 ]
