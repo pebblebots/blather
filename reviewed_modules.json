@@ -41,5 +41,7 @@
   "packages/api/src/huddle/orchestrator.ts",
   "packages/api/src/huddle/tts.ts",
   "packages/web/src/lib/api.ts",
-  "packages/web/src/lib/api.test.ts"
+  "packages/web/src/lib/api.test.ts",
+  "packages/web/src/lib/store.ts",
+  "packages/web/src/lib/store.test.tsx"
 ]
