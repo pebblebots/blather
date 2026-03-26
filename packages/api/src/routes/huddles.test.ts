@@ -192,4 +192,128 @@ describe('huddle routes', () => {
 
     expect(res.status).toBe(404);
   });
+
+  // ── Join huddle ──
+
+  it('POST /huddles/:id/join adds a new listener', async () => {
+    const { human, agent1, workspace } = await createFixture();
+    const joiner = await harness.factories.createUser({ email: 'joiner@example.com', displayName: 'Joiner', isAgent: false });
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { workspaceId: workspace.id, topic: 'Join test', agentIds: [agent1.id] },
+    });
+
+    const res = await harness.request.post(`/huddles/${createRes.body.id}/join`, {
+      headers: harness.headers.forUser(joiner.id),
+    });
+
+    expect(res.status).toBe(200);
+
+    // Verify participant now shows up in huddle detail
+    const detailRes = await harness.request.get<any>(`/huddles/${createRes.body.id}`, {
+      headers: harness.headers.forUser(human.id),
+    });
+    expect(detailRes.body.participants).toHaveLength(3);
+  });
+
+  it('POST /huddles/:id/join returns 404 for nonexistent huddle', async () => {
+    const { human } = await createFixture();
+
+    const res = await harness.request.post('/huddles/00000000-0000-0000-0000-000000000000/join', {
+      headers: harness.headers.forUser(human.id),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /huddles/:id/join returns 409 when already a participant', async () => {
+    const { human, agent1, workspace } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { workspaceId: workspace.id, topic: 'Dup join', agentIds: [agent1.id] },
+    });
+
+    // Creator is already a participant
+    const res = await harness.request.post(`/huddles/${createRes.body.id}/join`, {
+      headers: harness.headers.forUser(human.id),
+    });
+
+    expect(res.status).toBe(409);
+  });
+
+  // ── Speak in huddle ──
+
+  it('POST /huddles/:id/speak posts a message and returns messageId', async () => {
+    const { human, agent1, workspace } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { workspaceId: workspace.id, topic: 'Speak test', agentIds: [agent1.id] },
+    });
+
+    const res = await harness.request.post<any>(`/huddles/${createRes.body.id}/speak`, {
+      headers: harness.headers.forUser(human.id),
+      json: { content: 'Hello huddle!' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.messageId).toBeDefined();
+  });
+
+  it('POST /huddles/:id/speak returns 404 for nonexistent huddle', async () => {
+    const { human } = await createFixture();
+
+    const res = await harness.request.post('/huddles/00000000-0000-0000-0000-000000000000/speak', {
+      headers: harness.headers.forUser(human.id),
+      json: { content: 'Nobody home' },
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  // ── End huddle ──
+
+  it('DELETE /huddles/:id ends an active huddle', async () => {
+    const { human, agent1, workspace } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { workspaceId: workspace.id, topic: 'End test', agentIds: [agent1.id] },
+    });
+
+    const res = await harness.request.delete(`/huddles/${createRes.body.id}`, {
+      headers: harness.headers.forUser(human.id),
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('DELETE /huddles/:id returns 404 for nonexistent huddle', async () => {
+    const { human } = await createFixture();
+
+    const res = await harness.request.delete('/huddles/00000000-0000-0000-0000-000000000000', {
+      headers: harness.headers.forUser(human.id),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('DELETE /huddles/:id returns 403 when non-creator tries to end', async () => {
+    const { human, agent1, workspace } = await createFixture();
+    const other = await harness.factories.createUser({ email: 'other@example.com', displayName: 'Other', isAgent: false });
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { workspaceId: workspace.id, topic: 'Auth test', agentIds: [agent1.id] },
+    });
+
+    const res = await harness.request.delete(`/huddles/${createRes.body.id}`, {
+      headers: harness.headers.forUser(other.id),
+    });
+
+    expect(res.status).toBe(403);
+  });
 });

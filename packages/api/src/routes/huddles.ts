@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
-import { huddles, huddleParticipants, users, channels, channelMembers, workspaceMembers } from "@blather/db";
+import { huddles, huddleParticipants, users, channels, channelMembers } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { startOrchestrator, endHuddle } from "../huddle/orchestrator.js";
@@ -158,6 +158,7 @@ huddleRoutes.post("/:id/join", async (c) => {
 
   // Add as listener
   await db.insert(huddleParticipants).values({ huddleId, userId, role: "listener" });
+  // Ignore duplicate-key error if already a channel member
   await db.insert(channelMembers).values({ channelId: huddle.channelId, userId }).catch(() => {});
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
