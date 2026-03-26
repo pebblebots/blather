@@ -42,9 +42,31 @@ describe('MarkdownText', () => {
     expect(link).toHaveAttribute('target', '_blank');
   });
 
+  it('renders ***bold+italic*** text', () => {
+    const { container } = render(<MarkdownText text="this is ***bold italic*** text" />);
+    const strong = container.querySelector('strong');
+    const em = strong?.querySelector('em');
+    expect(strong).toBeInTheDocument();
+    expect(em).toHaveTextContent('bold italic');
+  });
+
+  it('renders multiple features in one line', () => {
+    const { container } = render(
+      <MarkdownText text="**bold** and *italic* and `code`" />
+    );
+    expect(container.querySelector('strong')).toHaveTextContent('bold');
+    expect(container.querySelector('em')).toHaveTextContent('italic');
+    expect(container.querySelector('code')).toHaveTextContent('code');
+  });
+
   it('preserves line breaks', () => {
     const { container } = render(<MarkdownText text={'line1\nline2'} />);
     const brs = container.querySelectorAll('br');
     expect(brs.length).toBe(1);
+  });
+
+  it('renders empty string without error', () => {
+    const { container } = render(<MarkdownText text="" />);
+    expect(container.querySelector('span')).toBeInTheDocument();
   });
 });

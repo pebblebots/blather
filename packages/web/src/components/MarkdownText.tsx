@@ -5,24 +5,24 @@ import { type ReactNode } from 'react';
  * Supports: **bold**, *italic*, `code`, ~~strikethrough~~, [links](url)
  */
 
-const INLINE_RULES: [RegExp, (m: RegExpMatchArray, key: number) => ReactNode][] = [
+type KeyCounter = { value: number };
+
+const INLINE_RULES: [RegExp, (m: RegExpMatchArray, key: number, kc: KeyCounter) => ReactNode][] = [
   // code (must come first so inner markers aren't parsed)
   [/`([^`]+)`/, (m, k) => <code key={k} style={{ background: '#e0d6c2', padding: '0 3px', borderRadius: 2, fontSize: '0.95em' }}>{m[1]}</code>],
   // bold+italic
-  [/\*\*\*(.+?)\*\*\*/, (m, k) => <strong key={k}><em>{renderInline(m[1])}</em></strong>],
+  [/\*\*\*(.+?)\*\*\*/, (m, k, kc) => <strong key={k}><em>{renderInline(m[1], kc)}</em></strong>],
   // bold
-  [/\*\*(.+?)\*\*/, (m, k) => <strong key={k}>{renderInline(m[1])}</strong>],
+  [/\*\*(.+?)\*\*/, (m, k, kc) => <strong key={k}>{renderInline(m[1], kc)}</strong>],
   // italic
-  [/\*(.+?)\*/, (m, k) => <em key={k}>{renderInline(m[1])}</em>],
+  [/\*(.+?)\*/, (m, k, kc) => <em key={k}>{renderInline(m[1], kc)}</em>],
   // strikethrough
-  [/~~(.+?)~~/, (m, k) => <del key={k}>{renderInline(m[1])}</del>],
+  [/~~(.+?)~~/, (m, k, kc) => <del key={k}>{renderInline(m[1], kc)}</del>],
   // link
   [/\[([^\]]+)\]\(([^)]+)\)/, (m, k) => <a key={k} href={m[2]} target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc' }}>{m[1]}</a>],
 ];
 
-let keyCounter = 0;
-
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, kc: KeyCounter): ReactNode[] {
   const nodes: ReactNode[] = [];
   let remaining = text;
 
@@ -46,7 +46,7 @@ function renderInline(text: string): ReactNode[] {
     }
 
     const [, render] = INLINE_RULES[earliest.ruleIdx];
-    nodes.push(render(earliest.match, keyCounter++));
+    nodes.push(render(earliest.match, kc.value++, kc));
     remaining = remaining.slice(earliest.index + earliest.match[0].length);
   }
 
@@ -54,14 +54,14 @@ function renderInline(text: string): ReactNode[] {
 }
 
 export function MarkdownText({ text }: { text: string }) {
-  // Split on newlines to preserve line breaks
+  const kc: KeyCounter = { value: 0 };
   const lines = text.split('\n');
   return (
     <span>
       {lines.map((line, i) => (
         <span key={i}>
           {i > 0 && <br />}
-          {renderInline(line)}
+          {renderInline(line, kc)}
         </span>
       ))}
     </span>
