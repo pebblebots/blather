@@ -1,34 +1,29 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
+import { getNickColor, formatTime } from '../lib/chatUtils';
 import { MarkdownText } from './MarkdownText';
 
-const NICK_COLORS = [
-  "#c41e3a", "#0057b7", "#16a34a", "#9333ea", "#d97706", "#0891b2",
-  "#c026d3", "#854d0e", "#4338ca", "#dc2626", "#059669", "#db2777", "#1d4ed8",
-];
-
-function getNickColor(userId: string): string {
-  const hex = userId.replace(/-/g, "").slice(-8);
-  const num = parseInt(hex, 16) >>> 0;
-  return NICK_COLORS[num % NICK_COLORS.length];
-}
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+/** Minimal message shape used by ThreadPanel. */
+interface ThreadMessage {
+  id: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+  threadId?: string | null;
+  user?: { displayName: string; isAgent: boolean };
 }
 
 interface Props {
   channelId: string;
-  parentMessage: any;
+  parentMessage: ThreadMessage;
   usersMap: Map<string, { displayName: string; isAgent: boolean }>;
   currentUserId?: string;
   onClose: () => void;
-  newReplyFromWs?: any;
+  newReplyFromWs?: ThreadMessage;
 }
 
 export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId, onClose, newReplyFromWs }: Props) {
-  const [replies, setReplies] = useState<any[]>([]);
+  const [replies, setReplies] = useState<ThreadMessage[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -37,12 +32,14 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
   useEffect(() => {
     api.getThreadReplies(channelId, parentMessage.id).then((r) => {
       setReplies(r);
-      r.forEach((m: any) => processedIds.current.add(m.id));
+      r.forEach((m: ThreadMessage) => processedIds.current.add(m.id));
       setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error('Failed to fetch thread replies:', err);
+    });
   }, [channelId, parentMessage.id]);
 
-  // Handle new replies from WebSocket
+  // Append new WS replies, skipping duplicates.
   useEffect(() => {
     if (!newReplyFromWs) return;
     if (newReplyFromWs.threadId === parentMessage.id && !processedIds.current.has(newReplyFromWs.id)) {
@@ -71,7 +68,7 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
     }
   };
 
-  const renderMessage = (msg: any, isParent = false) => {
+  const renderMessage = (msg: ThreadMessage, isParent = false) => {
     const user = usersMap.get(msg.userId) || msg.user || { displayName: msg.userId?.slice(0, 8), isAgent: false };
     const nickColor = getNickColor(msg.userId);
     return (
@@ -102,7 +99,13 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
     }}>
       {/* Title bar */}
       <div className="mac-titlebar" style={{ fontSize: 11 }}>
-        <div className="mac-close-box" style={{ width: 10, height: 10, cursor: 'pointer' }} onClick={onClose} />
+        <div
+          className="mac-close-box"
+          role="button"
+          aria-label="Close thread"
+          style={{ width: 10, height: 10, cursor: 'pointer' }}
+          onClick={onClose}
+        />
         <div style={{ flex: 1, textAlign: 'center' }}>💬 Thread</div>
       </div>
 
