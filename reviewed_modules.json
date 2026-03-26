@@ -65,5 +65,6 @@
   "packages/web/src/components/ThreadPanel.test.tsx",
   "packages/web/src/lib/chatUtils.ts",
   "packages/web/src/pages/AuthPage.test.tsx",
-  "packages/web/src/components/InviteMemberModal.tsx"
+  "packages/web/src/components/InviteMemberModal.tsx",
+  "packages/web/src/components/CreateWorkspaceModal.tsx"
 ]

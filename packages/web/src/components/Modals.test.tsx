@@ -85,21 +85,49 @@ describe('CreateWorkspaceModal', () => {
   it('renders form fields with domain pre-filled', () => {
     render(<CreateWorkspaceModal onClose={vi.fn()} onCreated={vi.fn()} />, { wrapper: UserWrapper });
     expect(screen.getByPlaceholderText('My Company')).toBeInTheDocument();
-    // Domain should be pre-filled from user email
+
     const domainInput = screen.getByPlaceholderText('acme.com, other.org');
     expect((domainInput as HTMLInputElement).value).toBe('test.com');
   });
 
-  it('submits workspace creation', async () => {
+  it('trims the workspace name and normalizes domains before submitting', async () => {
     mockCreateWorkspace.mockResolvedValue({ id: 'ws-new' });
     const onCreated = vi.fn();
+    const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<CreateWorkspaceModal onClose={vi.fn()} onCreated={onCreated} />, { wrapper: UserWrapper });
-    await user.type(screen.getByPlaceholderText('My Company'), 'Acme');
-    await user.click(screen.getByText('Create'));
+    render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
 
-    expect(mockCreateWorkspace).toHaveBeenCalledWith(expect.objectContaining({ name: 'Acme' }));
+    await user.type(screen.getByPlaceholderText('My Company'), '  Acme Labs  ');
+    await user.clear(screen.getByPlaceholderText('acme.com, other.org'));
+    await user.type(screen.getByPlaceholderText('acme.com, other.org'), ' Example.com, OTHER.org, example.com ');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => {
+      expect(mockCreateWorkspace).toHaveBeenCalledWith({
+        name: 'Acme Labs',
+        slug: 'acme-labs',
+        allowedDomains: ['example.com', 'other.org'],
+      });
+    });
+    expect(onCreated).toHaveBeenCalledWith({ id: 'ws-new' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an alert and stays open when workspace creation fails', async () => {
+    mockCreateWorkspace.mockRejectedValue(new Error('Workspace slug already exists'));
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
+
+    await user.type(screen.getByPlaceholderText('My Company'), 'Acme');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Workspace slug already exists');
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 

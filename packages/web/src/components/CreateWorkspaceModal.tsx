@@ -1,32 +1,69 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
+import type { Workspace } from '@blather/types';
 import { Modal } from './Modal';
 import { api } from '../lib/api';
 import { useApp } from '../lib/store';
 
-export function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => void; onCreated: (ws: any) => void }) {
+interface CreateWorkspaceModalProps {
+  onClose: () => void;
+  onCreated: (workspace: Workspace) => void;
+}
+
+function buildWorkspaceSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function parseAllowedDomains(domains: string): string[] {
+  return Array.from(
+    new Set(
+      domains
+        .split(',')
+        .map((domain) => domain.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Failed to create workspace';
+}
+
+export function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModalProps) {
   const { user } = useApp();
-  const userDomain = user?.email?.split('@')[1] || '';
+  const initialDomain = user?.email?.split('@')[1] ?? '';
 
   const [name, setName] = useState('');
-  const [domains, setDomains] = useState(userDomain);
+  const [domains, setDomains] = useState(initialDomain);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError('');
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('Workspace name is required');
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const allowedDomains = domains
-        .split(',')
-        .map((d) => d.trim().toLowerCase())
-        .filter(Boolean);
-      const ws = await api.createWorkspace({ name, slug, allowedDomains });
-      onCreated(ws);
+      const workspace = await api.createWorkspace({
+        name: trimmedName,
+        slug: buildWorkspaceSlug(trimmedName),
+        allowedDomains: parseAllowedDomains(domains),
+      });
+      onCreated(workspace);
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -42,7 +79,7 @@ export function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => vo
             style={{ flex: 1 }}
             placeholder="My Company"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(event) => setName(event.target.value)}
             required
             autoFocus
           />
@@ -54,14 +91,16 @@ export function CreateWorkspaceModal({ onClose, onCreated }: { onClose: () => vo
             style={{ flex: 1 }}
             placeholder="acme.com, other.org"
             value={domains}
-            onChange={(e) => setDomains(e.target.value)}
+            onChange={(event) => setDomains(event.target.value)}
           />
         </div>
         <div style={{ marginLeft: 78, fontSize: 10, color: '#888', marginBottom: 8 }}>
           Anyone with a matching email can join automatically
         </div>
         {error && (
-          <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold', color: '#CC0000' }}>⚠ {error}</div>
+          <div role="alert" style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold', color: '#CC0000' }}>
+            ⚠ {error}
+          </div>
         )}
         <hr className="mac-separator" style={{ margin: '12px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
