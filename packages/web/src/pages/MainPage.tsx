@@ -740,7 +740,7 @@ export function MainPage() {
             <div className="mac-titlebar" style={{ fontSize: 11 }}>
               <div className="mac-close-box" style={{ width: 10, height: 10 }} />
               <div style={{ flex: 1, textAlign: 'center' }}>
-                {selectedChannel ? (() => {
+                {showTasks ? "📋 Tasks" : selectedChannel ? (() => {
                   if (selectedChannel.channelType === 'dm') {
                     // For DMs, show the other user's display name
                     const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; const otherUserId = uuids.find((id: string) => id !== user?.id);
