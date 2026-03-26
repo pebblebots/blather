@@ -29,8 +29,8 @@ vi.mock('@blather/db', () => {
 });
 
 import { __testing, getPresenceForWorkspace, publishEvent, publishEphemeralEvent } from './manager.js';
+import { JWT_SECRET } from '../config.js';
 
-const JWT_SECRET = 'blather-dev-secret-change-in-production';
 let testCounter = 0;
 
 function signToken(userId: string): string {
@@ -101,7 +101,7 @@ function createAuthedClient(userId: string, workspaceId: string): FakeWebSocket 
 }
 
 describe('WebSocket manager', () => {
-  function uniqueWs() {
+  function uniqueWorkspaceId() {
     return `ws-${++testCounter}`;
   }
 
@@ -120,7 +120,7 @@ describe('WebSocket manager', () => {
   });
 
   it('setupPendingClient authenticates via auth message', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws = new FakeWebSocket();
     __testing.setupPendingClient(ws as any);
 
@@ -135,7 +135,7 @@ describe('WebSocket manager', () => {
     __testing.setupPendingClient(ws as any);
 
     const closed = waitForClose(ws);
-    ws.clientSend({ type: 'auth', token: 'bad-token', workspaceId: uniqueWs() });
+    ws.clientSend({ type: 'auth', token: 'bad-token', workspaceId: uniqueWorkspaceId() });
 
     await expect(closed).resolves.toMatchObject({ code: 4003 });
   });
@@ -161,13 +161,13 @@ describe('WebSocket manager', () => {
   });
 
   it('tracks online presence for connected user', () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     createAuthedClient('user-p1', wsId);
     expect(getPresenceForWorkspace(wsId)).toEqual([{ userId: 'user-p1', status: 'online' }]);
   });
 
   it('removes presence when user disconnects', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws = createAuthedClient('user-p2', wsId);
     ws.close();
     expect(getPresenceForWorkspace(wsId)).toEqual([]);
@@ -178,7 +178,7 @@ describe('WebSocket manager', () => {
   });
 
   it('broadcasts presence.changed online when user connects', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws1 = createAuthedClient('user-a', wsId);
     const presencePromise = waitForType(ws1, 'presence.changed');
     createAuthedClient('user-b', wsId);
@@ -189,7 +189,7 @@ describe('WebSocket manager', () => {
   });
 
   it('broadcasts presence.changed offline when user disconnects', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws1 = createAuthedClient('user-c', wsId);
     const ws2 = createAuthedClient('user-d', wsId);
     expect(ws1.sent).toContainEqual({
@@ -208,7 +208,7 @@ describe('WebSocket manager', () => {
 
   it('enforces max 3 connections per user (closes oldest)', async () => {
     const userId = 'user-max';
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
 
     const conns = [createAuthedClient(userId, wsId), createAuthedClient(userId, wsId), createAuthedClient(userId, wsId)];
     const closePromise = waitForClose(conns[0]);
@@ -218,7 +218,7 @@ describe('WebSocket manager', () => {
   });
 
   it('responds to application ping with pong', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws = createAuthedClient('user-ping', wsId);
     const pong = waitForType(ws, 'pong');
     ws.clientSend({ type: 'ping' });
@@ -226,7 +226,7 @@ describe('WebSocket manager', () => {
   });
 
   it('publishEvent sends to all clients for public channel', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws1 = createAuthedClient('user-e1', wsId);
     const ws2 = createAuthedClient('user-e2', wsId);
 
@@ -241,7 +241,7 @@ describe('WebSocket manager', () => {
   });
 
   it('publishEvent restricts private channel events to members only', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws1 = createAuthedClient('user-priv1', wsId);
     const ws2 = createAuthedClient('user-priv2', wsId);
 
@@ -256,7 +256,7 @@ describe('WebSocket manager', () => {
   });
 
   it('publishEvent restricts DM channel events to members only', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws1 = createAuthedClient('user-dm1', wsId);
     const ws2 = createAuthedClient('user-dm2', wsId);
 
@@ -271,7 +271,7 @@ describe('WebSocket manager', () => {
   });
 
   it('publishEvent sends to all when no channel_id', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws = createAuthedClient('user-noc', wsId);
     const event = { type: 'workspace.updated', data: { name: 'new' } };
 
@@ -286,7 +286,7 @@ describe('WebSocket manager', () => {
   });
 
   it('publishEphemeralEvent broadcasts to all workspace clients', async () => {
-    const wsId = uniqueWs();
+    const wsId = uniqueWorkspaceId();
     const ws1 = createAuthedClient('user-eph1', wsId);
     const ws2 = createAuthedClient('user-eph2', wsId);
 
