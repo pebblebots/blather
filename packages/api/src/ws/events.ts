@@ -13,22 +13,27 @@ export async function emitEvent(
     payload: Record<string, unknown>;
   }
 ) {
-  const [evt] = await db.insert(events).values({
-    workspaceId: params.workspaceId,
-    channelId: params.channelId ?? null,
-    userId: params.userId,
-    type: params.type,
-    payload: params.payload,
+  const { workspaceId, channelId, userId, type, payload } = params;
+  const normalizedChannelId = channelId ?? null;
+
+  const [eventRecord] = await db.insert(events).values({
+    workspaceId,
+    channelId: normalizedChannelId,
+    userId,
+    type,
+    payload,
   }).returning();
 
-  await publishEvent(params.workspaceId, {
-    id: evt.id,
-    type: params.type,
-    workspace_id: params.workspaceId,
-    channel_id: params.channelId ?? null,
-    data: params.payload,
-    timestamp: evt.createdAt.toISOString(),
-  });
+  const publishedEvent = {
+    id: eventRecord.id,
+    type,
+    workspace_id: workspaceId,
+    channel_id: normalizedChannelId,
+    data: payload,
+    timestamp: eventRecord.createdAt.toISOString(),
+  };
 
-  return evt;
+  await publishEvent(workspaceId, publishedEvent);
+
+  return eventRecord;
 }

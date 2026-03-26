@@ -3,5 +3,7 @@
   "packages/api/src/middleware/auth.ts",
   "packages/api/src/routes/uploads.ts",
   "packages/web/src/hooks/useWebSocket.ts",
-  "packages/types/src/index.ts"
+  "packages/types/src/index.ts",
+  "packages/api/src/routes/metrics.ts",
+  "packages/api/src/ws/events.ts"
 ]
