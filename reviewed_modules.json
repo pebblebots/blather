@@ -31,5 +31,6 @@
   "packages/api/src/routes/memory.ts",
   "packages/api/src/routes/ws.ts",
   "packages/api/src/ws/events.test.ts",
-  "packages/api/src/ws/manager.test.ts"
+  "packages/api/src/ws/manager.test.ts",
+  "packages/api/src/middleware/auth.test.ts"
 ]

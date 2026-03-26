@@ -36,8 +36,7 @@ describe('auth middleware', () => {
   });
 
   it('expired JWT is rejected', async () => {
-    const user = await harness.factories.createUser();
-    const expiredToken = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: -1 });
+    const expiredToken = jwt.sign({ sub: 'expired-user-id' }, JWT_SECRET, { expiresIn: -1 });
 
     const response = await harness.request.get('/auth/me', {
       headers: harness.headers.bearer(expiredToken),
@@ -81,6 +80,15 @@ describe('auth middleware', () => {
 
     expect(response.status).toBe(200);
     expect(response.body?.id).toBe(user.id);
+  });
+
+  it('valid API key updates lastUsedAt', async () => {
+    const user = await harness.factories.createUser();
+    const rawKey = await harness.tokens.apiKeyForUser(user.id);
+
+    await harness.request.get('/auth/me', {
+      headers: harness.headers.apiKey(rawKey),
+    });
 
     const [updatedKey] = await harness.db
       .select()
@@ -89,6 +97,15 @@ describe('auth middleware', () => {
       .limit(1);
 
     expect(updatedKey?.lastUsedAt).toBeInstanceOf(Date);
+  });
+
+  it('nonexistent API key is rejected', async () => {
+    const response = await harness.request.get('/auth/me', {
+      headers: harness.headers.apiKey('blather_totally_bogus_key'),
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid API key' });
   });
 
   it('revoked API key is rejected', async () => {
