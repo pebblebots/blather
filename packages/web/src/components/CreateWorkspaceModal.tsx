@@ -42,23 +42,27 @@ export function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const trimmedName = name.trim();
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
 
-    const trimmedName = name.trim();
     if (!trimmedName) {
       setError('Workspace name is required');
       return;
     }
+
+    const slug = buildWorkspaceSlug(trimmedName);
+    const allowedDomains = parseAllowedDomains(domains);
 
     setLoading(true);
 
     try {
       const workspace = await api.createWorkspace({
         name: trimmedName,
-        slug: buildWorkspaceSlug(trimmedName),
-        allowedDomains: parseAllowedDomains(domains),
+        slug,
+        allowedDomains,
       });
       onCreated(workspace);
       onClose();
@@ -73,8 +77,9 @@ export function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModa
     <Modal title="Create Workspace" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 70, textAlign: 'right', fontSize: 12 }}>Name:</label>
+          <label htmlFor="workspace-name" style={{ width: 70, textAlign: 'right', fontSize: 12 }}>Name:</label>
           <input
+            id="workspace-name"
             className="mac-input"
             style={{ flex: 1 }}
             placeholder="My Company"
@@ -85,8 +90,9 @@ export function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModa
           />
         </div>
         <div style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 70, textAlign: 'right', fontSize: 12 }}>Domains:</label>
+          <label htmlFor="workspace-domains" style={{ width: 70, textAlign: 'right', fontSize: 12 }}>Domains:</label>
           <input
+            id="workspace-domains"
             className="mac-input"
             style={{ flex: 1 }}
             placeholder="acme.com, other.org"

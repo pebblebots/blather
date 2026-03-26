@@ -82,12 +82,27 @@ describe('CreateChannelModal', () => {
 });
 
 describe('CreateWorkspaceModal', () => {
-  it('renders form fields with domain pre-filled', () => {
+  it('renders labeled form fields with the current user domain pre-filled', () => {
     render(<CreateWorkspaceModal onClose={vi.fn()} onCreated={vi.fn()} />, { wrapper: UserWrapper });
-    expect(screen.getByPlaceholderText('My Company')).toBeInTheDocument();
 
-    const domainInput = screen.getByPlaceholderText('acme.com, other.org');
-    expect((domainInput as HTMLInputElement).value).toBe('test.com');
+    expect(screen.getByLabelText('Name:')).toBeInTheDocument();
+    expect(screen.getByLabelText('Domains:')).toHaveValue('test.com');
+  });
+
+  it('shows a validation error and skips the API call when the name is blank after trimming', async () => {
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
+
+    await user.type(screen.getByLabelText('Name:'), '   ');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Workspace name is required');
+    expect(mockCreateWorkspace).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('trims the workspace name and normalizes domains before submitting', async () => {
@@ -98,9 +113,9 @@ describe('CreateWorkspaceModal', () => {
 
     render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
 
-    await user.type(screen.getByPlaceholderText('My Company'), '  Acme Labs  ');
-    await user.clear(screen.getByPlaceholderText('acme.com, other.org'));
-    await user.type(screen.getByPlaceholderText('acme.com, other.org'), ' Example.com, OTHER.org, example.com ');
+    await user.type(screen.getByLabelText('Name:'), '  Acme Labs  ');
+    await user.clear(screen.getByLabelText('Domains:'));
+    await user.type(screen.getByLabelText('Domains:'), ' Example.com, OTHER.org, example.com ');
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => {
@@ -122,7 +137,7 @@ describe('CreateWorkspaceModal', () => {
 
     render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
 
-    await user.type(screen.getByPlaceholderText('My Company'), 'Acme');
+    await user.type(screen.getByLabelText('Name:'), 'Acme');
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Workspace slug already exists');
