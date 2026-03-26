@@ -11,7 +11,6 @@ import { messageRoutes } from './routes/messages.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { ttsRoutes } from './routes/tts.js';
 import { huddleRoutes } from './routes/huddles.js';
-import { memoryRoutes } from './routes/memory.js';
 import { activityRoutes } from './routes/activity.js';
 import { metricRoutes } from './routes/metrics.js';
 
@@ -50,7 +49,6 @@ export function createApp(db: Db = createDb()): Hono<Env> {
   app.route('/incidents', incidentRoutes);
   app.route('/messages', messageRoutes);
   app.route('/uploads', uploadRoutes);
-  app.route('/memory', memoryRoutes);
   app.route('/tts', ttsRoutes);
   app.route('/huddles', huddleRoutes);
   app.route('/metrics', metricRoutes);
