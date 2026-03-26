@@ -116,13 +116,11 @@ export async function publishEvent(workspaceId: string, event: Record<string, un
   }
 }
 
-/** Broadcast an ephemeral event (no DB write) — respects channel privacy */
-export async function publishEphemeralEvent(workspaceId: string, channelId: string, event: Record<string, unknown>) {
+/** Broadcast an ephemeral event (no DB write). */
+export async function publishEphemeralEvent(workspaceId: string, event: Record<string, unknown>) {
   const set = workspaceClients.get(workspaceId);
   if (!set) return;
 
-  // No DB queries — caller already verified membership for DM/private channels.
-  // Broadcast to all workspace clients; fine for typing indicators.
   const data = JSON.stringify(event);
   for (const client of set) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;

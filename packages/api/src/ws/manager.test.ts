@@ -293,12 +293,12 @@ describe('WebSocket manager', () => {
     const event = { type: 'typing', channelId: 'ch-1', userId: 'user-eph1' };
     const p1 = waitForType(ws1, 'typing');
     const p2 = waitForType(ws2, 'typing');
-    await publishEphemeralEvent(wsId, 'ch-1', event);
+    await publishEphemeralEvent(wsId, event);
 
     await expect(Promise.all([p1, p2])).resolves.toEqual([event, event]);
   });
 
   it('publishEphemeralEvent is a no-op for unknown workspace', async () => {
-    await expect(publishEphemeralEvent('nonexistent', 'ch', { type: 'typing' })).resolves.toBeUndefined();
+    await expect(publishEphemeralEvent('nonexistent', { type: 'typing' })).resolves.toBeUndefined();
   });
 });

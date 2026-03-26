@@ -391,7 +391,7 @@ channelRoutes.post('/:id/typing', async (c) => {
   markTyping(channelId, userId);
 
   const { publishEphemeralEvent } = await import('../ws/manager.js');
-  await publishEphemeralEvent(chan.workspaceId, channelId, {
+  await publishEphemeralEvent(chan.workspaceId, {
     type: 'typing.started',
     channel_id: channelId,
     data: { userId, channelId, user: typingUser ? { displayName: typingUser.displayName, isAgent: typingUser.isAgent } : undefined },
