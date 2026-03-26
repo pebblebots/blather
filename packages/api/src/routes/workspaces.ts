@@ -195,7 +195,18 @@ workspaceRoutes.post('/:id/dm', async (c) => {
     ));
 
   if (existingChannels.length > 0) {
-    return c.json(existingChannels[0]);
+    // Ensure both users are members (fixes channels with missing memberships)
+    const existingCh = existingChannels[0];
+    for (const uid of userIds) {
+      const [existing] = await db.select().from(channelMembers)
+        .where(and(eq(channelMembers.channelId, existingCh.id), eq(channelMembers.userId, uid)))
+        .limit(1);
+      if (!existing) {
+        await db.insert(channelMembers).values({ channelId: existingCh.id, userId: uid })
+          .onConflictDoNothing();
+      }
+    }
+    return c.json(existingCh);
   }
 
   // Create new DM channel
