@@ -95,10 +95,10 @@ export interface Channel {
 
 // ── Messages ──
 
-// Old CreateMessageRequest replaced by version with attachments
-export interface _OldCreateMessageRequest_REMOVED {
+export interface CreateMessageRequest {
   content: string;
   threadId?: string;
+  attachments?: Attachment[];
 }
 
 export interface Message {
@@ -209,13 +209,6 @@ export interface Attachment {
   filename: string;
   contentType: string;
   size: number;
-}
-
-// Old CreateMessageRequest replaced by version with attachments
-export interface _OldCreateMessageRequest_REMOVED {
-  content: string;
-  threadId?: string;
-  attachments?: Attachment[];
 }
 
 export interface UploadResponse {

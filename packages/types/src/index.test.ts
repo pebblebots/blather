@@ -4,7 +4,7 @@ import type {
   UserPublic,
   CreateWorkspaceRequest, Workspace, WorkspaceRole, ChannelType, WorkspaceMember, CreateDMRequest,
   CreateChannelRequest, Channel,
-  Message, CreateReactionRequest, Reaction,
+  CreateMessageRequest, Message, CreateReactionRequest, Reaction,
   EventType, WsEvent,
   PresenceStatus, PresenceInfo,
   TaskPriority, TaskStatus, Task, CreateTaskRequest, UpdateTaskRequest,
@@ -63,6 +63,8 @@ describe('types compile check', () => {
 
     expectTypeOf<Message>().toHaveProperty('threadId');
     expectTypeOf<Message>().toHaveProperty('content');
+    expectTypeOf<CreateMessageRequest>().toHaveProperty('content');
+    expectTypeOf<CreateMessageRequest>().toHaveProperty('attachments');
 
     expectTypeOf<WsEvent>().toHaveProperty('type');
     expectTypeOf<WsEvent>().toHaveProperty('payload');
