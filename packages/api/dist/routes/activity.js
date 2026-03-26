@@ -1,9 +1,79 @@
 import { Hono } from "hono";
 import { sql, eq } from "drizzle-orm";
-import { users } from "@blather/db";
+import { agentActivityLog, users } from "@blather/db";
 import { authMiddleware } from "../middleware/auth.js";
 export const activityRoutes = new Hono();
 activityRoutes.use("*", authMiddleware);
+const DEFAULT_ACTIVITY_LIMIT = 50;
+const MAX_ACTIVITY_LIMIT = 200;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+function plural(count, singular, pluralForm) {
+    if (count === 1)
+        return singular;
+    return pluralForm ?? singular + 's';
+}
+function formatTaskIds(metas) {
+    const ids = metas
+        .map((m) => m.shortId)
+        .filter((id) => id !== undefined && id !== null)
+        .map((id) => `T#${id}`)
+        .join(', ');
+    return ids ? ': ' + ids : '';
+}
+function inChannel(channelName) {
+    return channelName ? ` in #${channelName}` : '';
+}
+const ACTION_LABELS = {
+    message_sent: (count, ch) => `Sent ${count} ${plural(count, 'message')}${inChannel(ch)}`,
+    task_created: (count, _ch, metas) => `Created ${count} ${plural(count, 'task')}${formatTaskIds(metas)}`,
+    task_completed: (count, _ch, metas) => `Completed ${count} ${plural(count, 'task')}${formatTaskIds(metas)}`,
+    task_updated: (count) => `Updated ${count} ${plural(count, 'task')}`,
+    reaction_added: (count, ch, metas) => {
+        const emojis = [...new Set(metas.map((m) => m.emoji).filter((e) => typeof e === 'string' && e.length > 0))].join(' ');
+        const prefix = emojis ? `${emojis} ` : '';
+        return `Reacted ${prefix}to ${count} ${plural(count, 'message')}${inChannel(ch)}`;
+    },
+    file_uploaded: (count, ch) => `Uploaded ${count} ${plural(count, 'file')}${inChannel(ch)}`,
+    search_performed: (count) => `Performed ${count} ${plural(count, 'search', 'searches')}`,
+};
+function resultRows(result) {
+    if (Array.isArray(result))
+        return result;
+    if (result && typeof result === "object" && Array.isArray(result.rows)) {
+        return result.rows;
+    }
+    return [];
+}
+function defaultSince() {
+    return new Date(Date.now() - ONE_DAY_MS).toISOString();
+}
+function parseActivityLimit(rawLimit) {
+    const parsedLimit = Number.parseInt(rawLimit ?? "", 10);
+    if (!Number.isFinite(parsedLimit) || parsedLimit < 1) {
+        return DEFAULT_ACTIVITY_LIMIT;
+    }
+    return Math.min(parsedLimit, MAX_ACTIVITY_LIMIT);
+}
+function activityInsertValues(entry) {
+    return {
+        workspaceId: entry.workspaceId,
+        agentUserId: entry.userId,
+        sessionKey: entry.sessionKey ?? "",
+        action: entry.action,
+        targetChannelId: entry.targetChannelId ?? null,
+        targetMessageId: entry.targetMessageId ?? null,
+        metadata: entry.metadata ?? {},
+    };
+}
+function isMetadataRecord(value) {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function metadataList(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value.filter(isMetadataRecord);
+}
 // POST /activity — log an activity entry
 activityRoutes.post("/", async (c) => {
     const db = c.get("db");
@@ -12,19 +82,26 @@ activityRoutes.post("/", async (c) => {
     if (!workspaceId || !agentUserId || !action) {
         return c.json({ error: "workspaceId, agentUserId, and action are required" }, 400);
     }
-    const result = await db.execute(sql `
-    INSERT INTO agent_activity_log (workspace_id, agent_user_id, session_key, action, target_channel_id, target_message_id, metadata)
-    VALUES (${workspaceId}, ${agentUserId}, ${sessionKey || ''}, ${action}, ${targetChannelId || null}, ${targetMessageId || null}, ${JSON.stringify(metadata || {})}::jsonb)
-    RETURNING id, created_at
-  `);
-    return c.json({ id: result[0].id, createdAt: result[0].created_at }, 201);
+    const [row] = await db
+        .insert(agentActivityLog)
+        .values(activityInsertValues({
+        workspaceId,
+        userId: agentUserId,
+        sessionKey,
+        action,
+        targetChannelId,
+        targetMessageId,
+        metadata,
+    }))
+        .returning({ id: agentActivityLog.id, createdAt: agentActivityLog.createdAt });
+    return c.json(row, 201);
 });
 // GET /activity — query recent activity
 activityRoutes.get("/", async (c) => {
     const db = c.get("db");
     const agentId = c.req.query("agentId");
-    const since = c.req.query("since") || new Date(Date.now() - 86400000).toISOString();
-    const limit = Math.min(parseInt(c.req.query("limit") || "50", 10), 200);
+    const since = c.req.query("since") || defaultSince();
+    const limit = parseActivityLimit(c.req.query("limit"));
     if (!agentId)
         return c.json({ error: "agentId required" }, 400);
     const rows = await db.execute(sql `
@@ -34,13 +111,13 @@ activityRoutes.get("/", async (c) => {
     ORDER BY created_at DESC
     LIMIT ${limit}
   `);
-    return c.json(rows);
+    return c.json(resultRows(rows));
 });
 // GET /activity/summary — condensed text summary
 activityRoutes.get("/summary", async (c) => {
     const db = c.get("db");
     const agentId = c.req.query("agentId");
-    const since = c.req.query("since") || new Date(Date.now() - 86400000).toISOString();
+    const since = c.req.query("since") || defaultSince();
     if (!agentId)
         return c.json({ error: "agentId required" }, 400);
     const rows = await db.execute(sql `
@@ -52,50 +129,30 @@ activityRoutes.get("/summary", async (c) => {
     GROUP BY a.action, c.name, a.target_channel_id
     ORDER BY cnt DESC
   `);
-    const actionLabels = {
-        message_sent: (cnt, ch) => `Sent ${cnt} message${cnt > 1 ? 's' : ''}${ch ? ' in #' + ch : ''}`,
-        task_created: (cnt, _ch, metas) => {
-            const ids = metas.filter(m => m.shortId).map(m => 'T#' + m.shortId).join(', ');
-            return `Created ${cnt} task${cnt > 1 ? 's' : ''}${ids ? ': ' + ids : ''}`;
-        },
-        task_completed: (cnt, _ch, metas) => {
-            const ids = metas.filter(m => m.shortId).map(m => 'T#' + m.shortId).join(', ');
-            return `Completed ${cnt} task${cnt > 1 ? 's' : ''}${ids ? ': ' + ids : ''}`;
-        },
-        task_updated: (cnt) => `Updated ${cnt} task${cnt > 1 ? 's' : ''}`,
-        reaction_added: (cnt, ch, metas) => {
-            const emojis = [...new Set(metas.map(m => m.emoji).filter(Boolean))].join(' ');
-            return `Reacted ${emojis || ''} to ${cnt} message${cnt > 1 ? 's' : ''}${ch ? ' in #' + ch : ''}`;
-        },
-        file_uploaded: (cnt, ch) => `Uploaded ${cnt} file${cnt > 1 ? 's' : ''}${ch ? ' in #' + ch : ''}`,
-        search_performed: (cnt) => `Performed ${cnt} search${cnt > 1 ? 'es' : ''}`,
-    };
+    const summaryRows = resultRows(rows);
     const lines = [`## Activity since ${since}`];
-    for (const row of rows) {
-        const fn = actionLabels[row.action];
-        const ch = row.channel_name;
-        const metas = Array.isArray(row.metas) ? row.metas : [];
-        if (fn) {
-            lines.push('- ' + fn(row.cnt, ch, metas));
+    for (const row of summaryRows) {
+        const formatAction = ACTION_LABELS[row.action];
+        const metas = metadataList(row.metas);
+        if (formatAction) {
+            lines.push('- ' + formatAction(row.cnt, row.channel_name, metas));
         }
         else {
-            lines.push(`- ${row.action}: ${row.cnt} time${row.cnt > 1 ? 's' : ''}${ch ? ' in #' + ch : ''}`);
+            lines.push(`- ${row.action}: ${row.cnt} ${plural(row.cnt, 'time')}${inChannel(row.channel_name)}`);
         }
     }
-    if (rows.length === 0)
+    if (summaryRows.length === 0)
         lines.push('- No activity recorded');
-    return c.json({ summary: lines.join('\n'), rows });
+    return c.json({ summary: lines.join('\n'), rows: summaryRows });
 });
 // Helper: log activity (exported for use by other routes)
 export async function logAgentActivity(db, entry) {
     try {
-        await db.execute(sql `
-      INSERT INTO agent_activity_log (workspace_id, agent_user_id, session_key, action, target_channel_id, target_message_id, metadata)
-      VALUES (${entry.workspaceId}, ${entry.userId}, ${entry.sessionKey || ''}, ${entry.action}, ${entry.targetChannelId || null}, ${entry.targetMessageId || null}, ${JSON.stringify(entry.metadata || {})}::jsonb)
-    `);
+        await db.insert(agentActivityLog).values(activityInsertValues(entry));
     }
-    catch (e) {
-        console.error('[activity-log] Failed to log:', e.message);
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[activity-log] Failed to log:', message);
     }
 }
 // Helper: check if user is an agent

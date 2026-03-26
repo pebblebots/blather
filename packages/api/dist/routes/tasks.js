@@ -5,9 +5,10 @@ import { tasks, taskComments, users } from '@blather/db';
 import { authMiddleware } from '../middleware/auth.js';
 export const taskRoutes = new Hono();
 taskRoutes.use('*', authMiddleware);
+const VALID_STATUSES = ['queued', 'in_progress', 'done'];
 function normalizeStatus(s) {
     const mapped = s.replace(/-/g, '_');
-    if (!['queued', 'in_progress', 'done'].includes(mapped))
+    if (!VALID_STATUSES.includes(mapped))
         throw new Error('Invalid status: ' + s);
     return mapped;
 }
@@ -20,7 +21,7 @@ taskRoutes.get('/', async (c) => {
     const conditions = [eq(tasks.workspaceId, workspaceId)];
     const status = c.req.query('status');
     if (status)
-        conditions.push(eq(tasks.status, status.replace(/-/g, '_')));
+        conditions.push(eq(tasks.status, normalizeStatus(status)));
     const priority = c.req.query('priority');
     if (priority)
         conditions.push(eq(tasks.priority, priority));
@@ -49,9 +50,14 @@ taskRoutes.post('/', async (c) => {
         creatorId: userId,
         sourceChannelId: body.sourceChannelId ?? null,
     }).returning();
-    // Auto-log agent task creation
-    isAgentUser(db, userId).then(isAgent => { if (isAgent)
-        logAgentActivity(db, { workspaceId: body.workspaceId, userId, action: "task_created", metadata: { taskId: task.id, title: task.title, shortId: task.shortId } }); }).catch(() => { });
+    // Auto-log agent task creation (fire-and-forget)
+    isAgentUser(db, userId).then(isAgent => {
+        if (isAgent)
+            logAgentActivity(db, {
+                workspaceId: body.workspaceId, userId, action: 'task_created',
+                metadata: { taskId: task.id, title: task.title, shortId: task.shortId },
+            });
+    }).catch(() => { });
     return c.json(task, 201);
 });
 // Update task (with status change notification)
@@ -78,7 +84,7 @@ taskRoutes.patch('/:id', async (c) => {
     const [task] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
     // Status change notification
     if (body.status !== undefined && normalizeStatus(body.status) !== existing.status) {
-        const sourceChannelId = existing.sourceChannelId || existing.source_channel_id;
+        const sourceChannelId = existing.sourceChannelId;
         if (sourceChannelId) {
             try {
                 const { postStatusNotification } = await import('../bots/taskNotify.js');
@@ -89,11 +95,16 @@ taskRoutes.patch('/:id', async (c) => {
             }
         }
     }
-    // Auto-log agent task update
-    isAgentUser(db, userId).then(isAgent => { if (isAgent) {
-        const act = (body.status === "done") ? "task_completed" : "task_updated";
-        logAgentActivity(db, { workspaceId: existing.workspaceId, userId, action: act, metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status } });
-    } }).catch(() => { });
+    // Auto-log agent task update (fire-and-forget)
+    isAgentUser(db, userId).then(isAgent => {
+        if (!isAgent)
+            return;
+        const action = body.status === 'done' ? 'task_completed' : 'task_updated';
+        logAgentActivity(db, {
+            workspaceId: existing.workspaceId, userId, action,
+            metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status },
+        });
+    }).catch(() => { });
     return c.json(task);
 });
 // Delete task
