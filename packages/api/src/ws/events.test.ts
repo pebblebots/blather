@@ -43,17 +43,14 @@ function createDbMock(returnedEvent: StoredEvent) {
   let insertedValues: InsertedEventValues | undefined;
 
   const returning = vi.fn().mockResolvedValue([returnedEvent]);
-  const values = vi.fn().mockImplementation((nextValues: InsertedEventValues) => {
-    insertedValues = nextValues;
+  const values = vi.fn().mockImplementation((v: InsertedEventValues) => {
+    insertedValues = v;
     return { returning };
   });
   const insert = vi.fn().mockReturnValue({ values });
 
   return {
     db: { insert } as unknown as Db,
-    insert,
-    values,
-    returning,
     getInsertedValues: () => insertedValues,
   };
 }
