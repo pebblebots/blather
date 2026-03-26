@@ -63,5 +63,6 @@
   "packages/web/src/components/TaskPanel.test.tsx",
   "packages/web/src/components/ThreadPanel.tsx",
   "packages/web/src/components/ThreadPanel.test.tsx",
-  "packages/web/src/lib/chatUtils.ts"
+  "packages/web/src/lib/chatUtils.ts",
+  "packages/web/src/pages/AuthPage.test.tsx"
 ]
