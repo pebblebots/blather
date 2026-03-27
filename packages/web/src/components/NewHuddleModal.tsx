@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
-import { apiUrl } from '../lib/urls';
+import { api } from '../lib/api';
 
 interface NewHuddleModalProps {
   workspaceId: string;
@@ -10,7 +10,6 @@ interface NewHuddleModalProps {
 }
 
 export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreated }: NewHuddleModalProps) {
-  const token = localStorage.getItem('blather_token') || '';
   const [topic, setTopic] = useState('');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,20 +27,12 @@ export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreat
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic.trim() || selectedAgents.length === 0) return;
+    const trimmed = topic.trim();
+    if (!trimmed || selectedAgents.length === 0) return;
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(apiUrl('/huddles'), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, topic: topic.trim(), agentIds: selectedAgents }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as any).error || `HTTP ${res.status}`);
-      }
-      const huddle = await res.json();
+      const huddle = await api.createHuddle({ workspaceId, topic: trimmed, agentIds: selectedAgents });
       onCreated(huddle);
       onClose();
     } catch (err: any) {
@@ -55,8 +46,9 @@ export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreat
     <Modal title="🎙️ Start a Huddle" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Prompt:</label>
+          <label htmlFor="huddle-topic" style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Topic:</label>
           <input
+            id="huddle-topic"
             className="mac-input"
             style={{ flex: 1 }}
             placeholder="What should they talk about?"
@@ -87,7 +79,7 @@ export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreat
         </div>
 
         {error && (
-          <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold', color: '#CC0000' }}>⚠ {error}</div>
+          <div role="alert" style={{ marginBottom: 8, fontSize: 12, fontWeight: 'bold', color: '#CC0000' }}>⚠ {error}</div>
         )}
         <hr className="mac-separator" style={{ margin: '12px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

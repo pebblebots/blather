@@ -117,6 +117,9 @@ export const api = {
     if (params.limit) p.set("limit", String(params.limit));
     return request<any[]>(`/messages/search?${p}`);
   },
+
+  createHuddle: (data: { workspaceId: string; topic: string; agentIds: string[] }) =>
+    request<any>('/huddles', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // Unread tracking

@@ -14,6 +14,7 @@ afterEach(() => cleanup());
 const mockCreateChannel = vi.fn();
 const mockCreateWorkspace = vi.fn();
 const mockInviteMember = vi.fn();
+const mockCreateHuddle = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -24,6 +25,7 @@ vi.mock('../lib/api', () => ({
     createChannel: (...args: any[]) => mockCreateChannel(...args),
     createWorkspace: (...args: any[]) => mockCreateWorkspace(...args),
     inviteMember: (...args: any[]) => mockInviteMember(...args),
+    createHuddle: (...args: any[]) => mockCreateHuddle(...args),
   },
 }));
 
@@ -280,27 +282,104 @@ describe('NewHuddleModal', () => {
     { id: 'u-1', displayName: 'Alice', isAgent: false },
     { id: 'u-2', displayName: 'AgentBot', isAgent: true },
     { id: 'u-3', displayName: 'AgentTwo', isAgent: true },
+    { id: 'u-4', displayName: 'AgentTri', isAgent: true },
+    { id: 'u-5', displayName: 'AgentQuad', isAgent: true },
   ];
 
-  it('renders prompt input and agent checkboxes', () => {
+  it('renders labeled topic input and only agent checkboxes', () => {
     render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
-    expect(screen.getByPlaceholderText(/what should they talk about/i)).toBeInTheDocument();
+
+    expect(screen.getByLabelText('Topic:')).toBeInTheDocument();
     expect(screen.getByText('AgentBot')).toBeInTheDocument();
     expect(screen.getByText('AgentTwo')).toBeInTheDocument();
     // Human users should not appear as agent checkboxes
     expect(screen.queryByText('Alice')).toBeNull();
   });
 
-  it('submit is disabled without topic or agents', () => {
+  it('submit button is disabled without topic or agents selected', () => {
     render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
-    expect(screen.getByText('Start Huddle')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start Huddle' })).toBeDisabled();
   });
 
   it('calls onClose on cancel', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={onClose} onCreated={vi.fn()} />);
-    await user.click(screen.getByText('Cancel'));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('submits the trimmed topic and selected agents, then closes on success', async () => {
+    const huddle = { id: 'h-1', topic: 'AI Ethics' };
+    mockCreateHuddle.mockResolvedValue(huddle);
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={onClose} onCreated={onCreated} />);
+
+    await user.type(screen.getByLabelText('Topic:'), '  AI Ethics  ');
+    await user.click(screen.getByText('AgentBot'));
+    await user.click(screen.getByText('AgentTwo'));
+    await user.click(screen.getByRole('button', { name: 'Start Huddle' }));
+
+    await waitFor(() => {
+      expect(mockCreateHuddle).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        topic: 'AI Ethics',
+        agentIds: ['u-2', 'u-3'],
+      });
+    });
+    expect(onCreated).toHaveBeenCalledWith(huddle);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the API error and stays open when creation fails', async () => {
+    mockCreateHuddle.mockRejectedValue(new Error('Maximum 3 agents per huddle'));
+    const onCreated = vi.fn();
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={onClose} onCreated={onCreated} />);
+
+    await user.type(screen.getByLabelText('Topic:'), 'Test huddle');
+    await user.click(screen.getByText('AgentBot'));
+    await user.click(screen.getByRole('button', { name: 'Start Huddle' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Maximum 3 agents per huddle');
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('caps agent selection at 3 — fourth checkbox is disabled', async () => {
+    const user = userEvent.setup();
+
+    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
+
+    await user.click(screen.getByText('AgentBot'));
+    await user.click(screen.getByText('AgentTwo'));
+    await user.click(screen.getByText('AgentTri'));
+
+    // The fourth agent checkbox should be disabled
+    const quadCheckbox = screen.getByText('AgentQuad').parentElement!.querySelector('input')!;
+    expect(quadCheckbox).toBeDisabled();
+  });
+
+  it('allows deselecting an agent to free a slot', async () => {
+    const user = userEvent.setup();
+
+    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
+
+    // Select 3
+    await user.click(screen.getByText('AgentBot'));
+    await user.click(screen.getByText('AgentTwo'));
+    await user.click(screen.getByText('AgentTri'));
+
+    // Deselect one
+    await user.click(screen.getByText('AgentBot'));
+
+    // Fourth should now be enabled
+    const quadCheckbox = screen.getByText('AgentQuad').parentElement!.querySelector('input')!;
+    expect(quadCheckbox).not.toBeDisabled();
   });
 });
