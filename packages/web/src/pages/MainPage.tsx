@@ -1113,7 +1113,7 @@ export function MainPage() {
                 <div style={{ marginTop: 4, marginBottom: 4 }}>
                   <hr className="mac-separator" />
                   <div
-                    onClick={() => { setShowTasks(true); setSelectedCh(null); }}
+                    onClick={() => { setShowTasks(true); setSelectedCh(null); setIsSidebarOpen(false); }}
                     style={{
                       padding: "2px 6px",
                       fontSize: 12,
