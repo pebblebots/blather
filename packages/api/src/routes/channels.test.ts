@@ -423,4 +423,131 @@ describe('channel routes', () => {
     const memberships = await harness.db.select().from(channelMembers).where(eq(channelMembers.channelId, channel.id));
     expect(memberships).toHaveLength(0);
   });
+
+describe('Canvas data retrieval', () => {
+  const canvasPayload = {
+    html: '<h1>Test</h1>',
+    title: 'Test Canvas',
+    width: 400,
+    height: 300
+  };
+
+  it('should return canvas data when fetching messages via GET', async () => {
+    const { owner, channel } = await createFixture();
+    
+    // Create a message with canvas data
+    const messageWithCanvas = await harness.factories.createMessage({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'Message with canvas',
+      canvas: canvasPayload
+    });
+
+    // Fetch messages via GET and verify canvas field is present
+    const response = await harness.request.get<{ messages: any[] }>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.messages).toHaveLength(1);
+    
+    const message = response.body.messages[0];
+    expect(message.id).toBe(messageWithCanvas.id);
+    expect(message.canvas).toEqual({
+      ...canvasPayload,
+      version: 1
+    });
+  });
+
+  it('should return canvas data in around endpoint', async () => {
+    const { owner, channel } = await createFixture();
+    
+    // Create a message with canvas data
+    const messageWithCanvas = await harness.factories.createMessage({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'Message with canvas for around test',
+      canvas: canvasPayload
+    });
+
+    // Test the "around" endpoint
+    const response = await harness.request.get<{ messages: any[] }>(
+      `/channels/${channel.id}/messages/around/${messageWithCanvas.id}`,
+      {
+        headers: harness.headers.forUser(owner.id),
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.messages).toHaveLength(1);
+    
+    const message = response.body.messages[0];
+    expect(message.id).toBe(messageWithCanvas.id);
+    expect(message.canvas).toEqual({
+      ...canvasPayload,
+      version: 1
+    });
+  });
+
+  it('should return canvas data in thread replies', async () => {
+    const { owner, channel } = await createFixture();
+    
+    // Create a parent message
+    const parentMessage = await harness.factories.createMessage({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'Parent message'
+    });
+
+    // Create a thread reply with canvas data
+    const replyWithCanvas = await harness.factories.createMessage({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'Reply with canvas',
+      threadId: parentMessage.id,
+      canvas: canvasPayload
+    });
+
+    // Fetch thread replies and verify canvas field is present
+    const response = await harness.request.get<{ replies: any[] }>(
+      `/channels/${channel.id}/messages/${parentMessage.id}/replies`,
+      {
+        headers: harness.headers.forUser(owner.id),
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.replies).toHaveLength(1);
+    
+    const reply = response.body.replies[0];
+    expect(reply.id).toBe(replyWithCanvas.id);
+    expect(reply.canvas).toEqual({
+      ...canvasPayload,
+      version: 1
+    });
+  });
+
+  it('should handle messages without canvas data gracefully', async () => {
+    const { owner, channel } = await createFixture();
+    
+    // Create a message without canvas data
+    const regularMessage = await harness.factories.createMessage({
+      channelId: channel.id,
+      userId: owner.id,
+      content: 'Regular message without canvas'
+    });
+
+    // Fetch messages via GET
+    const response = await harness.request.get<{ messages: any[] }>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.messages).toHaveLength(1);
+    
+    const message = response.body.messages[0];
+    expect(message.id).toBe(regularMessage.id);
+    expect(message.canvas).toBeNull();
+  });
+});
 });
