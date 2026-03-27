@@ -73,5 +73,6 @@
   "packages/web/src/components/ChannelContextMenu.test.tsx",
   "packages/web/src/components/NewHuddleModal.tsx",
   "packages/web/src/pages/MainPage.tsx",
-  "packages/web/src/pages/MainPage.test.tsx"
+  "packages/web/src/pages/MainPage.test.tsx",
+  "packages/web/src/components/HuddleModal.tsx"
 ]

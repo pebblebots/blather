@@ -123,6 +123,18 @@ export const api = {
 
   getActiveHuddles: (workspaceId: string) =>
     request<any[]>(`/huddles?workspaceId=${workspaceId}&status=active`),
+
+  getHuddle: (huddleId: string) =>
+    request<any>(`/huddles/${huddleId}`),
+
+  joinHuddle: (huddleId: string) =>
+    request<any>(`/huddles/${huddleId}/join`, { method: 'POST' }),
+
+  speak: (huddleId: string, content: string) =>
+    request<any>(`/huddles/${huddleId}/speak`, { method: 'POST', body: JSON.stringify({ content }) }),
+
+  endHuddle: (huddleId: string) =>
+    request<any>(`/huddles/${huddleId}`, { method: 'DELETE' }),
 };
 
 // Unread tracking

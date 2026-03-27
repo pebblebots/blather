@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { api } from '../lib/api';
 import { apiUrl } from '../lib/urls';
 
 const NICK_COLORS = [
@@ -44,7 +45,6 @@ interface HuddleModalProps {
 }
 
 export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMap, onClose, onEnded, huddleEvents }: HuddleModalProps) {
-  const token = localStorage.getItem('blather_token');
   const [participants, setParticipants] = useState<HuddleParticipant[]>([]);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [speakingUserId, setSpeakingUserId] = useState<string | null>(null);
@@ -60,6 +60,8 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
   const isPlaying = useRef(false);
   const currentAudio = useRef<HTMLAudioElement | null>(null);
   const processedEvents = useRef(new Set<string>());
+  // Keep a ref mirror of transcript so playNext can read without misusing setState
+  const transcriptData = useRef<TranscriptEntry[]>([]);
 
   // Kill all audio helper
   const killAudio = useCallback(() => {
@@ -76,20 +78,21 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     setCurrentPlayingId(null);
   }, []);
 
+  // Keep transcriptData ref in sync with state
+  useEffect(() => {
+    transcriptData.current = transcript;
+  }, [transcript]);
+
   // Fetch huddle details + message history on mount
   useEffect(() => {
-    fetch(apiUrl(`/huddles/${huddleId}`), { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+    api.getHuddle(huddleId)
       .then(data => {
         if (data.participants) setParticipants(data.participants);
         if (data.startedAt) startTime.current = new Date(data.startedAt).getTime();
         if (data.status === 'ended') setEnded(true);
         // Fetch message history for the huddle channel
         if (data.channel?.id) {
-          fetch(apiUrl(`/channels/${data.channel.id}/messages?limit=100`), {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then(r => r.json())
+          api.getMessages(data.channel.id, 100)
             .then((messages: any[]) => {
               if (!Array.isArray(messages)) return;
               // Messages come newest-first, reverse for chronological
@@ -105,7 +108,6 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
                     timestamp: m.createdAt,
                     audioUrl: undefined,
                   }));
-                // Merge: history first, then any live entries
                 return [...newEntries, ...prev.filter(t => !newEntries.some(n => n.id === t.id))];
               });
               // Mark all history messages as processed so we don't try to play old audio
@@ -117,21 +119,11 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
       .catch(() => {});
 
     // Join as listener
-    fetch(apiUrl(`/huddles/${huddleId}/join`), { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }).catch(() => {});
+    api.joinHuddle(huddleId).catch(() => {});
 
-    // Cleanup on unmount — kill audio
-    return () => {
-      if (currentAudio.current) {
-        currentAudio.current.pause();
-        currentAudio.current.src = '';
-        currentAudio.current.onended = null;
-        currentAudio.current.onerror = null;
-        currentAudio.current = null;
-      }
-      audioQueue.current = [];
-      isPlaying.current = false;
-    };
-  }, [huddleId]);
+    // Cleanup on unmount
+    return () => killAudio();
+  }, [huddleId, killAudio]);
 
   // Timer
   useEffect(() => {
@@ -168,8 +160,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
         }
       }
       if (event.type === 'huddle.joined') {
-        fetch(apiUrl(`/huddles/${huddleId}`), { headers: { Authorization: `Bearer ${token}` } })
-          .then(r => r.json())
+        api.getHuddle(huddleId)
           .then(data => { if (data.participants) setParticipants(data.participants); })
           .catch(() => {});
       }
@@ -189,7 +180,6 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     } else if (transcriptRef.current) {
-      // When not playing, scroll to bottom for latest
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
   }, [currentPlayingId, transcript]);
@@ -216,12 +206,9 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     const fullUrl = apiUrl(url);
     setCurrentPlayingId(messageId);
 
-    // Find the userId for this message to set speakingUserId
-    setTranscript(prev => {
-      const entry = prev.find(t => t.id === messageId);
-      if (entry) setSpeakingUserId(entry.userId);
-      return prev;
-    });
+    // Read transcript from ref to find the speaker
+    const entry = transcriptData.current.find(t => t.id === messageId);
+    if (entry) setSpeakingUserId(entry.userId);
 
     const audio = new Audio(fullUrl);
     currentAudio.current = audio;
@@ -251,11 +238,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (!input.trim() || sending) return;
     setSending(true);
     try {
-      await fetch(apiUrl(`/huddles/${huddleId}/speak`), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: input.trim() }),
-      });
+      await api.speak(huddleId, input.trim());
       setInput('');
     } catch {}
     setSending(false);
@@ -265,16 +248,12 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (!confirm('End this huddle for everyone?')) return;
     killAudio();
     try {
-      await fetch(apiUrl(`/huddles/${huddleId}`), {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.endHuddle(huddleId);
     } catch {}
     setEnded(true);
     onEnded();
   };
 
-  // Close button also kills audio
   const handleClose = () => {
     killAudio();
     onClose();

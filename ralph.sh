@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function npackages() {
-    find packages -iname \*.ts | wc -l
+    find packages -iname \*.ts | grep -v \*.test.ts | wc -l
 }
 
 function num_complete( ) {
