@@ -55,8 +55,8 @@ describe('MessageList', () => {
   it('renders timestamp for each message', () => {
     const messages = [makeMsg()];
     render(<MessageList messages={messages} usersMap={usersMap} />);
-    // Timestamp is rendered as [HH:MM] — just verify the bracket format exists
-    expect(screen.getByText(/\[\d{2}:\d{2}\]/)).toBeInTheDocument();
+    // Timestamp is rendered as [HH:MM AM/PM] — just verify the bracket format exists
+    expect(screen.getByText(/\[\d{1,2}:\d{2}.*\]/)).toBeInTheDocument();
   });
 
   it('renders multiple messages', () => {

@@ -81,7 +81,7 @@ describe('API client', () => {
   it('requestMagicLink sends POST with email', async () => {
     mockFetch.mockReturnValue(jsonResponse({ ok: true, message: 'sent' }));
     await api.requestMagicLink('test@example.com');
-    expect(fetchedPath()).toBe('/api/auth/magic');
+    expect(fetchedPath()).toBe('/auth/magic');
     expect(fetchedOpts().method).toBe('POST');
     expect(fetchedBody()).toEqual({ email: 'test@example.com' });
   });
@@ -89,21 +89,21 @@ describe('API client', () => {
   it('verifyMagicLink sends POST with token', async () => {
     mockFetch.mockReturnValue(jsonResponse({ token: 'jwt', user: {} }));
     await api.verifyMagicLink('magic-token');
-    expect(fetchedPath()).toBe('/api/auth/magic/verify');
+    expect(fetchedPath()).toBe('/auth/magic/verify');
     expect(fetchedBody()).toEqual({ token: 'magic-token' });
   });
 
   it('register sends POST with user data', async () => {
     mockFetch.mockReturnValue(jsonResponse({ token: 'jwt', user: {} }));
     await api.register({ email: 'a@b.com', password: 'pw', displayName: 'A' });
-    expect(fetchedPath()).toBe('/api/auth/register');
+    expect(fetchedPath()).toBe('/auth/register');
     expect(fetchedBody()).toEqual({ email: 'a@b.com', password: 'pw', displayName: 'A' });
   });
 
   it('login sends POST with credentials', async () => {
     mockFetch.mockReturnValue(jsonResponse({ token: 'jwt', user: {} }));
     await api.login({ email: 'a@b.com', password: 'pw' });
-    expect(fetchedPath()).toBe('/api/auth/login');
+    expect(fetchedPath()).toBe('/auth/login');
     expect(fetchedBody()).toEqual({ email: 'a@b.com', password: 'pw' });
   });
 
@@ -112,14 +112,14 @@ describe('API client', () => {
   it('getWorkspaces sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
     await api.getWorkspaces();
-    expect(fetchedPath()).toBe('/api/workspaces');
+    expect(fetchedPath()).toBe('/workspaces');
     expect(fetchedOpts().method).toBeUndefined(); // default GET
   });
 
   it('createWorkspace sends POST with data', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.createWorkspace({ name: 'Test', slug: 'test' });
-    expect(fetchedPath()).toBe('/api/workspaces');
+    expect(fetchedPath()).toBe('/workspaces');
     expect(fetchedOpts().method).toBe('POST');
     expect(fetchedBody()).toEqual({ name: 'Test', slug: 'test' });
   });
@@ -127,26 +127,26 @@ describe('API client', () => {
   it('getChannels sends GET with workspaceId', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
     await api.getChannels('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/channels');
+    expect(fetchedPath()).toBe('/workspaces/ws-1/channels');
   });
 
   it('createChannel sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.createChannel('ws-1', { name: 'general', slug: 'general' });
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/channels');
+    expect(fetchedPath()).toBe('/workspaces/ws-1/channels');
     expect(fetchedOpts().method).toBe('POST');
   });
 
   it('getWorkspaceMembers sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
     await api.getWorkspaceMembers('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/members');
+    expect(fetchedPath()).toBe('/workspaces/ws-1/members');
   });
 
   it('getOrCreateDM sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.getOrCreateDM('ws-1', 'u-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/dm');
+    expect(fetchedPath()).toBe('/workspaces/ws-1/dm');
     expect(fetchedBody()).toEqual({ userId: 'u-1' });
   });
 
@@ -165,7 +165,7 @@ describe('API client', () => {
   it('sendMessage sends POST with content', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.sendMessage('ch-1', 'hello');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/messages');
+    expect(fetchedPath()).toBe('/channels/ch-1/messages');
     expect(fetchedOpts().method).toBe('POST');
     expect(fetchedBody()).toEqual({ content: 'hello', attachments: undefined });
   });
@@ -173,7 +173,7 @@ describe('API client', () => {
   it('editMessage sends PATCH', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.editMessage('ch-1', 'msg-1', 'updated');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/messages/msg-1');
+    expect(fetchedPath()).toBe('/channels/ch-1/messages/msg-1');
     expect(fetchedOpts().method).toBe('PATCH');
     expect(fetchedBody()).toEqual({ content: 'updated' });
   });
@@ -181,7 +181,7 @@ describe('API client', () => {
   it('deleteMessage sends DELETE', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.deleteMessage('ch-1', 'msg-1');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/messages/msg-1');
+    expect(fetchedPath()).toBe('/channels/ch-1/messages/msg-1');
     expect(fetchedOpts().method).toBe('DELETE');
   });
 
@@ -190,7 +190,7 @@ describe('API client', () => {
   it('addReaction sends POST with emoji', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.addReaction('ch-1', 'msg-1', '👍');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/messages/msg-1/reactions');
+    expect(fetchedPath()).toBe('/channels/ch-1/messages/msg-1/reactions');
     expect(fetchedOpts().method).toBe('POST');
     expect(fetchedBody()).toEqual({ emoji: '👍' });
   });
@@ -198,7 +198,7 @@ describe('API client', () => {
   it('removeReaction sends DELETE with emoji', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.removeReaction('ch-1', 'msg-1', '👍');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/messages/msg-1/reactions');
+    expect(fetchedPath()).toBe('/channels/ch-1/messages/msg-1/reactions');
     expect(fetchedOpts().method).toBe('DELETE');
   });
 
@@ -240,28 +240,28 @@ describe('API client', () => {
   it('inviteMember sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.inviteMember('ch-1', 'u-1');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/members');
+    expect(fetchedPath()).toBe('/channels/ch-1/members');
     expect(fetchedBody()).toEqual({ userId: 'u-1' });
   });
 
   it('deleteChannel sends DELETE', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.deleteChannel('ch-1');
-    expect(fetchedPath()).toBe('/api/channels/ch-1');
+    expect(fetchedPath()).toBe('/channels/ch-1');
     expect(fetchedOpts().method).toBe('DELETE');
   });
 
   it('archiveChannel sends PATCH', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await api.archiveChannel('ch-1');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/archive');
+    expect(fetchedPath()).toBe('/channels/ch-1/archive');
     expect(fetchedOpts().method).toBe('PATCH');
   });
 
   it('sendTyping sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({ ok: true }));
     await api.sendTyping('ch-1');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/typing');
+    expect(fetchedPath()).toBe('/channels/ch-1/typing');
     expect(fetchedOpts().method).toBe('POST');
   });
 
@@ -283,14 +283,14 @@ describe('API client', () => {
   it('markRead sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({ ok: true }));
     await unreadApi.markRead('ch-1');
-    expect(fetchedPath()).toBe('/api/channels/ch-1/read');
+    expect(fetchedPath()).toBe('/channels/ch-1/read');
     expect(fetchedOpts().method).toBe('POST');
   });
 
   it('getUnreadCounts sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await unreadApi.getUnreadCounts('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/unread');
+    expect(fetchedPath()).toBe('/workspaces/ws-1/unread');
   });
 
   // ── Presence API ──
@@ -298,7 +298,7 @@ describe('API client', () => {
   it('getPresence sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
     await presenceApi.getPresence('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/presence');
+    expect(fetchedPath()).toBe('/workspaces/ws-1/presence');
   });
 
   // ── Task API ──
@@ -316,7 +316,7 @@ describe('API client', () => {
   it('taskApi.create sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await taskApi.create({ workspaceId: 'ws-1', title: 'Fix bug' });
-    expect(fetchedPath()).toBe('/api/tasks');
+    expect(fetchedPath()).toBe('/tasks');
     expect(fetchedOpts().method).toBe('POST');
     expect(fetchedBody()).toEqual({ workspaceId: 'ws-1', title: 'Fix bug' });
   });
@@ -324,14 +324,14 @@ describe('API client', () => {
   it('taskApi.update sends PATCH', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
     await taskApi.update('t-1', { status: 'done' });
-    expect(fetchedPath()).toBe('/api/tasks/t-1');
+    expect(fetchedPath()).toBe('/tasks/t-1');
     expect(fetchedOpts().method).toBe('PATCH');
   });
 
   it('taskApi.delete sends DELETE', async () => {
     mockFetch.mockReturnValue(jsonResponse({ ok: true }));
     await taskApi.delete('t-1');
-    expect(fetchedPath()).toBe('/api/tasks/t-1');
+    expect(fetchedPath()).toBe('/tasks/t-1');
     expect(fetchedOpts().method).toBe('DELETE');
   });
 
