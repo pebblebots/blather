@@ -1,3 +1,16 @@
+const { readFileSync } = require('fs');
+const { resolve } = require('path');
+
+// Load .env file
+const envFile = resolve(__dirname, '.env');
+const envVars = {};
+try {
+  readFileSync(envFile, 'utf8').split('\n').forEach(line => {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (match) envVars[match[1].trim()] = match[2].trim();
+  });
+} catch {}
+
 module.exports = {
   apps: [
     {
@@ -5,9 +18,7 @@ module.exports = {
       script: 'packages/api/dist/index.js',
       cwd: '/home/code/blather',
       env: {
-        RESEND_API_KEY: process.env.RESEND_API_KEY,
-        RESEND_FROM: process.env.RESEND_FROM,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        ...envVars,
       },
     },
     {
