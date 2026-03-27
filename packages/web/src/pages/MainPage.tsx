@@ -22,7 +22,6 @@ export function MainPage() {
   
   // Mobile-specific state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'messages' | 'tasks' | 'menu'>('messages');
   
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [selectedWs, setSelectedWs] = useState<string | null>(null);
@@ -65,17 +64,6 @@ export function MainPage() {
   const [presence, setPresence] = useState<Map<string, string>>(new Map());
 
   // Mobile tab handlers
-  const handleTabChange = (tab: 'messages' | 'tasks' | 'menu') => {
-    setActiveTab(tab);
-    if (tab === 'tasks') {
-      setShowTasks(true);
-      setSelectedCh(null);
-    } else if (tab === 'menu') {
-      setIsSidebarOpen(true);
-    } else if (tab === 'messages' && selectedCh) {
-      setShowTasks(false);
-    }
-  };
 
   useEffect(() => {
     api.getWorkspaces().then((ws) => {
@@ -508,7 +496,7 @@ export function MainPage() {
           </button>
           
           <div style={{ flex: 1, textAlign: 'center', fontSize: '14px' }}>
-            {activeTab === 'tasks' ? "📋 Tasks" : selectedChannel ? (() => {
+            {showTasks ? "📋 Tasks" : selectedChannel ? (() => {
               if (selectedChannel.channelType === 'dm') {
                 const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; 
                 const otherUserId = uuids.find((id: string) => id !== user?.id);
@@ -538,7 +526,7 @@ export function MainPage() {
 
         {/* Mobile content area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
-          {activeTab === 'tasks' && selectedWs ? (
+          {showTasks && selectedWs ? (
             <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
           ) : selectedCh ? (
             <>
@@ -583,79 +571,8 @@ export function MainPage() {
           )}
         </div>
 
-        {/* Mobile bottom tab bar */}
-        <div style={{
-          background: '#FFFFFF',
-          borderTop: '1px solid #999999',
-          display: 'flex',
-          minHeight: '60px',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}>
-          <button
-            onClick={() => handleTabChange('messages')}
-            style={{
-              flex: 1,
-              background: activeTab === 'messages' ? '#3366CC' : 'transparent',
-              color: activeTab === 'messages' ? '#FFFFFF' : '#000000',
-              border: 'none',
-              padding: '8px 4px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '2px',
-              minHeight: '44px',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>💬</span>
-            <span style={{ fontSize: '11px' }}>Messages</span>
-          </button>
-          
-          <button
-            onClick={() => handleTabChange('tasks')}
-            style={{
-              flex: 1,
-              background: activeTab === 'tasks' ? '#3366CC' : 'transparent',
-              color: activeTab === 'tasks' ? '#FFFFFF' : '#000000',
-              border: 'none',
-              padding: '8px 4px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '2px',
-              minHeight: '44px',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>📋</span>
-            <span style={{ fontSize: '11px' }}>Tasks</span>
-          </button>
-          
-          <button
-            onClick={() => handleTabChange('menu')}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              color: '#000000',
-              border: 'none',
-              padding: '8px 4px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '2px',
-              minHeight: '44px',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>☰</span>
-            <span style={{ fontSize: '11px' }}>Menu</span>
-          </button>
-        </div>
 
-        {/* Mobile sidebar overlay */}
+                {/* Mobile sidebar overlay */}
         {isSidebarOpen && (
           <>
             <div 
