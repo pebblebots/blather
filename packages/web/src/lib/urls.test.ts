@@ -57,6 +57,7 @@ describe('urls', () => {
     });
 
     it('falls back to default dev URL when VITE_API_URL is not set', async () => {
+      vi.stubEnv('VITE_API_URL', '');
       // undefined VITE_API_URL follows the same fallback path as empty string
       const { API_BASE_URL } = await loadUrls();
       expect(API_BASE_URL).toBe('http://localhost:3000');
