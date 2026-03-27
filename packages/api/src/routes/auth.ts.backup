@@ -112,19 +112,16 @@ authRoutes.post('/magic', async (c) => {
   }
 
   const token = randomBytes(32).toString('hex');
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
 
   await db.insert(magicTokens).values({
     email: email.toLowerCase(),
     token,
-    code,
     expiresAt,
   });
 
   const magicUrl = `${c.req.header('origin') || 'http://localhost:8080'}/auth/verify?token=${token}`;
   console.log(`[MAGIC LINK] ${email} → ${magicUrl}`);
-  console.log(`[MAGIC CODE] ${email} → ${code}`);
 
   // Send the magic link email
   const resend = getResend();
@@ -134,7 +131,7 @@ authRoutes.post('/magic', async (c) => {
         from: process.env.RESEND_FROM || 'Blather <noreply@localhost>',
         to: email.toLowerCase(),
         subject: 'Your Blather login link',
-        html: `<p>Click the link below to log in to Blather:</p><p><a href="${magicUrl}">${magicUrl}</a></p><p>Or enter this code in the app: <strong>${code}</strong></p><p>This link expires in 15 minutes.</p>`,
+        html: `<p>Click the link below to log in to Blather:</p><p><a href="${magicUrl}">${magicUrl}</a></p><p>This link expires in 15 minutes.</p>`,
       });
     } catch (err) {
       console.error('[MAGIC LINK] Email send failed:', err);
@@ -184,50 +181,6 @@ authRoutes.post('/magic/verify', async (c) => {
 
   const jwt = signToken(user.id);
   return c.json({ token: jwt, user: userToPublic(user) });
-
-// ── Magic Code: Verify ──
-authRoutes.post('/magic/verify-code', async (c) => {
-  const { email, code } = await c.req.json<{ email: string; code: string }>();
-  const db = c.get('db');
-
-  if (!email || !code || code.length !== 6) {
-    return c.json({ error: 'Valid email and 6-digit code required' }, 400);
-  }
-
-  const [magic] = await db.select().from(magicTokens)
-    .where(and(
-      eq(magicTokens.email, email.toLowerCase()),
-      eq(magicTokens.code, code),
-      isNull(magicTokens.usedAt),
-      gt(magicTokens.expiresAt, new Date()),
-    )).limit(1);
-
-  if (!magic) {
-    return c.json({ error: 'Invalid or expired code' }, 401);
-  }
-
-  // Mark as used
-  await db.update(magicTokens).set({ usedAt: new Date() }).where(eq(magicTokens.id, magic.id));
-
-  // Find or create user
-  let [user] = await db.select().from(users).where(eq(users.email, magic.email)).limit(1);
-
-  if (!user) {
-    // Auto-create user from email
-    const name = magic.email.split('@')[0];
-    [user] = await db.insert(users).values({
-      email: magic.email,
-      displayName: name,
-      isAgent: false,
-    }).returning();
-  }
-
-  // Auto-join domain workspaces
-  await autoJoinDomainWorkspaces(db, user.id, user.email);
-
-  const jwt = signToken(user.id);
-  return c.json({ token: jwt, user: userToPublic(user) });
-});
 });
 
 // ── Legacy: Register (kept for agents) ──

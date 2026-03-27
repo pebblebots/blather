@@ -8,7 +8,6 @@ export function AuthPage() {
   const { setUser } = useApp();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [devToken, setDevToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,22 +57,6 @@ export function AuthPage() {
     }
   };
 
-
-  const verifyCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const res = await api.verifyMagicCode(email, code);
-      setToken(res.token);
-      window.history.replaceState({}, '', '/');
-      setUser(res.user);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#DDDDDD' }}>
       {/* Menu bar */}
@@ -138,42 +121,9 @@ export function AuthPage() {
                 <div style={{ textAlign: 'center', marginBottom: 12, fontSize: 12 }}>
                   Check your inbox for <strong>{email}</strong>
                 </div>
-                {/* PWA Mode Detection */}
-                {window.matchMedia('(display-mode: standalone)').matches ? (
-                  <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#666666' }}>
-                    Enter the 6-digit code from your email below.
-                  </div>
-                ) : (
-                  <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#666666' }}>
-                    Click the link in the email to sign in, or enter the 6-digit code below.
-                  </div>
-                )}
-
-                {/* Code Input Form */}
-                <form onSubmit={verifyCode}>
-                  <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Code:</label>
-                    <input
-                      className="mac-input"
-                      style={{ flex: 1 }}
-                      type="text"
-                      placeholder="123456"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      required
-                      autoFocus
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                    <button type="submit" disabled={loading || code.length !== 6} className="mac-btn-primary">
-                      {loading ? '⏳...' : 'Verify Code'}
-                    </button>
-                  </div>
-                </form>
+                <div style={{ textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#666666' }}>
+                  Click the link in the email to sign in.
+                </div>
 
                 {/* Dev mode: show clickable verify button */}
                 {devToken && (
@@ -196,7 +146,7 @@ export function AuthPage() {
 
                 <hr className="mac-separator" style={{ margin: '12px 0' }} />
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <button className="mac-btn" onClick={() => { setStep('email'); setError(''); setCode(''); }}>
+                  <button className="mac-btn" onClick={() => { setStep('email'); setError(''); }}>
                     ← Back
                   </button>
                 </div>

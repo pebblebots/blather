@@ -34,6 +34,8 @@ export const api = {
 
   verifyMagicLink: (token: string) =>
     request<{ token: string; user: any }>('/auth/magic/verify', { method: 'POST', body: JSON.stringify({ token }) }),
+  verifyMagicCode: (email: string, code: string) =>
+    request<{ token: string; user: any }>('/auth/magic/verify-code', { method: 'POST', body: JSON.stringify({ email, code }) }),
 
   register: (data: { email: string; password: string; displayName: string; isAgent?: boolean }) =>
     request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),

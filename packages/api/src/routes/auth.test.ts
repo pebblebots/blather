@@ -124,6 +124,116 @@ describe('auth routes', () => {
     expect(response.body).toEqual({ error: 'Invalid or expired token' });
   });
 
+
+  // ── Magic Code ──
+
+  it('POST /auth/magic includes code in database and email', async () => {
+    const response = await harness.request.post<{ ok: boolean; message: string }>('/auth/magic', {
+      json: { email: 'code@example.com' },
+      headers: { origin: 'http://localhost:8080' },
+    });
+
+    expect(response.status).toBe(200);
+
+    const [storedToken] = await harness.db
+      .select()
+      .from(magicTokens)
+      .where(eq(magicTokens.email, 'code@example.com'))
+      .limit(1);
+
+    expect(storedToken).toBeDefined();
+    expect(storedToken?.code).toMatch(/^[0-9]{6}$/);
+  });
+
+  it('POST /auth/magic/verify-code with valid email and code returns JWT and creates user', async () => {
+    await harness.request.post('/auth/magic', {
+      json: { email: 'verify-code@example.com' },
+      headers: { origin: 'http://localhost:8080' },
+    });
+
+    const [storedToken] = await harness.db
+      .select()
+      .from(magicTokens)
+      .where(eq(magicTokens.email, 'verify-code@example.com'))
+      .limit(1);
+
+    expect(storedToken).toBeDefined();
+    expect(storedToken?.code).toBeDefined();
+
+    const verifyResponse = await harness.request.post<AuthResponse>('/auth/magic/verify-code', {
+      json: { email: 'verify-code@example.com', code: storedToken!.code! },
+    });
+
+    expect(verifyResponse.status).toBe(200);
+    expect(verifyResponse.body?.token).toBeTypeOf('string');
+    expect(verifyResponse.body?.user.email).toBe('verify-code@example.com');
+
+    // Token should be marked used
+    const [updatedToken] = await harness.db
+      .select()
+      .from(magicTokens)
+      .where(eq(magicTokens.id, storedToken!.id))
+      .limit(1);
+
+    expect(updatedToken?.usedAt).toBeInstanceOf(Date);
+  });
+
+  it('POST /auth/magic/verify-code rejects invalid code', async () => {
+    await harness.request.post('/auth/magic', {
+      json: { email: 'invalid-code@example.com' },
+      headers: { origin: 'http://localhost:8080' },
+    });
+
+    const response = await harness.request.post('/auth/magic/verify-code', {
+      json: { email: 'invalid-code@example.com', code: '999999' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid or expired code' });
+  });
+
+  it('POST /auth/magic/verify-code rejects invalid input', async () => {
+    const response = await harness.request.post('/auth/magic/verify-code', {
+      json: { email: 'test@example.com', code: '12345' }, // 5 digits, should be 6
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'Valid email and 6-digit code required' });
+  });
+
+  it('POST /auth/magic/verify-code rejects expired code', async () => {
+    await harness.db.insert(magicTokens).values({
+      email: 'expired-code@example.com',
+      token: 'some-token',
+      code: '123456',
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    const response = await harness.request.post('/auth/magic/verify-code', {
+      json: { email: 'expired-code@example.com', code: '123456' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid or expired code' });
+  });
+
+  it('POST /auth/magic/verify-code rejects already-used code', async () => {
+    await harness.db.insert(magicTokens).values({
+      email: 'used-code@example.com',
+      token: 'some-token',
+      code: '654321',
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: new Date(),
+    });
+
+    const response = await harness.request.post('/auth/magic/verify-code', {
+      json: { email: 'used-code@example.com', code: '654321' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Invalid or expired code' });
+  });
+
   // ── Legacy Register / Login ──
 
   it('POST /auth/register creates a new user', async () => {
