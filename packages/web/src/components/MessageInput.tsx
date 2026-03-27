@@ -32,13 +32,21 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const lastTypingSent = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
   // Emoji picker state
   const [emojiQuery, setEmojiQuery] = useState<string | null>(null);
   const [emojiSelectedIdx, setEmojiSelectedIdx] = useState(0);
   const emojiListRef = useRef<HTMLDivElement>(null);
+
+  // Auto-grow textarea height
+  const adjustHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'; // ~6 rows max
+  }, []);
 
   // Find the colon-triggered query from current text and cursor position
   const updateEmojiQuery = useCallback((value: string, cursorPos: number) => {
@@ -81,8 +89,9 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
       input.focus();
       const newPos = colonIdx + emoji.length;
       input.setSelectionRange(newPos, newPos);
+      adjustHeight();
     });
-  }, [text]);
+  }, [text, adjustHeight]);
 
   // Scroll selected emoji into view (children[0] is the header, items start at [1])
   useEffect(() => {
@@ -92,10 +101,11 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     }
   }, [emojiSelectedIdx]);
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setText(val);
     updateEmojiQuery(val, e.target.selectionStart ?? val.length);
+    requestAnimationFrame(() => adjustHeight());
     if (onTyping && val.length > 0) {
       const now = Date.now();
       if (now - lastTypingSent.current > 3000) {
@@ -103,7 +113,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
         onTyping();
       }
     }
-  }, [onTyping, updateEmojiQuery]);
+  }, [onTyping, updateEmojiQuery, adjustHeight]);
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const arr = Array.from(newFiles);
@@ -147,6 +157,10 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     onSend(trimmed, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
     setText('');
     setEmojiQuery(null);
+    // Reset textarea height after clearing
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
     files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
     setFiles([]);
   };
@@ -320,7 +334,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
       )}
 
       {/* Input row */}
-      <form onSubmit={handleSubmit} style={{ padding: 4, display: 'flex', gap: 4, alignItems: 'center' }}>
+      <form onSubmit={handleSubmit} style={{ padding: 4, display: 'flex', gap: 4, alignItems: 'flex-end' }}>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -337,10 +351,17 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
           style={{ display: 'none' }}
           onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }}
         />
-        <input
+        <textarea
           ref={inputRef}
           className="mac-input"
-          style={{ flex: 1, fontSize: 12, fontFamily: "'Monaco', 'IBM Plex Mono', monospace" }}
+          style={{
+            flex: 1,
+            fontSize: 12,
+            fontFamily: "'Monaco', 'IBM Plex Mono', monospace",
+            resize: 'none',
+            overflow: 'auto',
+          }}
+          rows={1}
           placeholder={dragOver ? 'Drop files here...' : 'Type a message...'}
           value={text}
           onChange={handleChange}
