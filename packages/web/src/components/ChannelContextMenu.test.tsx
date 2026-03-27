@@ -63,29 +63,30 @@ describe('ChannelContextMenu', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('invokes destructive actions with the channel id before closing', () => {
-    const { onDelete, onInvite, onClose } = renderMenu();
+  it('deletes the channel and closes the menu', () => {
+    const { onDelete, onClose } = renderMenu();
 
     fireEvent.click(screen.getByRole('button', { name: '🗑️ Delete Channel' }));
-    expect(onDelete).toHaveBeenCalledWith('ch-1');
-    expect(onClose).toHaveBeenCalledTimes(1);
 
-    cleanup();
-    const rerendered = renderMenu();
+    expect(onDelete).toHaveBeenCalledWith('ch-1');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('invites to the channel and closes the menu', () => {
+    const { onInvite, onClose } = renderMenu({ channelType: 'private' });
+
     fireEvent.click(screen.getByRole('button', { name: '👥 Invite Members' }));
 
-    expect(rerendered.onInvite).toHaveBeenCalledWith('ch-1');
-    expect(rerendered.onClose).toHaveBeenCalledTimes(1);
+    expect(onInvite).toHaveBeenCalledWith('ch-1');
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('closes when the backdrop is clicked or right-clicked', () => {
     const { onClose } = renderMenu();
-    const backdrop = screen.getByRole('menu').previousElementSibling;
+    const backdrop = screen.getByTestId('context-menu-backdrop');
 
-    expect(backdrop).not.toBeNull();
-
-    fireEvent.click(backdrop!);
-    fireEvent.contextMenu(backdrop!);
+    fireEvent.click(backdrop);
+    fireEvent.contextMenu(backdrop);
 
     expect(onClose).toHaveBeenCalledTimes(2);
   });

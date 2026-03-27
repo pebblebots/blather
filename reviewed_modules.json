@@ -69,5 +69,6 @@
   "packages/web/src/components/CreateWorkspaceModal.tsx",
   "packages/web/src/components/Modals.test.tsx",
   "packages/web/src/components/CreateChannelModal.tsx",
-  "packages/web/src/components/ChannelContextMenu.tsx"
+  "packages/web/src/components/ChannelContextMenu.tsx",
+  "packages/web/src/components/ChannelContextMenu.test.tsx"
 ]

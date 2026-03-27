@@ -72,6 +72,7 @@ export function ChannelContextMenu({ x, y, channel, onClose, onArchive, onDelete
   return (
     <>
       <div
+        data-testid="context-menu-backdrop"
         aria-hidden="true"
         style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
         onClick={onClose}
