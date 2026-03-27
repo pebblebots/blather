@@ -52,6 +52,7 @@ channelRoutes.get('/:id/messages', async (c) => {
             content: messages.content, threadId: messages.threadId,
             createdAt: messages.createdAt, updatedAt: messages.updatedAt,
             attachments: messages.attachments,
+            canvas: messages.canvas,
             userName: users.displayName, userIsAgent: users.isAgent,
         }).from(messages).innerJoin(users, eq(messages.userId, users.id))
             .where(and(eq(messages.channelId, channelId), sql `${messages.threadId} IS NULL`, sql `${messages.createdAt} <= ${target.createdAt.toISOString()}`))
@@ -61,6 +62,7 @@ channelRoutes.get('/:id/messages', async (c) => {
             content: messages.content, threadId: messages.threadId,
             createdAt: messages.createdAt, updatedAt: messages.updatedAt,
             attachments: messages.attachments,
+            canvas: messages.canvas,
             userName: users.displayName, userIsAgent: users.isAgent,
         }).from(messages).innerJoin(users, eq(messages.userId, users.id))
             .where(and(eq(messages.channelId, channelId), sql `${messages.threadId} IS NULL`, sql `${messages.createdAt} > ${target.createdAt.toISOString()}`))
@@ -107,6 +109,7 @@ channelRoutes.get('/:id/messages', async (c) => {
         createdAt: messages.createdAt,
         updatedAt: messages.updatedAt,
         attachments: messages.attachments,
+        canvas: messages.canvas,
         replyCount: sql `coalesce(${replyCountSq.count}, 0)`.as('reply_count'),
         user: {
             displayName: users.displayName,
@@ -302,6 +305,7 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
         createdAt: messages.createdAt,
         updatedAt: messages.updatedAt,
         attachments: messages.attachments,
+        canvas: messages.canvas,
         user: {
             displayName: users.displayName,
             isAgent: users.isAgent,
