@@ -50,6 +50,20 @@
       "when": 1774415998693,
       "tag": "0006_dizzy_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774502400000,
+      "tag": "0008_canvas_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774588800000,
+      "tag": "0009_add_code_column",
+      "breakpoints": true
     }
   ]
 }
