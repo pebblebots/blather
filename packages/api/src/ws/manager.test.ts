@@ -38,7 +38,7 @@ function signToken(userId: string): string {
 }
 
 class FakeWebSocket extends EventEmitter {
-  readyState = WebSocket.OPEN;
+  readyState: number = WebSocket.OPEN;
   sent: any[] = [];
   pingCount = 0;
 

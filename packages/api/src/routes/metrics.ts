@@ -76,13 +76,13 @@ function metricValues(body: MetricBody) {
     companyName: body.companyName!,
     fund: body.fund!,
     reportingDate: body.reportingDate!,
-    revenueArrUsd: body.revenueArrUsd!,
+    revenueArrUsd: String(body.revenueArrUsd!),
     revenueAsOfDate: body.revenueAsOfDate ?? null,
     headcount: body.headcount ?? null,
-    runwayMonths: body.runwayMonths ?? null,
-    yoyGrowthPct: body.yoyGrowthPct ?? null,
-    lastRoundSizeUsd: body.lastRoundSizeUsd ?? null,
-    lastRoundValuationUsd: body.lastRoundValuationUsd ?? null,
+    runwayMonths: body.runwayMonths != null ? String(body.runwayMonths) : null,
+    yoyGrowthPct: body.yoyGrowthPct != null ? String(body.yoyGrowthPct) : null,
+    lastRoundSizeUsd: body.lastRoundSizeUsd != null ? String(body.lastRoundSizeUsd) : null,
+    lastRoundValuationUsd: body.lastRoundValuationUsd != null ? String(body.lastRoundValuationUsd) : null,
     lastRoundDate: body.lastRoundDate ?? null,
     lastRoundType: body.lastRoundType ?? null,
     keyMilestoneText: body.keyMilestoneText ?? null,
@@ -90,7 +90,7 @@ function metricValues(body: MetricBody) {
     contactEmail: body.contactEmail ?? null,
     permissionToShare: body.permissionToShare ?? false,
     source: body.source!,
-    confidence: body.confidence ?? null,
+    confidence: body.confidence != null ? String(body.confidence) : null,
   };
 }
 

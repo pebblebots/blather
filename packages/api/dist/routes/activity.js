@@ -162,7 +162,7 @@ export async function isAgentUser(db, userId) {
         if (!user)
             return false;
         const agentDomains = (process.env.AGENT_EMAIL_DOMAIN || 'system.blather').split(',').map(d => d.trim());
-        return user.isAgent || (user.email && agentDomains.some(d => user.email.endsWith(`@${d}`)));
+        return user.isAgent || !!(user.email && agentDomains.some(d => user.email.endsWith(`@${d}`)));
     }
     catch {
         return false;

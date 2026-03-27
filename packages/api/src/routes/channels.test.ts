@@ -111,7 +111,7 @@ describe('channel routes', () => {
       });
 
       expect(response.status).toBe(422);
-      expect(response.body?.error).toMatch(/Message rejected.*API error/);
+      expect((response.body as any)?.error).toMatch(/Message rejected.*API error/);
     }
 
     // Test cases that should be accepted (normal messages)
@@ -449,9 +449,9 @@ describe('Canvas data retrieval', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.messages).toHaveLength(1);
-    
-    const message = response.body.messages[0];
+    expect(response.body!.messages).toHaveLength(1);
+
+    const message = response.body!.messages[0];
     expect(message.id).toBe(messageWithCanvas.id);
     expect(message.canvas).toEqual({
       ...canvasPayload,
@@ -479,9 +479,9 @@ describe('Canvas data retrieval', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.body.messages).toHaveLength(1);
-    
-    const message = response.body.messages[0];
+    expect(response.body!.messages).toHaveLength(1);
+
+    const message = response.body!.messages[0];
     expect(message.id).toBe(messageWithCanvas.id);
     expect(message.canvas).toEqual({
       ...canvasPayload,
@@ -517,9 +517,9 @@ describe('Canvas data retrieval', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.body.replies).toHaveLength(1);
-    
-    const reply = response.body.replies[0];
+    expect(response.body!.replies).toHaveLength(1);
+
+    const reply = response.body!.replies[0];
     expect(reply.id).toBe(replyWithCanvas.id);
     expect(reply.canvas).toEqual({
       ...canvasPayload,
@@ -543,9 +543,9 @@ describe('Canvas data retrieval', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.body.messages).toHaveLength(1);
-    
-    const message = response.body.messages[0];
+    expect(response.body!.messages).toHaveLength(1);
+
+    const message = response.body!.messages[0];
     expect(message.id).toBe(regularMessage.id);
     expect(message.canvas).toBeNull();
   });
