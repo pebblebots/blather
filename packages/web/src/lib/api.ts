@@ -120,6 +120,9 @@ export const api = {
 
   createHuddle: (data: { workspaceId: string; topic: string; agentIds: string[] }) =>
     request<any>('/huddles', { method: 'POST', body: JSON.stringify(data) }),
+
+  getActiveHuddles: (workspaceId: string) =>
+    request<any[]>(`/huddles?workspaceId=${workspaceId}&status=active`),
 };
 
 // Unread tracking

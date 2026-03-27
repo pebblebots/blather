@@ -20,6 +20,7 @@ vi.mock('../lib/api', () => ({
     getChannels: (...args: any[]) => mockGetChannels(...args),
     getMessages: (...args: any[]) => mockGetMessages(...args),
     getWorkspaceMembers: (...args: any[]) => mockGetWorkspaceMembers(...args),
+    getActiveHuddles: vi.fn(async () => []),
     sendMessage: vi.fn(),
     sendTyping: vi.fn(),
     searchMessages: vi.fn(async () => []),
@@ -47,9 +48,6 @@ vi.mock('../components/MessageReactions', () => ({
   MessageReactions: () => null,
   EmojiPicker: () => null,
 }));
-
-// Mock fetch for huddle endpoint
-vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [] })));
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (

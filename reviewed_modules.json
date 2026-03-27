@@ -71,5 +71,7 @@
   "packages/web/src/components/CreateChannelModal.tsx",
   "packages/web/src/components/ChannelContextMenu.tsx",
   "packages/web/src/components/ChannelContextMenu.test.tsx",
-  "packages/web/src/components/NewHuddleModal.tsx"
+  "packages/web/src/components/NewHuddleModal.tsx",
+  "packages/web/src/pages/MainPage.tsx",
+  "packages/web/src/pages/MainPage.test.tsx"
 ]

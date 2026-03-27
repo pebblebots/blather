@@ -1,7 +1,5 @@
-import { unreadApi, presenceApi } from '../lib/api';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api } from '../lib/api';
-import { clearToken } from '../lib/api';
+import { api, unreadApi, presenceApi, clearToken } from '../lib/api';
 import { useApp } from '../lib/store';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { MessageList } from '../components/MessageList';
@@ -16,7 +14,6 @@ import { SearchPanel } from '../components/SearchPanel';
 import { ThreadPanel } from '../components/ThreadPanel';
 import { HuddleModal } from '../components/HuddleModal';
 import { NewHuddleModal } from '../components/NewHuddleModal';
-import { apiUrl } from '../lib/urls';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -101,9 +98,7 @@ export function MainPage() {
   // Fetch active huddles
   useEffect(() => {
     if (!selectedWs) return;
-    const token = localStorage.getItem('blather_token');
-    fetch(apiUrl(`/huddles?workspaceId=${selectedWs}&status=active`), { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+    api.getActiveHuddles(selectedWs)
       .then(huddles => { if (huddles.length > 0) setActiveHuddle(huddles[0]); else setActiveHuddle(null); })
       .catch(() => {});
   }, [selectedWs]);
@@ -308,68 +303,12 @@ export function MainPage() {
       setSelectedCh((prev) => prev === archivedId ? null : prev);
     }
     if (event.type === 'member.joined' && event.data) {
-    if (event.type === 'message.updated' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
-    }
-    if (event.type === 'message.deleted' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.filter((m) => m.id !== p.id));
-    }
       const m = event.data;
-    if (event.type === 'message.updated' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
-    }
-    if (event.type === 'message.deleted' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.filter((m) => m.id !== p.id));
-    }
       setWorkspaceMembers((prev) => {
-    if (event.type === 'message.updated' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
-    }
-    if (event.type === 'message.deleted' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.filter((m) => m.id !== p.id));
-    }
         const exists = prev.some((u: any) => u.id === m.id);
-    if (event.type === 'message.updated' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
-    }
-    if (event.type === 'message.deleted' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.filter((m) => m.id !== p.id));
-    }
         return exists ? prev : [...prev, m];
-    if (event.type === 'message.updated' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
-    }
-    if (event.type === 'message.deleted' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.filter((m) => m.id !== p.id));
-    }
       });
-    if (event.type === 'message.updated' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
-    }
-    if (event.type === 'message.deleted' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.filter((m) => m.id !== p.id));
-    }
       addUserInfo(m.id, m.displayName, m.isAgent);
-    if (event.type === 'message.updated' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.map((m) => m.id === p.id ? { ...m, content: p.content, updatedAt: p.updatedAt } : m));
-    }
-    if (event.type === 'message.deleted' && event.data) {
-      const p = event.data;
-      setMessages((prev) => prev.filter((m) => m.id !== p.id));
-    }
     }
     if (event.type === 'message.updated' && event.data) {
       const p = event.data;
