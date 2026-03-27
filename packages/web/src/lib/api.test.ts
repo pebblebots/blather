@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { api, unreadApi, presenceApi, taskApi, setToken, clearToken, uploadFile } from './api';
+import { API_BASE_URL } from './urls';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -19,10 +20,15 @@ function errorResponse(error: string, status = 400) {
   }));
 }
 
-/** Extract the path portion from the fetch call URL */
+/** Extract the path portion from the fetch call URL, stripping the API base prefix */
 function fetchedPath(callIndex = 0): string {
   const url: string = mockFetch.mock.calls[callIndex][0];
-  return new URL(url).pathname + new URL(url).search;
+  const parsed = new URL(url);
+  const basePath = API_BASE_URL ? new URL(API_BASE_URL).pathname.replace(/\/+$/, '') : '';
+  const pathname = basePath && parsed.pathname.startsWith(basePath)
+    ? parsed.pathname.slice(basePath.length) || '/'
+    : parsed.pathname;
+  return pathname + parsed.search;
 }
 
 function fetchedOpts(callIndex = 0): RequestInit {
