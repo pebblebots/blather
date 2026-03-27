@@ -722,7 +722,7 @@ export function MainPage() {
                         onClick={() => { 
                           setSelectedCh(ch.id); 
                           setShowTasks(false); 
-                          setActiveTab('messages');
+                          setIsSidebarOpen(false);
                         }}
                         onContextMenu={(e) => handleChannelContextMenu(e, ch)}
                         style={{
@@ -779,7 +779,7 @@ export function MainPage() {
                           key={member.id}
                           onClick={() => {
                             handleUserClick(member.id);
-                            setActiveTab('messages');
+                            setIsSidebarOpen(false);
                           }}
                           style={{
                             padding: '12px',
@@ -925,7 +925,7 @@ export function MainPage() {
           <CreateChannelModal
             workspaceId={selectedWs}
             onClose={() => setShowCreateCh(false)}
-            onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); setActiveTab('messages'); }}
+            onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); setIsSidebarOpen(false); }}
           />
         )}
         {showNewHuddle && selectedWs && (

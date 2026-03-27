@@ -56,6 +56,7 @@ type CreateMessageInput = {
   content?: string;
   threadId?: string | null;
   attachments?: { url: string; filename: string; contentType: string; size: number }[];
+  canvas?: { html: string; title?: string; width?: number; height?: number } | null;
 };
 
 export type TestFactories = {
@@ -179,6 +180,7 @@ function createTestFactories(db: Db): TestFactories {
           content: input.content ?? 'Test message',
           threadId: input.threadId ?? null,
           attachments: input.attachments ?? [],
+          canvas: input.canvas ?? null,
         })
         .returning();
       return message;

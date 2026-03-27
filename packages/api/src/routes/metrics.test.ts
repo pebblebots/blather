@@ -56,7 +56,7 @@ describe('metric routes', () => {
     return { user, headers: harness.headers.forUser(user.id) };
   }
 
-  async function createMetricRecord(headers: Record<string, string>, overrides: Partial<MetricPayload> = {}) {
+  async function createMetricRecord(headers: HeadersInit, overrides: Partial<MetricPayload> = {}) {
     const response = await harness.request.post<any>('/metrics', {
       headers,
       json: makeMetric(overrides),
