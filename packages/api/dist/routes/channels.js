@@ -40,6 +40,7 @@ channelRoutes.get('/:id/messages', async (c) => {
     conditions.push(sql `${messages.threadId} IS NULL`);
     // "around" query: fetch messages surrounding a specific message ID
     if (around) {
+        const { users } = await import('@blather/db');
         // Get the target message's timestamp
         const [target] = await db.select({ createdAt: messages.createdAt }).from(messages).where(eq(messages.id, around)).limit(1);
         if (!target)
@@ -89,6 +90,7 @@ channelRoutes.get('/:id/messages', async (c) => {
         }
         return c.json(aroundMapped);
     }
+    const { users } = await import('@blather/db');
     // Subquery for reply counts
     const replyCountSq = db
         .select({ parentId: messages.threadId, count: sql `count(*)::int`.as('count') })
@@ -134,7 +136,7 @@ channelRoutes.get('/:id/messages', async (c) => {
     return c.json(result);
 });
 // Detect raw API error messages that should never be broadcast
-const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|\bAI service is temporarily overloaded\b|\bPlease try again in a moment\b|LLM error|api_error|Internal server error|request_id:|authentication_error|permission_error|invalid_request_error|not_found_error|\{type:\s*"error"|\{"type"\s*:\s*"error"|This request would exceed/i;
+const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|\bAI service is temporarily overloaded\b|\bPlease try again in a moment\b/i;
 function looksLikeApiError(content) {
     return API_ERROR_PATTERN.test(content);
 }
@@ -161,28 +163,37 @@ channelRoutes.post('/:id/messages', async (c) => {
         console.warn(`[error-filter] Rejected API error message from user=${userId} channel=${channelId}: ${body.content.slice(0, 200)}`);
         return c.json({ error: 'Message rejected: appears to be a raw API error. These should be handled by the sender, not posted to chat.' }, 422);
     }
-    // Reject exact duplicates from the same user within 60 seconds.
-    const recentMessages = await db.select({
-        id: messages.id,
-        createdAt: messages.createdAt,
-    }).from(messages)
-        .where(and(eq(messages.channelId, channelId), eq(messages.userId, userId), eq(messages.content, body.content)))
-        .orderBy(desc(messages.createdAt))
-        .limit(5);
-    const duplicate = recentMessages.find((message) => message.createdAt.getTime() > Date.now() - 60_000);
-    if (duplicate) {
-        console.warn(`[dedupe] Rejected duplicate message from user=${userId} channel=${channelId}`);
-        return c.json({ error: 'Duplicate message', existingId: duplicate.id }, 409);
+    
+    // Canvas validation
+    let canvasData = null;
+    if (body.canvas) {
+        if (!body.canvas.html || typeof body.canvas.html !== 'string') {
+            return c.json({ error: 'Canvas requires html field' }, 400);
+        }
+        if (Buffer.byteLength(body.canvas.html, 'utf8') > 500 * 1024) {
+            return c.json({ error: 'Canvas HTML too large (max 500KB)' }, 413);
+        }
+        canvasData = {
+            html: body.canvas.html,
+            title: body.canvas.title || null,
+            width: body.canvas.width || 800,
+            height: body.canvas.height || 600,
+            version: 1,
+        };
     }
+
+    // ── Dedupe guard: reject exact duplicate from same user within 60s ──  const sixtySecsAgo = new Date(Date.now() - 60_000);  const [dupe] = await db.select({ id: messages.id }).from(messages)    .where(and(      eq(messages.channelId, channelId),      eq(messages.userId, userId),      eq(messages.content, body.content),      gt(messages.createdAt, sixtySecsAgo)    ))    .limit(1);  if (dupe) {    console.warn(`[dedupe] Rejected duplicate message from user=${userId} channel=${channelId}`);    return c.json({ error: "Duplicate message", existingId: dupe.id }, 409);  }
     const [msg] = await db.insert(messages).values({
         channelId,
         userId,
         content: body.content,
         threadId: body.threadId ?? null,
         attachments: body.attachments || [],
+        canvas: canvasData,
     }).returning();
     // Get user info for the payload
-    const [msgUser] = await db.select({ displayName: users.displayName, isAgent: users.isAgent }).from(users).where(eq(users.id, userId)).limit(1);
+    const { users: usersTable } = await import('@blather/db');
+    const [msgUser] = await db.select({ displayName: usersTable.displayName, isAgent: usersTable.isAgent }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     await emitEvent(db, {
         workspaceId: channel.workspaceId,
         channelId,
@@ -196,6 +207,7 @@ channelRoutes.post('/:id/messages', async (c) => {
             threadId: msg.threadId,
             createdAt: msg.createdAt.toISOString(),
             attachments: msg.attachments || [],
+            canvas: msg.canvas || null,
             user: msgUser ? { displayName: msgUser.displayName, isAgent: msgUser.isAgent } : undefined,
         },
     });
@@ -224,10 +236,10 @@ channelRoutes.post('/:id/messages', async (c) => {
     if (!msgUser?.isAgent) {
         try {
             const members = await db
-                .select({ userId: channelMembers.userId, isAgent: users.isAgent })
+                .select({ userId: channelMembers.userId, isAgent: usersTable.isAgent })
                 .from(channelMembers)
-                .innerJoin(users, eq(channelMembers.userId, users.id))
-                .where(and(eq(channelMembers.channelId, channelId), eq(users.isAgent, true)));
+                .innerJoin(usersTable, eq(channelMembers.userId, usersTable.id))
+                .where(and(eq(channelMembers.channelId, channelId), eq(usersTable.isAgent, true)));
             for (const agent of members) {
                 fetch("http://localhost:3002/ingest", {
                     method: "POST",
@@ -263,8 +275,7 @@ channelRoutes.post('/:id/messages', async (c) => {
         handleIncidentCommand(db, channelId, body.content.trim(), body.threadId ?? null).catch((err) => console.error("[IncidentBot] Error:", err));
     }
     // Auto-log agent activity
-    isAgentUser(db, userId).then(isAgent => { if (isAgent)
-        logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => { });
+    isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => {});
     return c.json(msg, 201);
 });
 // Get replies for a message thread
@@ -275,6 +286,8 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
     const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100);
     const after = c.req.query('after');
     const before = c.req.query('before');
+    const around = c.req.query('around');
+    const { users } = await import('@blather/db');
     const conditions = [eq(messages.threadId, messageId)];
     if (after)
         conditions.push(gt(messages.createdAt, new Date(after)));
@@ -356,7 +369,7 @@ channelRoutes.post('/:id/typing', async (c) => {
     }
     markTyping(channelId, userId);
     const { publishEphemeralEvent } = await import('../ws/manager.js');
-    await publishEphemeralEvent(chan.workspaceId, {
+    await publishEphemeralEvent(chan.workspaceId, channelId, {
         type: 'typing.started',
         channel_id: channelId,
         data: { userId, channelId, user: typingUser ? { displayName: typingUser.displayName, isAgent: typingUser.isAgent } : undefined },
@@ -393,8 +406,7 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
         });
     }
     // Auto-log agent reaction
-    isAgentUser(db, userId).then(isAgent => { if (isAgent && channel)
-        logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => { });
+    isAgentUser(db, userId).then(isAgent => { if (isAgent && channel) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => {});
     return c.json(reaction, 201);
 });
 // Mark channel as read
@@ -469,6 +481,7 @@ channelRoutes.patch('/:id/archive', async (c) => {
 channelRoutes.get('/:id/members', async (c) => {
     const db = c.get('db');
     const channelId = c.req.param('id');
+    const { users } = await import('@blather/db');
     const members = await db
         .select({ id: users.id, displayName: users.displayName, email: users.email })
         .from(channelMembers)
@@ -517,6 +530,21 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
     if (!body.content || !body.content.trim()) {
         return c.json({ error: 'Content cannot be empty' }, 400);
     }
+    // Canvas validation for edit
+    let canvasUpdate = undefined;
+    if (body.canvas !== undefined) {
+        if (body.canvas === null) {
+            canvasUpdate = null;
+        } else {
+            if (!body.canvas.html || typeof body.canvas.html !== 'string') {
+                return c.json({ error: 'Canvas requires html field' }, 400);
+            }
+            if (Buffer.byteLength(body.canvas.html, 'utf8') > 500 * 1024) {
+                return c.json({ error: 'Canvas HTML too large (max 500KB)' }, 413);
+            }
+            canvasUpdate = { html: body.canvas.html, title: body.canvas.title || null, width: body.canvas.width || 800, height: body.canvas.height || 600, version: 1 };
+        }
+    }
     const [msg] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
     if (!msg)
         return c.json({ error: 'Message not found' }, 404);
@@ -525,7 +553,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
     if (msg.channelId !== channelId)
         return c.json({ error: 'Message does not belong to this channel' }, 400);
     const [updated] = await db.update(messages)
-        .set({ content: body.content, updatedAt: new Date() })
+        .set({ content: body.content, updatedAt: new Date(), ...(canvasUpdate !== undefined ? { canvas: canvasUpdate } : {}) })
         .where(eq(messages.id, messageId))
         .returning();
     const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -544,6 +572,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
                 createdAt: updated.createdAt.toISOString(),
                 updatedAt: updated.updatedAt.toISOString(),
                 attachments: updated.attachments || [],
+                canvas: updated.canvas || null,
             },
         });
     }

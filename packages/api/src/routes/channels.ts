@@ -151,7 +151,7 @@ channelRoutes.post('/:id/messages', async (c) => {
   const db = c.get('db');
   const channelId = c.req.param('id');
   const userId = c.get('userId');
-  const body = await c.req.json<{ content: string; threadId?: string; attachments?: any[] }>();
+  const body = await c.req.json<{ content: string; threadId?: string; attachments?: any[]; canvas?: { html: string; title?: string; width?: number; height?: number } }>();
 
   // Look up channel
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -169,6 +169,24 @@ channelRoutes.post('/:id/messages', async (c) => {
   if (looksLikeApiError(body.content)) {
     console.warn(`[error-filter] Rejected API error message from user=${userId} channel=${channelId}: ${body.content.slice(0, 200)}`);
     return c.json({ error: 'Message rejected: appears to be a raw API error. These should be handled by the sender, not posted to chat.' }, 422);
+  }
+
+  // Canvas validation
+  let canvasData = null;
+  if (body.canvas) {
+    if (!body.canvas.html || typeof body.canvas.html !== 'string') {
+      return c.json({ error: 'Canvas requires html field' }, 400);
+    }
+    if (Buffer.byteLength(body.canvas.html, 'utf8') > 500 * 1024) {
+      return c.json({ error: 'Canvas HTML too large (max 500KB)' }, 413);
+    }
+    canvasData = {
+      html: body.canvas.html,
+      title: body.canvas.title || null,
+      width: body.canvas.width || 800,
+      height: body.canvas.height || 600,
+      version: 1,
+    };
   }
 
   // Reject exact duplicates from the same user within 60 seconds.
@@ -196,6 +214,7 @@ channelRoutes.post('/:id/messages', async (c) => {
     content: body.content,
     threadId: body.threadId ?? null,
     attachments: body.attachments || [],
+    canvas: canvasData,
   }).returning();
 
   // Get user info for the payload
@@ -214,6 +233,7 @@ channelRoutes.post('/:id/messages', async (c) => {
       threadId: msg.threadId,
       createdAt: msg.createdAt.toISOString(),
       attachments: msg.attachments || [],
+      canvas: msg.canvas || null,
       user: msgUser ? { displayName: msgUser.displayName, isAgent: msgUser.isAgent } : undefined,
     },
   });
@@ -564,10 +584,26 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
   const userId = c.get('userId');
   const channelId = c.req.param('channelId');
   const messageId = c.req.param('messageId');
-  const body = await c.req.json<{ content: string }>();
+  const body = await c.req.json<{ content: string; canvas?: { html: string; title?: string; width?: number; height?: number } | null }>();
 
   if (!body.content || !body.content.trim()) {
     return c.json({ error: 'Content cannot be empty' }, 400);
+  }
+
+  // Canvas validation for edit
+  let canvasUpdate: any = undefined;
+  if (body.canvas !== undefined) {
+    if (body.canvas === null) {
+      canvasUpdate = null;
+    } else {
+      if (!body.canvas.html || typeof body.canvas.html !== 'string') {
+        return c.json({ error: 'Canvas requires html field' }, 400);
+      }
+      if (Buffer.byteLength(body.canvas.html, 'utf8') > 500 * 1024) {
+        return c.json({ error: 'Canvas HTML too large (max 500KB)' }, 413);
+      }
+      canvasUpdate = { html: body.canvas.html, title: body.canvas.title || null, width: body.canvas.width || 800, height: body.canvas.height || 600, version: 1 };
+    }
   }
 
   const [msg] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
@@ -576,7 +612,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
   if (msg.channelId !== channelId) return c.json({ error: 'Message does not belong to this channel' }, 400);
 
   const [updated] = await db.update(messages)
-    .set({ content: body.content, updatedAt: new Date() })
+    .set({ content: body.content, updatedAt: new Date(), ...(canvasUpdate !== undefined ? { canvas: canvasUpdate } : {}) })
     .where(eq(messages.id, messageId))
     .returning();
 
@@ -596,6 +632,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
         createdAt: updated.createdAt.toISOString(),
         updatedAt: updated.updatedAt.toISOString(),
         attachments: updated.attachments || [],
+        canvas: updated.canvas || null,
       },
     });
   }

@@ -13,6 +13,7 @@ interface Msg {
   attachments?: { url: string; filename: string; contentType: string; size: number }[];
   replyCount?: number;
   reactions?: { id: string; userId: string; emoji: string; createdAt: string }[];
+  canvas?: { html: string; title?: string; width?: number; height?: number; version?: number } | null;
 }
 
 const NICK_COLORS = [
@@ -93,6 +94,57 @@ function AttachmentRenderer({ attachments }: { attachments: { url: string; filen
 
 /** Threshold (ms) below which an update is considered a save artifact, not an edit. */
 const EDIT_THRESHOLD_MS = 1000;
+
+function CanvasRenderer({ canvas }: { canvas: { html: string; title?: string; width?: number; height?: number } }) {
+  const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:">`; 
+  const width = canvas.width || 800;
+  const height = canvas.height || 600;
+  return (
+    <div style={{
+      width: width + 18,
+      maxWidth: "100%",
+      border: "2px solid #000000",
+      borderRadius: 6,
+      overflow: "hidden",
+      marginTop: 4,
+      marginBottom: 4,
+      background: "#FFFFFF",
+      boxShadow: "2px 2px 0 #000000",
+    }}>
+      <div style={{
+        background: "linear-gradient(180deg, #E8E8E8 0%, #C0C0C0 100%)",
+        borderBottom: "1px solid #000000",
+        padding: "3px 8px",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        fontFamily: "Monaco, IBM Plex Mono, monospace",
+        fontWeight: "bold",
+        userSelect: "none",
+      }}>
+        <span style={{ display: "flex", gap: 3 }}>
+          <span style={{ color: "#FF5F57" }}>●</span>
+          <span style={{ color: "#FEBC2E" }}>●</span>
+          <span style={{ color: "#28C840" }}>●</span>
+        </span>
+        <span style={{ flex: 1, textAlign: "center", color: "#333333" }}>{canvas.title || "Canvas"}</span>
+      </div>
+      <iframe
+        sandbox="allow-scripts"
+        srcDoc={cspMeta + canvas.html}
+        style={{
+          width: width,
+          height: height,
+          border: "none",
+          display: "block",
+          maxWidth: "100%",
+        }}
+      />
+    </div>
+  );
+}
+
 
 function isEdited(msg: Msg): boolean {
   if (!msg.updatedAt || !msg.createdAt) return false;
@@ -314,6 +366,9 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
                 )}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <AttachmentRenderer attachments={msg.attachments} />
+                )}
+                {msg.canvas && (
+                  <CanvasRenderer canvas={msg.canvas} />
                 )}
                 {(msg.replyCount ?? 0) > 0 && (
                   <div
