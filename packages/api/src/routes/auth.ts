@@ -184,6 +184,7 @@ authRoutes.post('/magic/verify', async (c) => {
 
   const jwt = signToken(user.id);
   return c.json({ token: jwt, user: userToPublic(user) });
+});
 
 // ── Magic Code: Verify ──
 authRoutes.post('/magic/verify-code', async (c) => {
@@ -227,7 +228,6 @@ authRoutes.post('/magic/verify-code', async (c) => {
 
   const jwt = signToken(user.id);
   return c.json({ token: jwt, user: userToPublic(user) });
-});
 });
 
 // ── Legacy: Register (kept for agents) ──
