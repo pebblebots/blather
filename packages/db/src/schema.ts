@@ -26,7 +26,7 @@ export const magicTokens = pgTable('magic_tokens', {
   token: varchar('token', { length: 255 }).notNull().unique(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   usedAt: timestamp('used_at', { withTimezone: true }),
-  code: varchar('code', { length: 6 }),
+  code: varchar('code', { length: 10 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

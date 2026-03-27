@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, unreadApi, presenceApi, clearToken } from '../lib/api';
 import { useApp } from '../lib/store';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { useIsMobile } from '../hooks/useIsMobile';
 import { MessageList } from '../components/MessageList';
 import { MessageInput } from '../components/MessageInput';
 import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
@@ -18,12 +17,6 @@ import { NewHuddleModal } from '../components/NewHuddleModal';
 
 export function MainPage() {
   const { user, setUser } = useApp();
-  const isMobile = useIsMobile();
-  
-  // Mobile-specific state
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'messages' | 'tasks' | 'menu'>('messages');
-  
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [selectedWs, setSelectedWs] = useState<string | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
@@ -32,8 +25,6 @@ export function MainPage() {
     _setSelectedCh((prev) => {
       const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
       if (next) localStorage.setItem('blather_last_channel', next);
-      // Auto-close sidebar on mobile when channel is selected
-      if (isMobile) setIsSidebarOpen(false);
       return next;
     });
   };
@@ -63,19 +54,6 @@ export function MainPage() {
   const usersMapRef = useRef<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [presence, setPresence] = useState<Map<string, string>>(new Map());
-
-  // Mobile tab handlers
-  const handleTabChange = (tab: 'messages' | 'tasks' | 'menu') => {
-    setActiveTab(tab);
-    if (tab === 'tasks') {
-      setShowTasks(true);
-      setSelectedCh(null);
-    } else if (tab === 'menu') {
-      setIsSidebarOpen(true);
-    } else if (tab === 'messages' && selectedCh) {
-      setShowTasks(false);
-    }
-  };
 
   useEffect(() => {
     api.getWorkspaces().then((ws) => {
@@ -377,11 +355,9 @@ export function MainPage() {
         }));
       } else {
         const reaction = await api.addReaction(selectedCh, messageId, emoji);
-        // Add to local state (dedup: WS event may have arrived first)
+        // Add to local state
         setMessages((prev) => prev.map((m) => {
           if (m.id !== messageId) return m;
-          const alreadyExists = (m.reactions || []).some((r: any) => r.id === reaction.id);
-          if (alreadyExists) return m;
           return { ...m, reactions: [...(m.reactions || []), { id: reaction.id, userId: user?.id, emoji, createdAt: reaction.createdAt }] };
         }));
       }
@@ -457,595 +433,16 @@ export function MainPage() {
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        background: '#DDDDDD', 
-        fontSize: isMobile ? 16 : 12 
-      }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#DDDDDD', fontSize: 12 }}>
         ⏳ Loading...
       </div>
     );
   }
 
-  // Render mobile layout
-  if (isMobile) {
-    return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        background: '#DDDDDD',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}>
-        {/* Mobile header */}
-        <div style={{
-          background: '#FFFFFF',
-          borderBottom: '1px solid #999999',
-          padding: '12px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          minHeight: '44px',
-          fontSize: '16px',
-          fontWeight: 'bold',
-        }}>
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '20px',
-              padding: '8px',
-              minWidth: '44px',
-              minHeight: '44px',
-              cursor: 'pointer',
-            }}
-          >
-            ☰
-          </button>
-          
-          <div style={{ flex: 1, textAlign: 'center', fontSize: '14px' }}>
-            {activeTab === 'tasks' ? "📋 Tasks" : selectedChannel ? (() => {
-              if (selectedChannel.channelType === 'dm') {
-                const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; 
-                const otherUserId = uuids.find((id: string) => id !== user?.id);
-                const otherUser = workspaceMembers.find(member => member.id === otherUserId);
-                return `💬 ${otherUser?.displayName || 'Unknown User'}`;
-              } else {
-                return `# ${selectedChannel.name}`;
-              }
-            })() : selectedWorkspace?.name || 'Blather'}
-          </div>
-          
-          <button
-            onClick={() => setShowSearch(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '16px',
-              padding: '8px',
-              minWidth: '44px',
-              minHeight: '44px',
-              cursor: 'pointer',
-            }}
-          >
-            🔍
-          </button>
-        </div>
-
-        {/* Mobile content area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
-          {activeTab === 'tasks' && selectedWs ? (
-            <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
-          ) : selectedCh ? (
-            <>
-              <MessageList 
-                messages={messages} 
-                usersMap={usersMap} 
-                currentUserId={user?.id} 
-                onLoadOlder={loadOlderMessages} 
-                isLoadingOlder={isLoadingOlder} 
-                hasMoreOlder={hasMoreOlder} 
-                onEditMessage={handleEditMessage} 
-                onDeleteMessage={handleDeleteMessage} 
-                onOpenThread={handleOpenThread} 
-                highlightMessageId={highlightMessageId} 
-                onToggleReaction={handleToggleReaction} 
-              />
-              <TypingIndicator 
-                typingUsers={typingUsers} 
-                usersMap={usersMap} 
-                currentUserId={user?.id} 
-                selectedChannelId={selectedCh} 
-              />
-              <MessageInput 
-                onSend={handleSend} 
-                onTyping={handleTyping} 
-                disabled={!selectedCh} 
-              />
-            </>
-          ) : (
-            <div style={{ 
-              flex: 1, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontSize: '16px', 
-              color: '#999999', 
-              padding: '16px',
-              textAlign: 'center',
-            }}>
-              {selectedWs ? 'Select a channel from the menu' : 'Select a workspace from the menu'}
-            </div>
-          )}
-        </div>
-
-        {/* Mobile bottom tab bar */}
-        <div style={{
-          background: '#FFFFFF',
-          borderTop: '1px solid #999999',
-          display: 'flex',
-          minHeight: '60px',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}>
-          <button
-            onClick={() => handleTabChange('messages')}
-            style={{
-              flex: 1,
-              background: activeTab === 'messages' ? '#3366CC' : 'transparent',
-              color: activeTab === 'messages' ? '#FFFFFF' : '#000000',
-              border: 'none',
-              padding: '8px 4px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '2px',
-              minHeight: '44px',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>💬</span>
-            <span style={{ fontSize: '11px' }}>Messages</span>
-          </button>
-          
-          <button
-            onClick={() => handleTabChange('tasks')}
-            style={{
-              flex: 1,
-              background: activeTab === 'tasks' ? '#3366CC' : 'transparent',
-              color: activeTab === 'tasks' ? '#FFFFFF' : '#000000',
-              border: 'none',
-              padding: '8px 4px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '2px',
-              minHeight: '44px',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>📋</span>
-            <span style={{ fontSize: '11px' }}>Tasks</span>
-          </button>
-          
-          <button
-            onClick={() => handleTabChange('menu')}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              color: '#000000',
-              border: 'none',
-              padding: '8px 4px',
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '2px',
-              minHeight: '44px',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>☰</span>
-            <span style={{ fontSize: '11px' }}>Menu</span>
-          </button>
-        </div>
-
-        {/* Mobile sidebar overlay */}
-        {isSidebarOpen && (
-          <>
-            <div 
-              style={{ 
-                position: 'fixed', 
-                top: 0, 
-                left: 0, 
-                right: 0, 
-                bottom: 0, 
-                background: 'rgba(0,0,0,0.3)', 
-                zIndex: 999 
-              }}
-              onClick={() => setIsSidebarOpen(false)}
-            />
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              background: '#FFFFFF',
-              zIndex: 1000,
-              display: 'flex',
-              flexDirection: 'column',
-              paddingBottom: 'env(safe-area-inset-bottom)',
-            }}>
-              {/* Mobile sidebar header */}
-              <div style={{
-                background: '#FFFFFF',
-                borderBottom: '1px solid #999999',
-                padding: '12px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                minHeight: '44px',
-              }}>
-                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Menu</span>
-                <button
-                  onClick={() => setIsSidebarOpen(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: '20px',
-                    padding: '8px',
-                    minWidth: '44px',
-                    minHeight: '44px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Mobile sidebar content */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-                {/* Workspaces */}
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Workspaces</span>
-                    <button
-                      style={{ 
-                        background: '#3366CC', 
-                        color: 'white', 
-                        border: 'none', 
-                        borderRadius: '4px', 
-                        padding: '4px 8px', 
-                        fontSize: '14px',
-                        minHeight: '32px',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => setShowCreateWs(true)}
-                    >
-                      + New
-                    </button>
-                  </div>
-                  {workspaces.map((ws) => (
-                    <div
-                      key={ws.id}
-                      onClick={() => setSelectedWs(ws.id)}
-                      style={{
-                        padding: '12px',
-                        fontSize: '16px',
-                        cursor: 'pointer',
-                        background: ws.id === selectedWs ? '#3366CC' : 'transparent',
-                        color: ws.id === selectedWs ? '#FFFFFF' : '#000000',
-                        borderRadius: '8px',
-                        marginBottom: '4px',
-                        minHeight: '44px',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                    >
-                      📁 {ws.name}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Huddle Banner */}
-                {activeHuddle && (
-                  <div style={{
-                    background: '#CC3333', 
-                    color: '#FFFFFF', 
-                    padding: '12px',
-                    fontSize: '16px',
-                    cursor: 'pointer', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px', 
-                    margin: '0 0 16px 0',
-                    borderRadius: '8px',
-                    minHeight: '44px',
-                  }} onClick={() => {
-                    setCurrentHuddleId(activeHuddle.huddleId || activeHuddle.id);
-                    setShowHuddle(true);
-                    setHuddleEvents([]);
-                    setIsSidebarOpen(false);
-                  }}>
-                    <span style={{ animation: 'pulse 1s infinite' }}>🔴</span>
-                    <span>Huddle: {activeHuddle.topic}</span>
-                  </div>
-                )}
-
-                {/* Channels */}
-                {selectedWs && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Channels</span>
-                      <button
-                        style={{ 
-                          background: '#3366CC', 
-                          color: 'white', 
-                          border: 'none', 
-                          borderRadius: '4px', 
-                          padding: '4px 8px', 
-                          fontSize: '14px',
-                          minHeight: '32px',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => setShowCreateCh(true)}
-                      >
-                        + New
-                      </button>
-                    </div>
-                    {channels.filter(ch => ch.channelType !== 'dm').map((ch) => (
-                      <div
-                        key={ch.id}
-                        onClick={() => { 
-                          setSelectedCh(ch.id); 
-                          setShowTasks(false); 
-                          setActiveTab('messages');
-                        }}
-                        onContextMenu={(e) => handleChannelContextMenu(e, ch)}
-                        style={{
-                          padding: '12px',
-                          fontSize: '16px',
-                          cursor: 'pointer',
-                          background: ch.id === selectedCh ? '#3366CC' : 'transparent',
-                          color: ch.id === selectedCh ? '#FFFFFF' : '#000000',
-                          borderRadius: '8px',
-                          marginBottom: '4px',
-                          minHeight: '44px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <span>💬 # {ch.name} {ch.channelType === 'private' && '🔒'}</span>
-                        {unreadCounts[ch.id] > 0 && (
-                          <span style={{
-                            minWidth: '20px',
-                            height: '20px',
-                            lineHeight: '20px',
-                            borderRadius: '10px',
-                            background: '#CC3333',
-                            color: '#FFFFFF',
-                            fontSize: '12px',
-                            textAlign: 'center' as const,
-                            padding: '0 6px',
-                            fontWeight: 'bold',
-                          }}>
-                            {unreadCounts[ch.id] > 99 ? '99+' : unreadCounts[ch.id]}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Users */}
-                {selectedWs && workspaceMembers.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ marginBottom: '8px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Users</span>
-                    </div>
-                    {workspaceMembers.filter(member => member.id !== user?.id).sort((a, b) => {
-                      const order: Record<string, number> = { online: 0, idle: 1, offline: 2 };
-                      const sa = order[presence.get(a.id) || 'offline'] ?? 2;
-                      const sb = order[presence.get(b.id) || 'offline'] ?? 2;
-                      return sa - sb;
-                    }).map((member) => {
-                      const status = presence.get(member.id) || 'offline';
-                      return (
-                        <div
-                          key={member.id}
-                          onClick={() => {
-                            handleUserClick(member.id);
-                            setActiveTab('messages');
-                          }}
-                          style={{
-                            padding: '12px',
-                            fontSize: '16px',
-                            cursor: 'pointer',
-                            background: 'transparent',
-                            color: status === 'offline' ? '#999999' : '#000000',
-                            fontStyle: status === 'offline' ? 'italic' : 'normal',
-                            borderRadius: '8px',
-                            marginBottom: '4px',
-                            minHeight: '44px',
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <span style={{
-                            display: 'inline-block',
-                            width: '12px',
-                            height: '12px',
-                            minWidth: '12px',
-                            borderRadius: '50%',
-                            background: status === 'online'
-                              ? 'radial-gradient(circle at 4px 4px, #44dd44, #009900)'
-                              : status === 'idle'
-                              ? 'radial-gradient(circle at 4px 4px, #ffcc44, #cc9900)'
-                              : 'radial-gradient(circle at 4px 4px, #cccccc, #999999)',
-                            border: status === 'online' ? '1px solid #007700' : status === 'idle' ? '1px solid #aa7700' : '1px solid #888888',
-                            marginRight: '12px',
-                            flexShrink: 0,
-                          }} />
-                          <span>{member.displayName}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* User info and logout */}
-                <div style={{
-                  borderTop: '1px solid #999999',
-                  paddingTop: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{
-                      color: wsConnected ? '#009900' : '#999999', 
-                      fontSize: '12px',
-                    }}>●</span>
-                    <span style={{ fontSize: '16px' }}>{user?.displayName}</span>
-                  </div>
-                  <button
-                    onClick={logout}
-                    style={{
-                      background: '#CC3333',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      padding: '8px 16px',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      minHeight: '36px',
-                    }}
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Thread panel (mobile) */}
-        {threadMessage && selectedCh && (
-          <ThreadPanel
-            channelId={selectedCh}
-            parentMessage={threadMessage}
-            usersMap={usersMap}
-            currentUserId={user?.id}
-            onClose={() => setThreadMessage(null)}
-            newReplyFromWs={threadNewReply}
-          />
-        )}
-
-        {/* Modals - same as desktop */}
-        {showCreateWs && (
-          <CreateWorkspaceModal
-            onClose={() => setShowCreateWs(false)}
-            onCreated={(ws) => { setWorkspaces((prev) => [...prev, ws]); setSelectedWs(ws.id); }}
-          />
-        )}
-        {contextMenu && (
-          <ChannelContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            channel={contextMenu.channel}
-            onClose={() => setContextMenu(null)}
-            onArchive={handleArchiveChannel}
-            onDelete={handleDeleteChannel}
-            onInvite={(id) => setInviteChannelId(id)}
-          />
-        )}
-        {inviteChannelId && (
-          <InviteMemberModal
-            channelId={inviteChannelId}
-            workspaceMembers={workspaceMembers}
-            onClose={() => setInviteChannelId(null)}
-          />
-        )}
-        {showSearch && selectedWs && (
-          <SearchPanel
-            workspaceId={selectedWs}
-            onClose={() => setShowSearch(false)}
-            onNavigate={(channelId, messageId) => {
-              setShowTasks(false);
-              setShowSearch(false);
-              api.getMessagesAround(channelId, messageId, 50).then((msgs) => {
-                const sorted = msgs;
-                setUsersMap((prev) => {
-                  const next = new Map(prev);
-                  let changed = false;
-                  for (const m of msgs) {
-                    if (m.user && !next.has(m.userId)) { next.set(m.userId, { displayName: m.user.displayName, isAgent: m.user.isAgent }); changed = true; }
-                  }
-                  return changed ? next : prev;
-                });
-                setMessages(sorted);
-                setHasMoreOlder(true);
-                skipChannelLoadRef.current = true;
-                setSelectedCh(channelId);
-                setTimeout(() => {
-                  setHighlightMessageId(messageId);
-                  setTimeout(() => setHighlightMessageId(null), 4000);
-                }, 100);
-              }).catch(() => {
-                setSelectedCh(channelId);
-              });
-            }}
-          />
-        )}
-        {showCreateCh && selectedWs && (
-          <CreateChannelModal
-            workspaceId={selectedWs}
-            onClose={() => setShowCreateCh(false)}
-            onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); setActiveTab('messages'); }}
-          />
-        )}
-        {showNewHuddle && selectedWs && (
-          <NewHuddleModal
-            workspaceId={selectedWs}
-            workspaceMembers={workspaceMembers}
-            onClose={() => setShowNewHuddle(false)}
-            onCreated={(huddle) => {
-              setActiveHuddle(huddle);
-              setCurrentHuddleId(huddle.id);
-              setShowHuddle(true);
-              setHuddleEvents([]);
-              setIsSidebarOpen(false);
-            }}
-          />
-        )}
-        {showHuddle && currentHuddleId && (
-          <HuddleModal
-            huddleId={currentHuddleId}
-            topic={activeHuddle?.topic || ''}
-            createdBy={activeHuddle?.createdBy || ''}
-            currentUserId={user?.id}
-            usersMap={usersMap}
-            onClose={() => setShowHuddle(false)}
-            onEnded={() => { setShowHuddle(false); setActiveHuddle(null); setCurrentHuddleId(null); setHuddleEvents([]); }}
-            huddleEvents={huddleEvents}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Desktop layout - completely unchanged from original
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#DDDDDD' }}>
       {/* Menu bar */}
-      <div className="mac-menubar" style={{ display: isMobile ? 'none' : 'flex' }}>
+      <div className="mac-menubar">
         <span style={{ fontSize: 14 }}>🍎</span>
         <span>File</span>
         <span>Edit</span>
@@ -1058,10 +455,10 @@ export function MainPage() {
       </div>
 
       {/* Main window */}
-      <div className="mac-window" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: isMobile ? 0 : 4, borderRadius: 0 }}>
+      <div className="mac-window" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: 4, borderRadius: 0 }}>
         {/* Main title bar */}
-        <div className="mac-titlebar" style={{ display: isMobile ? 'none' : 'flex' }}>
-          <div className="mac-close-box" style={{ display: isMobile ? 'none' : 'block' }} />
+        <div className="mac-titlebar">
+          <div className="mac-close-box" />
           <div style={{ flex: 1, textAlign: 'center' }}>
             Blather — {selectedWorkspace?.name || 'No Workspace'}
           </div>
@@ -1070,7 +467,7 @@ export function MainPage() {
         {/* Main body: sidebar + chat */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Sidebar - Finder-style navigator */}
-          <div style={{ width: 210, display: isMobile ? 'none' : 'flex', flexDirection: 'column', borderRight: '1px solid #999999', background: '#FFFFFF', flexShrink: 0 }}>
+          <div style={{ width: 210, display: 'flex', flexDirection: 'column', borderRight: '1px solid #999999', background: '#FFFFFF', flexShrink: 0 }}>
             <div className="mac-titlebar" style={{ fontSize: 11 }}>
               <div className="mac-close-box" style={{ width: 10, height: 10 }} />
               <div style={{ flex: 1, textAlign: 'center' }}>📁 Navigator</div>
@@ -1279,8 +676,8 @@ export function MainPage() {
           {/* Chat panel */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
             {/* Channel title bar */}
-            <div className="mac-titlebar" style={{ fontSize: 11, display: isMobile ? 'none' : 'flex' }}>
-              <div className="mac-close-box" style={{ width: 10, height: 10, display: isMobile ? 'none' : 'block' }} />
+            <div className="mac-titlebar" style={{ fontSize: 11 }}>
+              <div className="mac-close-box" style={{ width: 10, height: 10 }} />
               <div style={{ flex: 1, textAlign: 'center' }}>
                 {showTasks ? "📋 Tasks" : selectedChannel ? (() => {
                   if (selectedChannel.channelType === 'dm') {
@@ -1325,7 +722,7 @@ export function MainPage() {
         </div>
 
         {/* Status bar */}
-        <div className="mac-statusbar" style={{ display: isMobile ? 'none' : 'flex' }}>
+        <div className="mac-statusbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ color: wsConnected ? '#009900' : '#999999', fontSize: 8 }}>●</span>
             <span>{wsConnected ? 'Connected' : 'Disconnected'}</span>

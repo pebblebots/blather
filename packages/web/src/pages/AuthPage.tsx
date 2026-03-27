@@ -159,17 +159,17 @@ export function AuthPage() {
                       type="text"
                       placeholder="123456"
                       value={code}
-                      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      maxLength={6}
+                      maxLength={10}
                       required
                       autoFocus
                     />
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                    <button type="submit" disabled={loading || code.length !== 6} className="mac-btn-primary">
+                    <button type="submit" disabled={loading || code.length < 6 || code.length > 10} className="mac-btn-primary">
                       {loading ? '⏳...' : 'Verify Code'}
                     </button>
                   </div>
