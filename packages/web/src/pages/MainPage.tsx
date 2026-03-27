@@ -695,6 +695,7 @@ export function MainPage() {
                   </div>
                 )}
 
+                <div style={{ borderTop: "1px solid #DDDDDD", margin: "8px 0" }} />
                 {/* Channels */}
                 {selectedWs && (
                   <div style={{ marginBottom: '16px' }}>
@@ -761,6 +762,31 @@ export function MainPage() {
                   </div>
                 )}
 
+                <div style={{ borderTop: "1px solid #DDDDDD", margin: "8px 0" }} />
+                {/* Tasks */}
+                {selectedWs && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div
+                      onClick={() => { setShowTasks(true); setSelectedCh(null); setIsSidebarOpen(false); }}
+                      style={{
+                        padding: '12px',
+                        fontSize: '16px',
+                        cursor: 'pointer',
+                        background: showTasks ? '#3366CC' : '#F0F0F0',
+                        color: showTasks ? '#FFFFFF' : '#000000',
+                        borderRadius: '8px',
+                        minHeight: '44px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      📋 Tasks
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ borderTop: "1px solid #DDDDDD", margin: "8px 0" }} />
                 {/* Users */}
                 {selectedWs && workspaceMembers.length > 0 && (
                   <div style={{ marginBottom: '16px' }}>
