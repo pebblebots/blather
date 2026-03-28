@@ -1,9 +1,5 @@
 {
   "todo": [
-    "packages/plugins/openclaw_blather/src/config.ts",
-    "packages/plugins/openclaw_blather/src/monitor.ts",
-    "packages/plugins/openclaw_blather/src/runtime.ts",
-    "packages/plugins/openclaw_blather/src/status-tools.ts",
     "packages/web/src/App.tsx",
     "packages/web/src/components/emojiData.ts",
     "packages/web/src/components/HelpModal.tsx",
