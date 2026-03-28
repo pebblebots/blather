@@ -282,6 +282,8 @@ export function MainPage() {
     }
     if (event.type === 'reaction.added' && event.data) {
       const p = event.data;
+      // Skip own reactions — handled by the API response in handleToggleReaction
+      if (p.userId === user?.id) return;
       setMessages((prev) => prev.map((m) => {
         if (m.id !== p.messageId) return m;
         const existing = (m.reactions || []).some((r: any) => r.id === p.id);
@@ -291,6 +293,8 @@ export function MainPage() {
     }
     if (event.type === 'reaction.removed' && event.data) {
       const p = event.data;
+      // Skip own reactions — handled by the API response in handleToggleReaction
+      if (p.userId === user?.id) return;
       setMessages((prev) => prev.map((m) => {
         if (m.id !== p.messageId) return m;
         return { ...m, reactions: (m.reactions || []).filter((r: any) => r.id !== p.id) };
