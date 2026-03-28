@@ -1,0 +1,9 @@
+{
+  "id": "blather",
+  "channels": ["blather"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
