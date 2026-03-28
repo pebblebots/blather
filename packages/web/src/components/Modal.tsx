@@ -1,17 +1,56 @@
-import { type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, useId } from 'react';
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+type ModalProps = {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+};
+
+const overlayStyle: CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(221,221,221,0.7)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 50,
+};
+
+const windowStyle: CSSProperties = {
+  width: 380,
+};
+
+const titleStyle: CSSProperties = {
+  flex: 1,
+  textAlign: 'center',
+};
+
+const contentStyle: CSSProperties = {
+  padding: 16,
+};
+
+const closeButtonStyle: CSSProperties = {
+  padding: 0,
+};
+
+export function Modal({ title, onClose, children }: ModalProps) {
+  const titleId = useId();
+
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(221,221,221,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
-      onClick={onClose}
-    >
-      <div className="mac-window" style={{ width: 380 }} onClick={(e) => e.stopPropagation()}>
+    <div data-testid="modal-overlay" style={overlayStyle} onClick={onClose}>
+      <div
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="mac-window"
+        role="dialog"
+        style={windowStyle}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="mac-titlebar">
-          <div className="mac-close-box" onClick={onClose} />
-          <div style={{ flex: 1, textAlign: 'center' }}>{title}</div>
+          <button aria-label="Close modal" className="mac-close-box" onClick={onClose} style={closeButtonStyle} type="button" />
+          <div id={titleId} style={titleStyle}>{title}</div>
         </div>
-        <div style={{ padding: 16 }}>
+        <div style={contentStyle}>
           {children}
         </div>
       </div>

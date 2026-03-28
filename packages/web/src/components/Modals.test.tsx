@@ -53,18 +53,42 @@ function UserWrapper({ children }: { children: ReactNode }) {
 }
 
 describe('Modal', () => {
-  it('renders title and children', () => {
+  it('renders an accessible dialog with its title and children', () => {
     render(<Modal title="Test Modal" onClose={vi.fn()}>Content here</Modal>);
-    expect(screen.getByText('Test Modal')).toBeInTheDocument();
+
+    expect(screen.getByRole('dialog', { name: 'Test Modal' })).toBeInTheDocument();
     expect(screen.getByText('Content here')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close modal' })).toBeInTheDocument();
   });
 
-  it('calls onClose when overlay is clicked', async () => {
+  it('calls onClose when the overlay is clicked', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    const { container } = render(<Modal title="Test" onClose={onClose}>Body</Modal>);
-    await user.click(container.firstElementChild as HTMLElement);
-    expect(onClose).toHaveBeenCalled();
+
+    render(<Modal title="Test" onClose={onClose}>Body</Modal>);
+    await user.click(screen.getByTestId('modal-overlay'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the modal open when the dialog body is clicked', async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<Modal title="Test" onClose={onClose}>Body</Modal>);
+    await user.click(screen.getByRole('dialog', { name: 'Test' }));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('calls onClose when the close button is clicked', async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+
+    render(<Modal title="Test" onClose={onClose}>Body</Modal>);
+    await user.click(screen.getByRole('button', { name: 'Close modal' }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 
