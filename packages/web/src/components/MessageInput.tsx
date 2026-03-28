@@ -43,9 +43,9 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
   const [dragOver, setDragOver] = useState(false);
   const isMobile = useMemo(() => isMobileDevice(), []);
 
-  // Long-press Enter to send on mobile
-  const enterDownAt = useRef<number>(0);
-  const LONG_PRESS_MS = 500;
+  // Double-tap Enter to send on mobile
+  const lastEnterAt = useRef<number>(0);
+  const DOUBLE_TAP_MS = 400;
 
   // Emoji picker state
   const [emojiQuery, setEmojiQuery] = useState<string | null>(null);
@@ -204,42 +204,13 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     }
     if (e.key === 'Enter') {
       if (isMobile) {
-        // Mobile: Shift+Enter sends, plain Enter inserts newline
-        if (e.shiftKey) {
+        // Mobile: double-tap Enter sends, single Enter inserts newline
+        const now = Date.now();
+        if (now - lastEnterAt.current < DOUBLE_TAP_MS) {
           e.preventDefault();
-          handleSubmit(e);
-          return;
-        }
-        // Track keydown time for long-press detection (handled in onKeyUp)
-        if (!enterDownAt.current) {
-          enterDownAt.current = Date.now();
-        }
-      } else {
-        // Desktop: Enter sends, Shift+Enter inserts newline
-        if (!e.shiftKey) {
-          e.preventDefault();
-          handleSubmit(e);
-        }
-      }
-    }
-  };
-
-  const handleKeyUp = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && isMobile && enterDownAt.current) {
-      const held = Date.now() - enterDownAt.current;
-      enterDownAt.current = 0;
-      if (held >= LONG_PRESS_MS) {
-        // Long-press Enter: remove the newline that was inserted, then send
-        e.preventDefault();
-        const el = inputRef.current;
-        if (el) {
-          const pos = el.selectionStart ?? text.length;
-          // Remove the trailing newline(s) that the keydown inserted
-          const before = text.slice(0, pos).replace(/\n+$/, '');
-          const after = text.slice(pos);
-          const cleaned = before + after;
-          setText(cleaned);
-          // Send with cleaned text
+          lastEnterAt.current = 0;
+          // Remove the newline from the first Enter before sending
+          const cleaned = text.replace(/\n$/, '');
           const trimmed = cleaned.trim();
           const uploadedAttachments = files.filter((f) => f.uploaded).map((f) => f.uploaded!);
           if (trimmed || uploadedAttachments.length > 0) {
@@ -250,6 +221,15 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
             files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
             setFiles([]);
           }
+          return;
+        }
+        lastEnterAt.current = now;
+        // First tap: let the newline insert naturally
+      } else {
+        // Desktop: Enter sends, Shift+Enter inserts newline
+        if (!e.shiftKey) {
+          e.preventDefault();
+          handleSubmit(e);
         }
       }
     }
@@ -426,7 +406,6 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          onKeyUp={handleKeyUp}
           disabled={disabled}
         />
         <button
