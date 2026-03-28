@@ -5,6 +5,7 @@ import { apiKeys } from '@blather/db';
 import { createHash } from 'crypto';
 import type { Env } from '../app.js';
 import { JWT_SECRET } from '../config.js';
+import type { Context } from 'hono';
 
 export function signToken(userId: string): string {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '7d' });
@@ -25,6 +26,15 @@ function verifyBearerToken(authHeader: string | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+export function logAuthFailure(
+  c: Context,
+  reason: string,
+  extra?: { apiKeyPrefix?: string; email?: string },
+) {
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+  console.warn(`[AUTH FAIL] ${reason} ip=${ip} path=${c.req.path}${extra?.email ? ` email=${extra.email}` : ''}${extra?.apiKeyPrefix ? ` key=${extra.apiKeyPrefix}…` : ''}`);
 }
 
 export const authMiddleware = createMiddleware<Env>(async (c, next) => {
@@ -49,10 +59,12 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       c.set('userId', found.userId);
       return next();
     }
+    logAuthFailure(c, 'invalid_api_key', { apiKeyPrefix: apiKey.slice(0, 12) });
     return c.json({ error: 'Invalid API key' }, 401);
   }
 
   if (authHeader?.startsWith('Bearer ')) {
+    logAuthFailure(c, 'invalid_token');
     return c.json({ error: 'Invalid token' }, 401);
   }
 

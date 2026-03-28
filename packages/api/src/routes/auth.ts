@@ -191,8 +191,8 @@ authRoutes.post('/magic/verify-code', async (c) => {
   const { email, code } = await c.req.json<{ email: string; code: string }>();
   const db = c.get('db');
 
-  if (!email || !code || code.length < 6 || code.length > 10) {
-    return c.json({ error: 'Valid email and 6-10 digit code required' }, 400);
+  if (!email || !code || code.length !== 6) {
+    return c.json({ error: 'Valid email and 6-digit code required' }, 400);
   }
 
   const [magic] = await db.select().from(magicTokens)

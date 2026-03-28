@@ -180,7 +180,7 @@ function createTestFactories(db: Db): TestFactories {
           content: input.content ?? 'Test message',
           threadId: input.threadId ?? null,
           attachments: input.attachments ?? [],
-          canvas: input.canvas ?? null,
+          canvas: input.canvas ? { ...input.canvas, version: 1 } : null,
         })
         .returning();
       return message;
