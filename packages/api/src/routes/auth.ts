@@ -31,6 +31,23 @@ function getResend(): Resend | null {
 
 export const authRoutes = new Hono<Env>();
 
+// ── Helper: check email against BLA_ALLOWED_EMAILS allowlist ──
+// If BLA_ALLOWED_EMAILS is not set, email-based login is disabled entirely.
+function isEmailAllowed(email: string): boolean {
+  const raw = process.env.BLA_ALLOWED_EMAILS;
+  if (!raw) return false; // no allowlist = email login disabled
+
+  const patterns = raw.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
+  if (patterns.length === 0) return false;
+
+  const lower = email.toLowerCase();
+  return patterns.some(pattern => {
+    // Convert wildcard pattern to regex: escape dots, replace * with .*
+    const re = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+    return re.test(lower);
+  });
+}
+
 // ── Helper: extract domain from email ──
 function emailDomain(email: string): string {
   return email.split('@')[1]?.toLowerCase() ?? '';
@@ -109,6 +126,10 @@ authRoutes.post('/magic', async (c) => {
 
   if (!email || !email.includes('@')) {
     return c.json({ error: 'Valid email required' }, 400);
+  }
+
+  if (!isEmailAllowed(email)) {
+    return c.json({ error: 'Email not allowed' }, 403);
   }
 
   const token = randomBytes(32).toString('hex');
@@ -237,6 +258,10 @@ authRoutes.post('/register', async (c) => {
   const body = await c.req.json<RegisterRequest>();
   const db = c.get('db');
 
+  if (!isEmailAllowed(body.email)) {
+    return c.json({ error: 'Email not allowed' }, 403);
+  }
+
   const passwordHash = body.password ? await bcrypt.hash(body.password, 12) : null;
   const [user] = await db.insert(users).values({
     email: body.email,
@@ -266,6 +291,10 @@ authRoutes.post('/register', async (c) => {
 authRoutes.post('/login', async (c) => {
   const body = await c.req.json<LoginRequest>();
   const db = c.get('db');
+
+  if (!isEmailAllowed(body.email)) {
+    return c.json({ error: 'Email not allowed' }, 403);
+  }
 
   const [user] = await db.select().from(users).where(eq(users.email, body.email)).limit(1);
   if (!user || !user.passwordHash || !(await bcrypt.compare(body.password, user.passwordHash))) {

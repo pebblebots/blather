@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { apiKeys, magicTokens, users } from '@blather/db';
 import type { AuthResponse } from '@blather/types';
@@ -329,5 +329,128 @@ describe('auth routes', () => {
     const response = await harness.request.get('/auth/me');
 
     expect(response.status).toBe(401);
+  });
+
+  // ── BLA_ALLOWED_EMAILS ──
+
+  describe('BLA_ALLOWED_EMAILS enforcement', () => {
+    let savedAllowed: string | undefined;
+
+    beforeEach(() => {
+      savedAllowed = process.env.BLA_ALLOWED_EMAILS;
+    });
+
+    afterEach(() => {
+      if (savedAllowed === undefined) delete process.env.BLA_ALLOWED_EMAILS;
+      else process.env.BLA_ALLOWED_EMAILS = savedAllowed;
+    });
+
+    it('POST /auth/magic returns 403 when BLA_ALLOWED_EMAILS is not set', async () => {
+      delete process.env.BLA_ALLOWED_EMAILS;
+
+      const response = await harness.request.post('/auth/magic', {
+        json: { email: 'anyone@example.com' },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: 'Email not allowed' });
+    });
+
+    it('POST /auth/magic allows a wildcard domain match', async () => {
+      process.env.BLA_ALLOWED_EMAILS = '*@allowed.com';
+
+      const response = await harness.request.post('/auth/magic', {
+        json: { email: 'user@allowed.com' },
+        headers: { origin: 'http://localhost:8080' },
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('POST /auth/magic rejects email not matching any pattern', async () => {
+      process.env.BLA_ALLOWED_EMAILS = '*@allowed.com';
+
+      const response = await harness.request.post('/auth/magic', {
+        json: { email: 'user@blocked.com' },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: 'Email not allowed' });
+    });
+
+    it('supports multiple comma-separated patterns', async () => {
+      process.env.BLA_ALLOWED_EMAILS = '*@a.com, *@b.com, admin@c.com';
+
+      const resA = await harness.request.post('/auth/magic', {
+        json: { email: 'x@a.com' },
+        headers: { origin: 'http://localhost:8080' },
+      });
+      expect(resA.status).toBe(200);
+
+      const resB = await harness.request.post('/auth/magic', {
+        json: { email: 'y@b.com' },
+        headers: { origin: 'http://localhost:8080' },
+      });
+      expect(resB.status).toBe(200);
+
+      const resC = await harness.request.post('/auth/magic', {
+        json: { email: 'admin@c.com' },
+        headers: { origin: 'http://localhost:8080' },
+      });
+      expect(resC.status).toBe(200);
+
+      const resDenied = await harness.request.post('/auth/magic', {
+        json: { email: 'user@c.com' },
+      });
+      expect(resDenied.status).toBe(403);
+    });
+
+    it('matching is case-insensitive', async () => {
+      process.env.BLA_ALLOWED_EMAILS = '*@Allowed.COM';
+
+      const response = await harness.request.post('/auth/magic', {
+        json: { email: 'User@ALLOWED.com' },
+        headers: { origin: 'http://localhost:8080' },
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('POST /auth/register returns 403 for disallowed email', async () => {
+      process.env.BLA_ALLOWED_EMAILS = '*@allowed.com';
+
+      const response = await harness.request.post('/auth/register', {
+        json: {
+          email: 'agent@blocked.com',
+          password: 'password123',
+          displayName: 'Blocked Agent',
+        },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: 'Email not allowed' });
+    });
+
+    it('POST /auth/login returns 403 for disallowed email', async () => {
+      // First register with allowlist open
+      process.env.BLA_ALLOWED_EMAILS = '*';
+      await harness.request.post('/auth/register', {
+        json: {
+          email: 'lockout@other.com',
+          password: 'password123',
+          displayName: 'Lockout User',
+        },
+      });
+
+      // Now restrict
+      process.env.BLA_ALLOWED_EMAILS = '*@allowed.com';
+
+      const response = await harness.request.post('/auth/login', {
+        json: { email: 'lockout@other.com', password: 'password123' },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: 'Email not allowed' });
+    });
   });
 });

@@ -114,6 +114,13 @@ const fields: SetupField[] = [
   },
   // TTS is handled separately via selectOne — not in this array
   {
+    key: 'BLA_ALLOWED_EMAILS',
+    label: 'Allowed Emails',
+    section: 'Access Control',
+    required: false,
+    hint: 'Comma-separated patterns with wildcards, e.g. *@yourcompany.com,admin@example.com\n  Leave empty to disable email login entirely (API-key only)',
+  },
+  {
     key: 'AGENT_EMAIL_DOMAIN',
     label: 'Agent Email Domains',
     section: 'Agents (optional)',
