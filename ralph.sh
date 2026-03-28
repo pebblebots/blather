@@ -10,7 +10,7 @@ function num_done() {
 
 total=$(( $(num_todo) + $(num_done) ))
 while [ $(num_todo) -gt 0 ]; do
-    gravel -S "$(cat Critiq.md)"
+    gravel --max-turns 64 -S "$(cat Critiq.md)"
     if pnpm test; then
         echo "✅ Ralphed through $(num_done) / $total"
         exit 0
