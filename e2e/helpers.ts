@@ -2,23 +2,26 @@ import { type Page, expect } from '@playwright/test';
 
 const API_URL = 'http://localhost:3000';
 
-/** Register a user via the API and return their JWT + user info */
-export async function registerUser(email: string, displayName: string, isAgent = false) {
-  const res = await fetch(`${API_URL}/auth/register`, {
+/** Register/login a user via the magic-link API flow and return their JWT + user info */
+export async function registerUser(email: string, _displayName?: string, _isAgent = false) {
+  // Step 1: request a magic link (dev mode returns the token)
+  const magicRes = await fetch(`${API_URL}/auth/magic`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: 'testpass123', displayName, isAgent }),
+    body: JSON.stringify({ email }),
   });
-  if (!res.ok) {
-    // If user already exists, login instead
-    const loginRes = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: 'testpass123' }),
-    });
-    return loginRes.json();
-  }
-  return res.json();
+  const magicBody = await magicRes.json();
+  const devToken = magicBody._dev?.token;
+  if (!devToken) throw new Error('No _dev token returned — is RESEND_API_KEY unset?');
+
+  // Step 2: verify the magic token → creates user if needed, returns JWT
+  const verifyRes = await fetch(`${API_URL}/auth/magic/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: devToken }),
+  });
+  if (!verifyRes.ok) throw new Error(`Magic verify failed: ${verifyRes.status}`);
+  return verifyRes.json();
 }
 
 /** Authenticate via the dev magic link flow in the browser */
@@ -32,10 +35,13 @@ export async function loginViaMagicLink(page: Page, email: string) {
   await expect(page.locator('.mac-menubar')).toBeVisible({ timeout: 10000 });
 }
 
-/** Login by injecting a JWT token directly into localStorage */
-export async function loginWithToken(page: Page, token: string) {
+/** Login by injecting a JWT token + user into localStorage */
+export async function loginWithToken(page: Page, token: string, user?: Record<string, unknown>) {
   await page.goto('/');
-  await page.evaluate((t) => localStorage.setItem('blather_token', t), token);
+  await page.evaluate(({ t, u }) => {
+    localStorage.setItem('blather_token', t);
+    if (u) localStorage.setItem('blather_user', JSON.stringify(u));
+  }, { t: token, u: user });
   await page.reload();
   await expect(page.locator('.mac-menubar')).toBeVisible({ timeout: 10000 });
 }

@@ -162,9 +162,12 @@ authRoutes.post('/magic', async (c) => {
     }
   }
 
+  // In dev mode (no Resend key), return token so the UI can offer one-click verify
+  const isDev = !getResend();
   return c.json({
     ok: true,
     message: 'Magic link sent! Check your email.',
+    ...(isDev ? { _dev: { token, url: magicUrl } } : {}),
   });
 });
 

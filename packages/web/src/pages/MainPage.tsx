@@ -581,11 +581,12 @@ export function MainPage() {
             <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
           ) : selectedCh ? (
             <>
-              <MessageList 
-                messages={messages} 
-                usersMap={usersMap} 
-                currentUserId={user?.id} 
-                onLoadOlder={loadOlderMessages} 
+              <MessageList
+                messages={messages}
+                usersMap={usersMap}
+                currentUserId={user?.id}
+                channelId={selectedCh ?? undefined}
+                onLoadOlder={loadOlderMessages}
                 isLoadingOlder={isLoadingOlder} 
                 hasMoreOlder={hasMoreOlder} 
                 onEditMessage={handleEditMessage} 
@@ -1335,7 +1336,7 @@ export function MainPage() {
               <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
             ) : selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
+                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>

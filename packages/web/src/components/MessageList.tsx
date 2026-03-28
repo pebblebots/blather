@@ -155,6 +155,7 @@ interface Props {
   messages: Msg[];
   usersMap: Map<string, { displayName: string; isAgent: boolean }>;
   currentUserId?: string;
+  channelId?: string;
   onLoadOlder?: () => void;
   isLoadingOlder?: boolean;
   hasMoreOlder?: boolean;
@@ -165,12 +166,13 @@ interface Props {
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
 }
 
-export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onToggleReaction }: Props) {
-  const endRef = useRef<HTMLDivElement>(null);
+export function MessageList({ messages, usersMap, currentUserId, channelId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onToggleReaction }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
   const isRestoringScroll = useRef(false);
-  const prevMsgCountRef = useRef<number>(0);
+  const shouldScrollRef = useRef(true);
+  const prevChannelIdRef = useRef(channelId);
+  const prevMsgLenRef = useRef(0);
   const [hoveredMsg, setHoveredMsg] = useState<string | null>(null);
   const [editingMsg, setEditingMsg] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -181,6 +183,31 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
   const skipAutoScrollRef = useRef(false);
+
+  // Channel changed → scroll to bottom on next render
+  if (channelId !== prevChannelIdRef.current) {
+    prevChannelIdRef.current = channelId;
+    shouldScrollRef.current = true;
+    prevMsgLenRef.current = 0;
+  }
+
+  // New messages arrived while near bottom → scroll on next render
+  if (messages.length > prevMsgLenRef.current && prevMsgLenRef.current > 0) {
+    const el = containerRef.current;
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+      shouldScrollRef.current = true;
+    }
+  }
+  prevMsgLenRef.current = messages.length;
+
+  // Callback ref on the sentinel div at the bottom of the message list.
+  // Fires when React attaches it to the DOM — that's when content is rendered.
+  const endRefCallback = useCallback((el: HTMLDivElement | null) => {
+    if (el && shouldScrollRef.current && !skipAutoScrollRef.current && !isRestoringScroll.current) {
+      el.scrollIntoView({ behavior: "auto" });
+      shouldScrollRef.current = false;
+    }
+  }, [messages]);
 
   // Scroll to highlighted message (retry to handle channel switch / render delay)
   useEffect(() => {
@@ -238,26 +265,13 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
   };
 
   useEffect(() => {
+    if (!isRestoringScroll.current) return;
     const el = containerRef.current;
     if (!el) return;
-    const newCount = messages.length;
-    const oldCount = prevMsgCountRef.current;
-    if (isRestoringScroll.current) {
-      const newScrollHeight = el.scrollHeight;
-      const diff = newScrollHeight - prevScrollHeightRef.current;
-      el.scrollTop = diff;
-      isRestoringScroll.current = false;
-      prevMsgCountRef.current = newCount;
-      return;
-    }
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    if ((isNearBottom || oldCount === 0) && !skipAutoScrollRef.current) {
-      endRef.current?.scrollIntoView({ behavior: oldCount === 0 ? "auto" : "smooth" });
-    }
-    if (skipAutoScrollRef.current) {
-      skipAutoScrollRef.current = false;
-    }
-    prevMsgCountRef.current = newCount;
+    const newScrollHeight = el.scrollHeight;
+    const diff = newScrollHeight - prevScrollHeightRef.current;
+    el.scrollTop = diff;
+    isRestoringScroll.current = false;
   }, [messages.length]);
 
   const handleScroll = useCallback(() => {
@@ -305,6 +319,7 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
       ref={containerRef}
       onScroll={handleScroll}
       className="mac-inset"
+      data-testid="message-list"
       style={{ flex: 1, overflowY: "auto", padding: 6, fontSize: 12, fontFamily: "Monaco, IBM Plex Mono, monospace", margin: 4, position: "relative" }}
     >
       {isLoadingOlder && (
@@ -475,7 +490,7 @@ export function MessageList({ messages, usersMap, currentUserId, onLoadOlder, is
           </div>
         );
       })}
-      <div ref={endRef} />
+      <div ref={endRefCallback} />
     </div>
   );
 }
