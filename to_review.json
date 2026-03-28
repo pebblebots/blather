@@ -1,7 +1,5 @@
 {
   "todo": [
-    "packages/api/src/index.ts",
-    "packages/cli/src/down.ts",
     "packages/cli/src/index.ts",
     "packages/cli/src/openclaw.ts",
     "packages/cli/src/setup.ts",
@@ -107,7 +105,7 @@
     "packages/web/src/components/Modal.tsx": true,
     "packages/web/src/components/MenuBar.tsx": true,
     "packages/cli/src/utils.ts": true,
-    "packages/api/src/config.ts": true
+    "packages/api/src/config.ts": true,
+    "packages/cli/src/down.ts": true
   }
 }
-
