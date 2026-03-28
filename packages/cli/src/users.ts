@@ -180,16 +180,15 @@ async function add(email: string | undefined, opts: { name?: string; agent?: boo
     process.exit(1);
   }
 
-  // Register via API
-  const result = await apiFetch('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ email, displayName, isAgent }),
-  }) as { user: { id: string } };
+  const [created] = await dbQuery<{ id: string }>(
+    `INSERT INTO users (email, display_name, is_agent) VALUES ($1, $2, $3) RETURNING id`,
+    [email, displayName, isAgent]
+  );
 
   s.stop('User created');
 
   p.log.success(`Created ${isAgent ? 'agent' : 'user'}: ${bold(displayName)} ${dim(`<${email}>`)}`);
-  p.log.info(`ID: ${dim(result.user.id)}`);
+  p.log.info(`ID: ${dim(created.id)}`);
 
   p.outro('Done');
 }

@@ -95,22 +95,43 @@ export function updateEnvFile(updates: EnvConfig): void {
 
 // ── Shell helpers ───────────────────────────────────────────────────────────
 
-/** Run a command synchronously and return trimmed stdout, or null on failure. */
-export function run(cmd: string, cwd?: string): string | null {
+export interface RunResult {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+}
+
+/** Run a command synchronously. Always returns stdout/stderr — check `.ok` for success. */
+export function run(cmd: string, cwd?: string): RunResult {
   try {
-    return execSync(cmd, {
+    const out = execSync(cmd, {
       cwd: cwd ?? ROOT,
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: 15_000,
-    }).toString().trim();
+    });
+    return { ok: true, stdout: out.toString().trim(), stderr: '' };
+  } catch (err: any) {
+    return {
+      ok: false,
+      stdout: err?.stdout?.toString().trim() ?? '',
+      stderr: err?.stderr?.toString().trim() ?? err?.message ?? '',
+    };
+  }
+}
+
+/** Run a command with output going directly to the terminal. Returns success/failure only. */
+export function runPassthrough(cmd: string, cwd?: string): boolean {
+  try {
+    execSync(cmd, { cwd: cwd ?? ROOT, stdio: 'inherit', timeout: 30_000 });
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
 /** Check if a command exists on PATH. */
 export function hasCommand(cmd: string): boolean {
-  return run(`which ${cmd}`) !== null;
+  return run(`which ${cmd}`).ok;
 }
 
 /** Check if a TCP port is listening (works with Docker-mapped ports). */
@@ -138,9 +159,9 @@ export function checkPort(port: number, timeoutMs = 2000): Promise<boolean> {
 
 /** Get PID(s) listening on a port, or empty array. */
 export function getPidsOnPort(port: number): string[] {
-  const result = run(`lsof -i :${port} -sTCP:LISTEN -t 2>/dev/null`);
-  if (!result) return [];
-  return result.split('\n').filter(Boolean);
+  const { ok: found, stdout } = run(`lsof -i :${port} -sTCP:LISTEN -t 2>/dev/null`);
+  if (!found || !stdout) return [];
+  return stdout.split('\n').filter(Boolean);
 }
 
 /** Spawn a detached background process, return the ChildProcess. */

@@ -1,12 +1,34 @@
 import { createHmac } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { homedir } from 'node:os';
 import {
   header, ok, info, warn, fail, dim, bold, cyan, yellow, green, red,
-  ROOT, ENV_PATH, parseEnvFile, run, hasCommand, mask,
+  ROOT, ENV_PATH, parseEnvFile, run, runPassthrough, hasCommand, mask,
 } from './utils.js';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
-const AGENT_DOMAIN = 'system.blather';
+export const AGENT_DOMAIN = 'system.blather';
+
+/** Extract #channel slugs from template content (ignores markdown headers). */
+export function parseChannelRefs(content: string): string[] {
+  const pattern = /(?<=\s|^)#([a-z][a-z0-9_-]*)/g;
+  const refs = new Set<string>();
+  for (const match of content.matchAll(pattern)) {
+    refs.add(match[1]);
+  }
+  return [...refs];
+}
+
+/** Replace template variables ($KEY) in content. */
+export function applyTemplateVars(content: string, vars: Record<string, string>): string {
+  let result = content;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(key, value);
+  }
+  return result;
+}
 
 function getApiUrl(): string {
   const env = parseEnvFile(ENV_PATH);
@@ -51,7 +73,7 @@ function b64url(input: string | Buffer): string {
 
 // ── OpenClaw CLI helpers ────────────────────────────────────────────────────
 
-function oc(args: string): string | null {
+function oc(args: string) {
   return run(`openclaw ${args}`);
 }
 
@@ -116,7 +138,7 @@ async function init() {
     info(`Install: ${dim('npm install -g openclaw')}`);
     process.exit(1);
   }
-  ok(`openclaw found: ${dim(run('openclaw --version') ?? 'unknown')}`);
+  ok(`openclaw found: ${dim(run('openclaw --version').stdout || 'unknown')}`);
 
   const apiUrl = getApiUrl();
   info(`Blather API: ${dim(apiUrl)}`);
@@ -134,12 +156,12 @@ async function init() {
   console.log();
   info('Installing Blather plugin...');
   const pluginCheck = oc('plugins inspect blather 2>/dev/null');
-  if (pluginCheck) {
+  if (pluginCheck.ok) {
     ok('Plugin already installed');
   } else {
-    const result = run(`openclaw plugins install --link ${ROOT}/packages/plugins/blather`);
-    if (result === null) {
-      fail('Plugin install failed');
+    const result = run(`openclaw plugins install --link ${ROOT}/packages/plugins/openclaw_blather`);
+    if (!result.ok) {
+      fail(`Plugin install failed: ${result.stderr || result.stdout}`);
       process.exit(1);
     }
     ok('Plugin installed (linked)');
@@ -156,43 +178,154 @@ async function init() {
   const workspace = allWorkspaces[0];
   ok(`Workspace: ${bold(workspace.name)} ${dim(`(${workspace.id})`)}`);
 
-  // 4. Create agent user + API key
-  console.log();
-  info('Setting up agent identity...');
-
-  const agentEmail = `openclaw@${AGENT_DOMAIN}`;
-  const agentName = 'OpenClaw';
-
-  let agentUser = await findOrCreateAgent(agentEmail, agentName);
-
-  // Ensure workspace membership
-  await ensureWorkspaceMember(workspace.id, agentUser.id);
-
-  // Generate API key
-  const jwt = signJwt(agentUser.id);
-  const keyResult = await apiFetch('/auth/api-keys', {
-    method: 'POST',
-    token: jwt,
-    body: JSON.stringify({ name: 'openclaw' }),
-  }) as { key: string };
-  ok(`API key: ${dim(mask(keyResult.key))}`);
-
-  // 5. Configure OpenClaw channel
+  // 4. Configure OpenClaw channel
   console.log();
   info('Configuring OpenClaw...');
 
   oc('config set channels.blather.enabled true --strict-json');
   oc(`config set channels.blather.apiUrl "${apiUrl}"`);
-  oc(`config set channels.blather.apiKey "${keyResult.key}"`);
   oc(`config set channels.blather.workspaceId "${workspace.id}"`);
   ok('Channel configured');
+
+  // 5. Register clankers from clankers/ directory
+  await initBuiltInClankers(workspace, apiUrl);
+
+  // Restart gateway
+  console.log();
+  info('Restarting OpenClaw gateway...');
+  if (!runPassthrough('openclaw daemon restart')) {
+    warn('Could not restart gateway');
+    info(`Try manually: ${dim('openclaw daemon restart')}`);
+  }
 
   // Done
   console.log();
   header('Ready');
   ok('Blather plugin installed and configured');
-  info(`Restart the gateway to activate: ${dim('openclaw daemon restart')}`);
   console.log();
+}
+
+// ── built-in clankers ──────────────────────────────────────────────────────
+
+async function initBuiltInClankers(workspace: { id: string; name: string }, apiUrl: string) {
+  const clankersDir = resolve(ROOT, 'clankers');
+  if (!existsSync(clankersDir)) return;
+
+  const clankerDirs = readdirSync(clankersDir, { withFileTypes: true })
+    .filter(e => e.isDirectory());
+  if (clankerDirs.length === 0) return;
+
+  const env = parseEnvFile(ENV_PATH);
+  // Derive web URL: same host as API but port 8080
+  const webUrl = env['VITE_WEB_URL'] || apiUrl.replace(/:\d+([/?#].*)?$/, ':8080');
+
+  const templateVars: Record<string, string> = {
+    '$API_BASE': apiUrl,
+    '$WORKSPACE_ID': workspace.id,
+    '$WEB_URL': webUrl,
+    '$REPO_ROOT_PATH': ROOT,
+  };
+
+  // Scan all clanker templates for #channel references and ensure they exist
+  await ensureClankerChannels(clankersDir, clankerDirs.map(d => d.name), workspace);
+
+  console.log();
+  info(`Registering ${clankerDirs.length} built-in clanker(s)...`);
+
+  for (const dir of clankerDirs) {
+    const name = dir.name;
+    const clankerPath = resolve(clankersDir, name);
+
+    console.log();
+    info(bold(`Clanker: ${name}`));
+
+    // Create agent user + workspace membership
+    const email = `${name}@${AGENT_DOMAIN}`;
+    const displayName = name;
+    const agentUser = await findOrCreateAgent(email, displayName);
+    await ensureWorkspaceMember(workspace.id, agentUser.id);
+
+    // Generate API key
+    const jwt = signJwt(agentUser.id);
+    const keyResult = await apiFetch('/auth/api-keys', {
+      method: 'POST',
+      token: jwt,
+      body: JSON.stringify({ name: `clanker-${name}` }),
+    }) as { key: string };
+    ok(`API key: ${dim(mask(keyResult.key))}`);
+
+    // Configure OpenClaw account
+    oc(`config set channels.blather.accounts.${name}.apiKey "${keyResult.key}"`);
+
+    // Add or bind OpenClaw agent
+    const agentWorkspace = `~/.openclaw/agents/${name}/workspace`;
+    const agentWorkspaceAbs = resolve(homedir(), '.openclaw', 'agents', name, 'workspace');
+    const agentsList = oc('agents list --json 2>/dev/null');
+    const hasAgent = agentsList.ok && agentsList.stdout.includes(`"${name}"`);
+
+    if (hasAgent) {
+      oc(`agents bind ${name} blather:${name}`);
+      ok(`Bound existing agent ${bold(name)} to blather:${name}`);
+    } else {
+      oc(`agents add ${name} --bind blather:${name} --non-interactive --workspace ${agentWorkspace}`);
+      ok(`Created agent ${bold(name)} with blather:${name} binding`);
+    }
+
+    // Copy template files with variable substitution
+    mkdirSync(agentWorkspaceAbs, { recursive: true });
+    const files = readdirSync(clankerPath, { withFileTypes: true })
+      .filter(e => e.isFile());
+
+    for (const file of files) {
+      const raw = readFileSync(resolve(clankerPath, file.name), 'utf8');
+      writeFileSync(resolve(agentWorkspaceAbs, file.name), applyTemplateVars(raw, templateVars));
+    }
+    ok(`Copied ${files.length} template file(s) with config applied`);
+  }
+}
+
+/** Scan clanker template files for #channel references and create missing channels. */
+async function ensureClankerChannels(
+  clankersDir: string,
+  clankerNames: string[],
+  workspace: { id: string },
+) {
+  // Collect all #channel references from template files
+  const allRefs = new Set<string>();
+  for (const name of clankerNames) {
+    const clankerPath = resolve(clankersDir, name);
+    const files = readdirSync(clankerPath, { withFileTypes: true }).filter(e => e.isFile());
+    for (const file of files) {
+      const content = readFileSync(resolve(clankerPath, file.name), 'utf8');
+      for (const ref of parseChannelRefs(content)) {
+        allRefs.add(ref);
+      }
+    }
+  }
+
+  if (allRefs.size === 0) return;
+
+  // Check which channels already exist
+  const existing = await dbQuery<{ slug: string }>(
+    'SELECT slug FROM channels WHERE workspace_id = $1',
+    [workspace.id],
+  );
+  const existingSlugs = new Set(existing.map(r => r.slug));
+
+  const missing = [...allRefs].filter(slug => !existingSlugs.has(slug));
+  if (missing.length === 0) return;
+
+  console.log();
+  info(`Creating ${missing.length} channel(s)...`);
+
+  for (const slug of missing) {
+    await dbQuery(
+      `INSERT INTO channels (workspace_id, name, slug, channel_type, is_default)
+       VALUES ($1, $2, $3, 'public', false)`,
+      [workspace.id, slug, slug],
+    );
+    ok(`Created #${slug}`);
+  }
 }
 
 // ── add ─────────────────────────────────────────────────────────────────────
@@ -256,7 +389,7 @@ async function add() {
 
   // Add or bind OpenClaw agent
   const agentsList = oc('agents list --json 2>/dev/null');
-  const hasAgent = agentsList?.includes(`"${name}"`);
+  const hasAgent = agentsList.ok && agentsList.stdout.includes(`"${name}"`);
 
   if (hasAgent) {
     oc(`agents bind ${name} blather:${name}`);
@@ -266,10 +399,17 @@ async function add() {
     ok(`Created agent ${bold(name)} with blather:${name} binding`);
   }
 
+  // Restart gateway
+  console.log();
+  info('Restarting OpenClaw gateway...');
+  if (!runPassthrough('openclaw daemon restart')) {
+    warn('Could not restart gateway');
+    info(`Try manually: ${dim('openclaw daemon restart')}`);
+  }
+
   console.log();
   header('Ready');
   ok(`Agent ${bold(name)} added`);
-  info(`Restart the gateway to activate: ${dim('openclaw daemon restart')}`);
   console.log();
 }
 
@@ -282,15 +422,15 @@ async function showStatus() {
     fail('openclaw CLI not found on PATH');
     return;
   }
-  ok(`openclaw: ${dim(run('openclaw --version') ?? 'unknown')}`);
+  ok(`openclaw: ${dim(run('openclaw --version').stdout || 'unknown')}`);
 
   // Plugin
   console.log();
   info(bold('Plugin'));
   const inspect = oc('plugins inspect blather 2>/dev/null');
-  if (inspect) {
-    const statusMatch = inspect.match(/Status:\s*(\S+)/);
-    const sourceMatch = inspect.match(/Source:\s*(.+)/);
+  if (inspect.ok) {
+    const statusMatch = inspect.stdout.match(/Status:\s*(\S+)/);
+    const sourceMatch = inspect.stdout.match(/Source:\s*(.+)/);
     ok(`Status: ${statusMatch?.[1] ?? 'unknown'}`);
     if (sourceMatch) info(`Source: ${dim(sourceMatch[1].trim())}`);
   } else {
@@ -302,34 +442,34 @@ async function showStatus() {
   console.log();
   info(bold('Channel'));
   const enabled = oc('config get channels.blather.enabled 2>/dev/null');
-  const apiUrl = oc('config get channels.blather.apiUrl 2>/dev/null');
+  const cfgApiUrl = oc('config get channels.blather.apiUrl 2>/dev/null');
   const wsId = oc('config get channels.blather.workspaceId 2>/dev/null');
   const apiKey = oc('config get channels.blather.apiKey 2>/dev/null');
 
-  const strip = (s: string | null) => s?.replace(/"/g, '').trim() ?? null;
+  const strip = (s: string) => s.replace(/"/g, '').trim() || null;
 
-  if (enabled?.includes('true')) {
+  if (enabled.ok && enabled.stdout.includes('true')) {
     ok(`Enabled: ${green('yes')}`);
   } else {
     warn(`Enabled: ${yellow('no')}`);
   }
-  info(`API URL: ${dim(strip(apiUrl) ?? 'not set')}`);
-  info(`Workspace: ${dim(strip(wsId) ?? 'not set')}`);
-  info(`API Key: ${dim(strip(apiKey) ? mask(strip(apiKey)!) : 'not set')}`);
+  info(`API URL: ${dim(strip(cfgApiUrl.stdout) ?? 'not set')}`);
+  info(`Workspace: ${dim(strip(wsId.stdout) ?? 'not set')}`);
+  info(`API Key: ${dim(strip(apiKey.stdout) ? mask(strip(apiKey.stdout)!) : 'not set')}`);
 
   // Accounts
   const accounts = oc('config get channels.blather.accounts 2>/dev/null');
-  if (accounts && accounts !== 'undefined' && accounts !== 'null') {
+  if (accounts.ok && accounts.stdout && accounts.stdout !== 'undefined' && accounts.stdout !== 'null') {
     console.log();
     info(bold('Accounts'));
     try {
-      const parsed = JSON.parse(accounts);
+      const parsed = JSON.parse(accounts.stdout);
       for (const [id, acct] of Object.entries(parsed as Record<string, any>)) {
         const key = acct.apiKey ? mask(acct.apiKey) : 'inherits default';
         info(`  ${bold(id)}: ${dim(key)}`);
       }
     } catch {
-      info(`  ${dim(accounts)}`);
+      info(`  ${dim(accounts.stdout)}`);
     }
   }
 
@@ -337,8 +477,8 @@ async function showStatus() {
   console.log();
   info(bold('Gateway'));
   const chanStatus = oc('channels status 2>/dev/null');
-  if (chanStatus) {
-    const blatherLine = chanStatus.split('\n').find(l => /blather/i.test(l));
+  if (chanStatus.ok) {
+    const blatherLine = chanStatus.stdout.split('\n').find((l: string) => /blather/i.test(l));
     if (blatherLine) {
       info(`  ${blatherLine.trim()}`);
     } else {
@@ -395,13 +535,13 @@ async function findOrCreateAgent(email: string, displayName: string): Promise<{ 
     return existing[0];
   }
 
-  const result = await apiFetch('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ email, displayName, isAgent: true }),
-  }) as { user: { id: string } };
+  const [created] = await dbQuery<{ id: string }>(
+    `INSERT INTO users (email, display_name, is_agent) VALUES ($1, $2, true) RETURNING id`,
+    [email, displayName]
+  );
 
   ok(`Created agent user: ${bold(displayName)} ${dim(`<${email}>`)}`);
-  return { id: result.user.id };
+  return created;
 }
 
 async function ensureWorkspaceMember(workspaceId: string, userId: string) {

@@ -37,8 +37,8 @@ export async function down() {
   const tsxPids = run(
     `pgrep -f "tsx.*blather|node.*blather.*(api|web)" 2>/dev/null`
   );
-  if (tsxPids) {
-    for (const pid of tsxPids.split('\n').filter(Boolean)) {
+  if (tsxPids.ok && tsxPids.stdout) {
+    for (const pid of tsxPids.stdout.split('\n').filter(Boolean)) {
       try {
         process.kill(parseInt(pid, 10), 'SIGTERM');
         ok(`Killed orphan process ${dim(`(pid ${pid})`)}`);
@@ -53,10 +53,10 @@ export async function down() {
 
   if (hasCommand('docker') && existsSync(DOCKER_COMPOSE_PATH)) {
     const containers = run('docker compose ps -q 2>/dev/null');
-    if (containers && containers.length > 0) {
+    if (containers.ok && containers.stdout.length > 0) {
       info('Stopping containers...');
       const result = run('docker compose stop');
-      if (result !== null) {
+      if (result.ok) {
         ok('Docker Compose services stopped');
       } else {
         fail('Failed to stop Docker Compose services');

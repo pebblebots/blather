@@ -114,8 +114,8 @@ export async function status() {
     fail(`Docker: ${dim('not found on PATH')}`);
   } else {
     const containers = run(`docker compose ps --format json 2>/dev/null`);
-    if (containers && containers.length > 2) {
-      const running = containers.includes('"running"');
+    if (containers.ok && containers.stdout.length > 2) {
+      const running = containers.stdout.includes('"running"');
       if (running) {
         ok(`Docker Compose: ${green('running')}`);
       } else {
