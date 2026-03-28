@@ -77,5 +77,5 @@ export function getAgentStatus(userId: string): AgentStatus | undefined {
 }
 
 export function getAllStatuses(): Map<string, AgentStatus> {
-  return statusMap;
+  return new Map(statusMap);
 }

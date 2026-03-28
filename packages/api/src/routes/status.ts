@@ -58,10 +58,5 @@ statusRoutes.get('/:userId', async (c) => {
 
 // Get all active statuses (for initial page load)
 statusRoutes.get('/', async (c) => {
-  const all = getAllStatuses();
-  const result: Record<string, any> = {};
-  for (const [userId, status] of all) {
-    result[userId] = status;
-  }
-  return c.json(result);
+  return c.json(Object.fromEntries(getAllStatuses()));
 });
