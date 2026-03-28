@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import { eq, and, isNull, gt } from 'drizzle-orm';
 import { users, apiKeys, magicTokens, workspaces, workspaceMembers, channels, channelMembers } from '@blather/db';
 import type { Env } from '../app.js';
-import { signToken, hashApiKey, authMiddleware } from '../middleware/auth.js';
+import { signToken, hashApiKey, authMiddleware, logAuthFailure } from '../middleware/auth.js';
 import type { RegisterRequest, LoginRequest, CreateApiKeyRequest } from '@blather/types';
 import type { Db } from '@blather/db';
 import { Resend } from 'resend';
@@ -160,6 +160,7 @@ authRoutes.post('/magic/verify', async (c) => {
     )).limit(1);
 
   if (!magic) {
+    logAuthFailure(c, 'invalid_magic_token');
     return c.json({ error: 'Invalid or expired token' }, 401);
   }
 
@@ -204,6 +205,7 @@ authRoutes.post('/magic/verify-code', async (c) => {
     )).limit(1);
 
   if (!magic) {
+    logAuthFailure(c, 'invalid_magic_code', { email: email.toLowerCase() });
     return c.json({ error: 'Invalid or expired code' }, 401);
   }
 
@@ -267,6 +269,7 @@ authRoutes.post('/login', async (c) => {
 
   const [user] = await db.select().from(users).where(eq(users.email, body.email)).limit(1);
   if (!user || !user.passwordHash || !(await bcrypt.compare(body.password, user.passwordHash))) {
+    logAuthFailure(c, 'invalid_credentials', { email: body.email });
     return c.json({ error: 'Invalid credentials' }, 401);
   }
 

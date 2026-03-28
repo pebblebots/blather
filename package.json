@@ -16,9 +16,19 @@
   "dependencies": {
     "ws": "^8.0.0"
   },
+  "bin": {
+    "bla": "packages/cli/dist/index.js"
+  },
   "scripts": {
+    "bla": "node packages/cli/dist/index.js",
     "test": "pnpm -r --if-present test",
     "e2e": "playwright test"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bcrypt",
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
