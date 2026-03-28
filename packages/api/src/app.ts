@@ -13,6 +13,7 @@ import { ttsRoutes } from './routes/tts.js';
 import { huddleRoutes } from './routes/huddles.js';
 import { activityRoutes } from './routes/activity.js';
 import { metricRoutes } from './routes/metrics.js';
+import { statusRoutes } from './routes/status.js';
 
 export type Env = {
   Variables: {
@@ -53,6 +54,7 @@ export function createApp(db: Db = createDb()): Hono<Env> {
   app.route('/huddles', huddleRoutes);
   app.route('/metrics', metricRoutes);
   app.route('/activity', activityRoutes);
+  app.route('/status', statusRoutes);
 
   return app;
 }

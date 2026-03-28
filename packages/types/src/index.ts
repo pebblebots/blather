@@ -146,7 +146,8 @@ export type EventType =
   | 'huddle.audio'
   | 'huddle.speaking'
   | 'huddle.joined'
-  | 'huddle.ended';
+  | 'huddle.ended'
+  | 'status.changed';
 
 export interface WsEvent {
   id: string;

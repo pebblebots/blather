@@ -151,6 +151,12 @@ export const presenceApi = {
     request<{ userId: string; status: string }[]>(`/workspaces/${workspaceId}/presence`),
 };
 
+// Agent status
+export const statusApi = {
+  getAll: () =>
+    request<Record<string, { text: string; progress?: number; eta?: string }>>('/status'),
+};
+
 // Tasks
 export const taskApi = {
   list: (workspaceId: string, filters?: { status?: string; priority?: string; assigneeId?: string }) => {

@@ -84,6 +84,20 @@ export function getPresenceForWorkspace(workspaceId: string): { userId: string; 
   return [...userStatus.entries()].map(([userId, status]) => ({ userId, status }));
 }
 
+/** Broadcast a status change for a user to all workspaces they're connected to. */
+export function broadcastStatusForUser(userId: string, status: { text: string; progress?: number; eta?: string } | null) {
+  const data = JSON.stringify({ type: 'status.changed', data: { userId, status } });
+  for (const [, clients] of workspaceClients) {
+    // Only broadcast to workspaces where this user has a connection
+    const userInWorkspace = [...clients].some(c => c.userId === userId);
+    if (!userInWorkspace) continue;
+    for (const client of clients) {
+      if (client.ws.readyState !== WebSocket.OPEN) continue;
+      client.ws.send(data);
+    }
+  }
+}
+
 /** Broadcast an event to all WS clients in a workspace, respecting channel privacy */
 export async function publishEvent(workspaceId: string, event: Record<string, unknown> & { channel_id?: string | null }) {
   const set = workspaceClients.get(workspaceId);

@@ -1,7 +1,8 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi, OpenClawPluginToolFactory, AnyAgentTool } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { blatherPlugin } from "./src/channel.js";
 import { setRuntime } from "./src/runtime.js";
+import { createBlatherStatusTools } from "./src/status-tools.js";
 
 const plugin = {
   id: "blather",
@@ -11,6 +12,10 @@ const plugin = {
   register(api: OpenClawPluginApi) {
     setRuntime(api.runtime);
     api.registerChannel({ plugin: blatherPlugin });
+
+    // Agent-callable status tools
+    const factory: OpenClawPluginToolFactory = (ctx) => createBlatherStatusTools(ctx);
+    api.registerTool(factory, { names: ["bla_status_set", "bla_status_clear"] });
   },
 };
 

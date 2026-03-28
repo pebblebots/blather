@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, unreadApi, presenceApi, clearToken } from '../lib/api';
+import { api, unreadApi, presenceApi, statusApi, clearToken } from '../lib/api';
 import { useApp } from '../lib/store';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -23,6 +23,35 @@ export function MainPage() {
   
   // Mobile-specific state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('blather:sidebarWidth');
+    return saved ? parseInt(saved, 10) : 210;
+  });
+  const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartWidthRef = useRef(210);
+
+  const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragStartWidthRef.current = sidebarWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = ev.clientX - dragStartXRef.current;
+      const next = Math.min(400, Math.max(140, dragStartWidthRef.current + delta));
+      setSidebarWidth(next);
+      localStorage.setItem('blather:sidebarWidth', String(next));
+    };
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [sidebarWidth]);
   
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [selectedWs, setSelectedWs] = useState<string | null>(null);
@@ -64,6 +93,7 @@ export function MainPage() {
   const usersMapRef = useRef<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [presence, setPresence] = useState<Map<string, string>>(new Map());
+  const [agentStatuses, setAgentStatuses] = useState<Map<string, { text: string; progress?: number; eta?: string }>>(new Map());
 
   // Mobile tab handlers
 
@@ -104,6 +134,11 @@ export function MainPage() {
       const map = new Map<string, string>();
       for (const p of data) map.set(p.userId, p.status);
       setPresence(map);
+    }).catch(() => {});
+    statusApi.getAll().then((data) => {
+      const map = new Map<string, { text: string; progress?: number; eta?: string }>();
+      for (const [userId, s] of Object.entries(data)) map.set(userId, s as any);
+      setAgentStatuses(map);
     }).catch(() => {});
   }, [selectedWs]);
 
@@ -272,6 +307,15 @@ export function MainPage() {
       setPresence((prev) => {
         const next = new Map(prev);
         next.set(p.userId, p.status);
+        return next;
+      });
+    }
+    if (event.type === 'status.changed' && event.data) {
+      const p = event.data;
+      setAgentStatuses((prev) => {
+        const next = new Map(prev);
+        if (p.status) next.set(p.userId, p.status);
+        else next.delete(p.userId);
         return next;
       });
     }
@@ -842,7 +886,22 @@ export function MainPage() {
                             marginRight: '12px',
                             flexShrink: 0,
                           }} />
-                          <span>{member.displayName}</span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: 'block' }}>{member.displayName}</span>
+                            {agentStatuses.has(member.id) && (() => {
+                              const s = agentStatuses.get(member.id)!;
+                              return (
+                                <span style={{ display: 'block', fontSize: 12, color: '#777', lineHeight: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'normal' }}>
+                                  {s.text}{s.eta ? ` (${s.eta})` : ''}
+                                  {s.progress != null && (
+                                    <span style={{ display: 'inline-block', width: 48, height: 5, background: '#ddd', borderRadius: 2, marginLeft: 6, verticalAlign: 'middle' }}>
+                                      <span style={{ display: 'block', width: `${Math.round(s.progress * 100)}%`, height: '100%', background: '#4488cc', borderRadius: 2 }} />
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })()}
+                          </span>
                         </div>
                       );
                     })}
@@ -1020,7 +1079,7 @@ export function MainPage() {
         {/* Main body: sidebar + chat */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Sidebar - Finder-style navigator */}
-          <div style={{ width: 210, display: isMobile ? 'none' : 'flex', flexDirection: 'column', borderRight: '1px solid #999999', background: '#FFFFFF', flexShrink: 0 }}>
+          <div style={{ width: isMobile ? undefined : sidebarWidth, display: isMobile ? 'none' : 'flex', flexDirection: 'column', borderRight: '1px solid #999999', background: '#FFFFFF', flexShrink: 0 }}>
             <div className="mac-titlebar" style={{ fontSize: 11 }}>
               <div className="mac-close-box" style={{ width: 10, height: 10 }} />
               <div style={{ flex: 1, textAlign: 'center' }}>📁 Navigator</div>
@@ -1217,7 +1276,22 @@ export function MainPage() {
                         marginRight: 5,
                         flexShrink: 0,
                       }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.displayName}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.displayName}</span>
+                        {agentStatuses.has(member.id) && (() => {
+                          const s = agentStatuses.get(member.id)!;
+                          return (
+                            <span style={{ display: 'block', fontSize: 9, color: '#777', lineHeight: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'normal' }}>
+                              {s.text}{s.eta ? ` (${s.eta})` : ''}
+                              {s.progress != null && (
+                                <span style={{ display: 'inline-block', width: 32, height: 4, background: '#ddd', borderRadius: 2, marginLeft: 4, verticalAlign: 'middle' }}>
+                                  <span style={{ display: 'block', width: `${Math.round(s.progress * 100)}%`, height: '100%', background: '#4488cc', borderRadius: 2 }} />
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })()}
+                      </span>
                     </div>
                     );
                   })}
@@ -1225,6 +1299,20 @@ export function MainPage() {
               )}
             </div>
           </div>
+
+          {/* Resize handle — invisible, sits over the border */}
+          {!isMobile && (
+            <div
+              onMouseDown={onResizeMouseDown}
+              style={{
+                width: 5,
+                marginLeft: -3,
+                flexShrink: 0,
+                cursor: 'col-resize',
+                zIndex: 10,
+              }}
+            />
+          )}
 
           {/* Chat panel */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>

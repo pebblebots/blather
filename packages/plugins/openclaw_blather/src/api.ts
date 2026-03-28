@@ -73,4 +73,18 @@ export class BlatherClient {
   async sendTyping(channelId: string): Promise<void> {
     await this.request(`/channels/${channelId}/typing`, { method: "POST" });
   }
+
+  async setStatus(
+    text: string,
+    opts?: { autoclear?: string; progress?: number; eta?: string },
+  ): Promise<void> {
+    await this.request("/status", {
+      method: "PUT",
+      body: JSON.stringify({ text, ...opts }),
+    });
+  }
+
+  async clearStatus(): Promise<void> {
+    await this.request("/status", { method: "DELETE" });
+  }
 }

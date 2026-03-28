@@ -34,6 +34,7 @@ vi.mock('../lib/api', () => ({
   },
   clearToken: vi.fn(),
   taskApi: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  statusApi: { getAll: vi.fn(async () => ({})) },
 }));
 
 vi.mock('../hooks/useWebSocket', () => ({
