@@ -15,6 +15,7 @@ import { SearchPanel } from '../components/SearchPanel';
 import { ThreadPanel } from '../components/ThreadPanel';
 import { HuddleModal } from '../components/HuddleModal';
 import { NewHuddleModal } from '../components/NewHuddleModal';
+import { HelpModal } from '../components/HelpModal';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -55,6 +56,7 @@ export function MainPage() {
   const [showHuddle, setShowHuddle] = useState(false);
   const [currentHuddleId, setCurrentHuddleId] = useState<string | null>(null);
   const [huddleEvents, setHuddleEvents] = useState<any[]>([]);
+  const [showHelp, setShowHelp] = useState(false);
   const [threadMessage, setThreadMessage] = useState<any>(null);
   const [threadNewReply, setThreadNewReply] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{x: number; y: number; channel: any} | null>(null);
@@ -984,6 +986,7 @@ export function MainPage() {
             huddleEvents={huddleEvents}
           />
         )}
+        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       </div>
     );
   }
@@ -998,7 +1001,7 @@ export function MainPage() {
         <span>Edit</span>
         <span>View</span>
         <span>Window</span>
-        <span>Help</span>
+        <span onClick={() => setShowHelp(true)} style={{ cursor: 'pointer' }}>Help</span>
         <div style={{ flex: 1 }} />
         <span onClick={() => setShowNewHuddle(true)} style={{ cursor: "pointer", fontSize: 13 }} title="Start a Huddle">🎙️</span>
         <span style={{ fontWeight: "normal", fontSize: 11 }}>⌘</span>
@@ -1381,6 +1384,7 @@ export function MainPage() {
           huddleEvents={huddleEvents}
         />
       )}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
     </div>
   );
 }
