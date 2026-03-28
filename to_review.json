@@ -1,12 +1,5 @@
 {
   "todo": [
-    "packages/cli/src/status.ts",
-    "packages/cli/src/up.ts",
-    "packages/cli/src/users.ts",
-    "packages/cli/src/workspaces.ts",
-    "packages/db/src/index.ts",
-    "packages/db/src/migrate.ts",
-    "packages/db/src/schema.ts",
     "packages/plugins/openclaw_blather/index.ts",
     "packages/plugins/openclaw_blather/src/api.ts",
     "packages/plugins/openclaw_blather/src/channel.ts",
@@ -106,6 +99,9 @@
     "packages/cli/src/down.ts": true,
     "packages/cli/src/index.ts": true,
     "packages/cli/src/openclaw.ts": true,
-    "packages/cli/src/setup.ts": true
+    "packages/cli/src/setup.ts": true,
+    "packages/db/src/index.ts": true,
+    "packages/db/src/migrate.ts": true,
+    "packages/db/src/schema.ts": true
   }
 }
