@@ -311,4 +311,10 @@ export async function startMonitor(params: MonitorParams) {
   }
 
   connect();
+
+  // Keep the promise alive so the plugin framework doesn't think we exited.
+  // Resolves only when the abort signal fires (i.e. the framework stops us).
+  return new Promise<void>(resolve => {
+    abortSignal.addEventListener("abort", resolve, { once: true });
+  });
 }
