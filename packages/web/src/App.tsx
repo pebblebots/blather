@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AppContext, type User } from './lib/store';
-import { apiUrl } from './lib/urls';
+import { api, clearToken } from './lib/api';
 import { AuthPage } from './pages/AuthPage';
 import { MainPage } from './pages/MainPage';
 
@@ -12,21 +12,20 @@ export default function App() {
     const token = localStorage.getItem('blather_token');
     if (!token) { setChecking(false); return; }
 
-    fetch(apiUrl('/workspaces'), { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => {
-        if (!r.ok) throw new Error();
+    api.getWorkspaces()
+      .then(() => {
         const stored = localStorage.getItem('blather_user');
         if (stored) setUser(JSON.parse(stored));
-        else { localStorage.removeItem('blather_token'); }
+        else clearToken();
       })
-      .catch(() => { localStorage.removeItem('blather_token'); })
+      .catch(() => { clearToken(); })
       .finally(() => setChecking(false));
   }, []);
 
   const handleSetUser = (u: User | null) => {
     setUser(u);
     if (u) localStorage.setItem('blather_user', JSON.stringify(u));
-    else { localStorage.removeItem('blather_user'); localStorage.removeItem('blather_token'); }
+    else { localStorage.removeItem('blather_user'); clearToken(); }
   };
 
   if (checking) {
