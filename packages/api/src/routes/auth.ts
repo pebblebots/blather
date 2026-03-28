@@ -5,7 +5,7 @@ import { eq, and, isNull, gt } from 'drizzle-orm';
 import { users, apiKeys, magicTokens, workspaces, workspaceMembers, channels, channelMembers } from '@blather/db';
 import type { Env } from '../app.js';
 import { signToken, hashApiKey, authMiddleware, logAuthFailure } from '../middleware/auth.js';
-import type { RegisterRequest, LoginRequest, CreateApiKeyRequest } from '@blather/types';
+import type { LoginRequest, CreateApiKeyRequest } from '@blather/types';
 import type { Db } from '@blather/db';
 import { Resend } from 'resend';
 import { publishEvent } from '../ws/manager.js';
@@ -253,39 +253,6 @@ authRoutes.post('/magic/verify-code', async (c) => {
   return c.json({ token: jwt, user: userToPublic(user) });
 });
 
-// ── Legacy: Register (kept for agents) ──
-authRoutes.post('/register', async (c) => {
-  const body = await c.req.json<RegisterRequest>();
-  const db = c.get('db');
-
-  if (!isEmailAllowed(body.email)) {
-    return c.json({ error: 'Email not allowed' }, 403);
-  }
-
-  const passwordHash = body.password ? await bcrypt.hash(body.password, 12) : null;
-  const [user] = await db.insert(users).values({
-    email: body.email,
-    passwordHash,
-    displayName: body.displayName,
-    isAgent: body.isAgent ?? false,
-  }).returning();
-
-  // Auto-join domain workspaces
-  await autoJoinDomainWorkspaces(db, user.id, user.email);
-
-  const token = signToken(user.id);
-  return c.json({
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      avatarUrl: user.avatarUrl,
-      isAgent: user.isAgent,
-      createdAt: user.createdAt.toISOString(),
-    },
-  }, 201);
-});
 
 // ── Legacy: Login (kept for agents with passwords) ──
 authRoutes.post('/login', async (c) => {

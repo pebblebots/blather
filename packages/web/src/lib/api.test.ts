@@ -94,13 +94,6 @@ describe('API client', () => {
     expect(fetchedBody()).toEqual({ token: 'magic-token' });
   });
 
-  it('register sends POST with user data', async () => {
-    mockFetch.mockReturnValue(jsonResponse({ token: 'jwt', user: {} }));
-    await api.register({ email: 'a@b.com', password: 'pw', displayName: 'A' });
-    expect(fetchedPath()).toBe('/api/auth/register');
-    expect(fetchedBody()).toEqual({ email: 'a@b.com', password: 'pw', displayName: 'A' });
-  });
-
   it('login sends POST with credentials', async () => {
     mockFetch.mockReturnValue(jsonResponse({ token: 'jwt', user: {} }));
     await api.login({ email: 'a@b.com', password: 'pw' });
