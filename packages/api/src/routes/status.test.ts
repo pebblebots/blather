@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../ws/manager.js', () => ({
   broadcastStatusForUser: vi.fn(),
@@ -24,6 +24,10 @@ describe('status routes', () => {
       clearAgentStatus(userId);
     }
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   afterAll(async () => {
@@ -86,6 +90,29 @@ describe('status routes', () => {
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: 'progress must be a number between 0 and 1' });
     expect(broadcastStatusForUser).not.toHaveBeenCalled();
+  });
+
+  it('PUT /status uses the default autoclear and broadcasts removal when it expires', async () => {
+    vi.useFakeTimers();
+
+    const user = await harness.factories.createUser();
+
+    const response = await harness.request.put<{ ok: boolean; status: { text: string } }>('/status', {
+      headers: harness.headers.forUser(user.id),
+      json: { text: 'Temporary status' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(broadcastStatusForUser).toHaveBeenNthCalledWith(1, user.id, { text: 'Temporary status' });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const allStatuses = await harness.request.get<Record<string, { text: string }>>('/status', {
+      headers: harness.headers.forUser(user.id),
+    });
+
+    expect(allStatuses.body).toEqual({});
+    expect(broadcastStatusForUser).toHaveBeenNthCalledWith(2, user.id, null);
   });
 
   it('GET /status returns all active statuses keyed by user id', async () => {
