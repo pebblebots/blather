@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { red } from './utils.js';
 
 const program = new Command()
   .name('bla')
@@ -31,7 +30,6 @@ program.command('openclaw')
   .allowExcessArguments()
   .action(async () => (await import('./openclaw.js')).openclaw());
 
-// Users — fully commander-based
 const usersCmd = (await import('./users.js')).registerUsers();
 program.addCommand(usersCmd);
 
