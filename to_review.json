@@ -1,6 +1,5 @@
 {
   "todo": [
-    "packages/plugins/openclaw_blather/index.ts",
     "packages/plugins/openclaw_blather/src/api.ts",
     "packages/plugins/openclaw_blather/src/channel.ts",
     "packages/plugins/openclaw_blather/src/config.ts",
@@ -102,6 +101,7 @@
     "packages/cli/src/setup.ts": true,
     "packages/db/src/index.ts": true,
     "packages/db/src/migrate.ts": true,
-    "packages/db/src/schema.ts": true
+    "packages/db/src/schema.ts": true,
+    "packages/plugins/openclaw_blather/index.ts": true
   }
 }
