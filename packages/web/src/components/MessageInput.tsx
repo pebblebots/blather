@@ -27,6 +27,13 @@ function isImage(type: string): boolean {
   return type.startsWith('image/');
 }
 
+// Detect mobile/touch devices where Enter should insert newline, not send
+function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 0 && window.innerWidth < 768);
+}
+
 export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) {
   const [text, setText] = useState('');
   const [files, setFiles] = useState<AttachedFile[]>([]);
@@ -34,6 +41,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const isMobile = useMemo(() => isMobileDevice(), []);
 
   // Emoji picker state
   const [emojiQuery, setEmojiQuery] = useState<string | null>(null);
@@ -190,7 +198,9 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
         return;
       }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // On mobile, Enter inserts newline (use Send button to submit).
+    // On desktop, Enter sends; Shift+Enter inserts newline.
+    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
       e.preventDefault();
       handleSubmit(e);
     }
