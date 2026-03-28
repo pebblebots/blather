@@ -284,3 +284,13 @@ input[type="checkbox"]:checked::after {
 }
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* iOS PWA safe-area support (T#69, T#70) */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .mac-menubar {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}

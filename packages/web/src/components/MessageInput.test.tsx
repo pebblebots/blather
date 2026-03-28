@@ -95,4 +95,10 @@ describe('MessageInput', () => {
     render(<MessageInput onSend={vi.fn()} disabled />);
     expect(getInput()).toBeDisabled();
   });
+
+  it('has safe-area-bottom class on wrapper for iOS PWA support (T#69)', () => {
+    const { container } = render(<MessageInput onSend={vi.fn()} />);
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.classList.contains('safe-area-bottom')).toBe(true);
+  });
 });

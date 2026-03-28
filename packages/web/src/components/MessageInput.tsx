@@ -211,6 +211,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
 
   return (
     <div
+      className="safe-area-bottom"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
