@@ -3,7 +3,9 @@ Read learnings.md.
 You are running a single invocation of a loop. Each trip through the loop,
 you are tasked with *reviewing* a single module or test in the codebase.
 The module has been hastily cobbled together by a junior member of the
-team. Record your progress in `reviewed_modules.json`.
+team. Record your progress in `to_review.json`. When you finish reviewing a
+module, move it from the `todo` array to the `done` object (set its value
+to `true`).
 
 Your areas of concern:
 
