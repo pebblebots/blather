@@ -234,29 +234,14 @@ describe('auth routes', () => {
     expect(response.body).toEqual({ error: 'Invalid or expired code' });
   });
 
-  // ── Legacy Register / Login ──
-
-  it('POST /auth/register creates a new user', async () => {
-    const response = await harness.request.post<AuthResponse>('/auth/register', {
-      json: {
-        email: 'register@example.com',
-        password: 'correct-horse-battery-staple',
-        displayName: 'Registered User',
-      },
-    });
-
-    expect(response.status).toBe(201);
-    expect(response.body?.user.email).toBe('register@example.com');
-    expect(response.body?.token).toBeTypeOf('string');
-  });
+  // ── Legacy Login ──
 
   it('POST /auth/login succeeds with correct credentials', async () => {
-    await harness.request.post('/auth/register', {
-      json: {
-        email: 'login@example.com',
-        password: 'correct-horse',
-        displayName: 'Login User',
-      },
+    const hash = await (await import('bcrypt')).default.hash('correct-horse', 10);
+    await harness.factories.createUser({
+      email: 'login@example.com',
+      passwordHash: hash,
+      displayName: 'Login User',
     });
 
     const response = await harness.request.post<AuthResponse>('/auth/login', {
@@ -269,12 +254,11 @@ describe('auth routes', () => {
   });
 
   it('POST /auth/login rejects incorrect password', async () => {
-    await harness.request.post('/auth/register', {
-      json: {
-        email: 'wrong-pw@example.com',
-        password: 'correct-horse',
-        displayName: 'Wrong PW',
-      },
+    const hash = await (await import('bcrypt')).default.hash('correct-horse', 10);
+    await harness.factories.createUser({
+      email: 'wrong-pw@example.com',
+      passwordHash: hash,
+      displayName: 'Wrong PW',
     });
 
     const response = await harness.request.post('/auth/login', {
@@ -416,33 +400,14 @@ describe('auth routes', () => {
       expect(response.status).toBe(200);
     });
 
-    it('POST /auth/register returns 403 for disallowed email', async () => {
-      process.env.BLA_ALLOWED_EMAILS = '*@allowed.com';
-
-      const response = await harness.request.post('/auth/register', {
-        json: {
-          email: 'agent@blocked.com',
-          password: 'password123',
-          displayName: 'Blocked Agent',
-        },
-      });
-
-      expect(response.status).toBe(403);
-      expect(response.body).toEqual({ error: 'Email not allowed' });
-    });
-
     it('POST /auth/login returns 403 for disallowed email', async () => {
-      // First register with allowlist open
-      process.env.BLA_ALLOWED_EMAILS = '*';
-      await harness.request.post('/auth/register', {
-        json: {
-          email: 'lockout@other.com',
-          password: 'password123',
-          displayName: 'Lockout User',
-        },
+      const hash = await (await import('bcrypt')).default.hash('password123', 10);
+      await harness.factories.createUser({
+        email: 'lockout@other.com',
+        passwordHash: hash,
+        displayName: 'Lockout User',
       });
 
-      // Now restrict
       process.env.BLA_ALLOWED_EMAILS = '*@allowed.com';
 
       const response = await harness.request.post('/auth/login', {
