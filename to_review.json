@@ -1,6 +1,5 @@
 {
   "todo": [
-    "packages/cli/src/openclaw.ts",
     "packages/cli/src/setup.ts",
     "packages/cli/src/status.ts",
     "packages/cli/src/up.ts",
@@ -106,6 +105,7 @@
     "packages/cli/src/utils.ts": true,
     "packages/api/src/config.ts": true,
     "packages/cli/src/down.ts": true,
-    "packages/cli/src/index.ts": true
+    "packages/cli/src/index.ts": true,
+    "packages/cli/src/openclaw.ts": true
   }
 }
