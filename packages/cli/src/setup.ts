@@ -1,5 +1,5 @@
 import * as readline from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
+import { stdin as input, stdout as output, exit } from 'node:process';
 import { randomBytes } from 'node:crypto';
 import {
   header, ok, info, warn, dim, bold, green, yellow, cyan,
@@ -15,8 +15,7 @@ interface SelectOption { label: string; hint?: string; value: string }
 function selectOne(options: SelectOption[], initial = 0): Promise<string> {
   return new Promise((resolve) => {
     let cursor = initial;
-    const { stdin } = process;
-    const wasRaw = stdin.isRaw;
+    const wasRaw = input.isRaw;
 
     function render() {
       // Move up to overwrite previous render (skip on first paint)
@@ -31,8 +30,8 @@ function selectOne(options: SelectOption[], initial = 0): Promise<string> {
     }
 
     let rendered = false;
-    stdin.setRawMode(true);
-    stdin.resume();
+    input.setRawMode(true);
+    input.resume();
     render();
 
     function onData(data: Buffer) {
@@ -48,17 +47,17 @@ function selectOne(options: SelectOption[], initial = 0): Promise<string> {
         resolve(options[cursor].value);
       } else if (key === '\x03') {                       // ctrl-c
         cleanup();
-        process.exit(130);
+        exit(130);
       }
     }
 
     function cleanup() {
-      stdin.removeListener('data', onData);
-      stdin.setRawMode(wasRaw ?? false);
-      stdin.pause();
+      input.removeListener('data', onData);
+      input.setRawMode(wasRaw ?? false);
+      input.pause();
     }
 
-    stdin.on('data', onData);
+    input.on('data', onData);
   });
 }
 

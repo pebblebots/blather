@@ -6,7 +6,9 @@ const { mockFiles, mockQuestions, mockSetRawMode, mockResume, mockPause, mockOn,
   mockSetRawMode: vi.fn(),
   mockResume: vi.fn(),
   mockPause: vi.fn(),
-  mockOn: vi.fn(),
+  mockOn: vi.fn((event: string, cb: (data: Buffer) => void) => {
+    if (event === 'data') queueMicrotask(() => cb(Buffer.from('\r')));
+  }),
   mockRemoveListener: vi.fn(),
   mockWrite: vi.fn(),
   mockExit: vi.fn(),
