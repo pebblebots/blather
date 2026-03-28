@@ -1,8 +1,24 @@
-import { describe, it, expect } from 'vitest';
-import { mask, parseEnvFile } from './utils.js';
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { mockFiles } = vi.hoisted(() => ({
+  mockFiles: new Map<string, string>(),
+}));
+
+vi.mock('node:fs', () => ({
+  existsSync: (path: string) => mockFiles.has(String(path)),
+  readFileSync: (path: string) => {
+    const content = mockFiles.get(String(path));
+    if (content === undefined) {
+      throw new Error(`ENOENT: no such file or directory, open '${String(path)}'`);
+    }
+    return content;
+  },
+  writeFileSync: (path: string, content: string) => {
+    mockFiles.set(String(path), content);
+  },
+}));
+
+import { ENV_EXAMPLE_PATH, ENV_PATH, mask, parseEnvFile, updateEnvFile } from './utils.js';
 
 describe('mask', () => {
   it('masks middle of long strings', () => {
@@ -20,37 +36,78 @@ describe('mask', () => {
 });
 
 describe('parseEnvFile', () => {
-  const tmp = join(tmpdir(), `bla-test-${Date.now()}.env`);
+  beforeEach(() => {
+    mockFiles.clear();
+  });
 
   it('returns empty object for missing file', () => {
     expect(parseEnvFile('/nonexistent/.env')).toEqual({});
   });
 
-  it('parses key=value pairs', () => {
-    writeFileSync(tmp, 'FOO=bar\nBAZ=qux\n');
-    try {
-      expect(parseEnvFile(tmp)).toEqual({ FOO: 'bar', BAZ: 'qux' });
-    } finally {
-      unlinkSync(tmp);
-    }
+  it('parses key=value pairs, comments, and values containing equals signs', () => {
+    mockFiles.set(
+      '/tmp/test.env',
+      [
+        '# comment',
+        '',
+        'FOO=bar',
+        '  # another comment',
+        'URL=postgres://user:***@host/db?ssl=true',
+        'INVALID_LINE',
+      ].join('\n'),
+    );
+
+    expect(parseEnvFile('/tmp/test.env')).toEqual({
+      FOO: 'bar',
+      URL: 'postgres://user:***@host/db?ssl=true',
+    });
+  });
+});
+
+describe('updateEnvFile', () => {
+  beforeEach(() => {
+    mockFiles.clear();
   });
 
-  it('ignores comments and blank lines', () => {
-    writeFileSync(tmp, '# comment\n\nFOO=bar\n  # another\nBAZ=1\n');
-    try {
-      const env = parseEnvFile(tmp);
-      expect(env).toEqual({ FOO: 'bar', BAZ: '1' });
-    } finally {
-      unlinkSync(tmp);
-    }
+  it('updates existing keys and appends missing ones in .env', () => {
+    mockFiles.set(
+      ENV_PATH,
+      [
+        '# existing config',
+        'FOO=old',
+        'BAR=keep',
+      ].join('\n'),
+    );
+
+    updateEnvFile({ FOO: 'new', BAZ: 'added' });
+
+    expect(mockFiles.get(ENV_PATH)).toBe(
+      [
+        '# existing config',
+        'FOO=new',
+        'BAR=keep',
+        'BAZ=added',
+      ].join('\n'),
+    );
   });
 
-  it('handles values with equals signs', () => {
-    writeFileSync(tmp, 'URL=postgres://user:pass@host/db?ssl=true\n');
-    try {
-      expect(parseEnvFile(tmp)).toEqual({ URL: 'postgres://user:pass@host/db?ssl=true' });
-    } finally {
-      unlinkSync(tmp);
-    }
+  it('uses .env.example as a template and activates commented keys', () => {
+    mockFiles.set(
+      ENV_EXAMPLE_PATH,
+      [
+        '# RESEND_API_KEY=replace-me',
+        '# OPTIONAL_FLAG=true',
+      ].join('\n'),
+    );
+
+    updateEnvFile({ RESEND_API_KEY: 'secret', NEW_KEY: 'value' });
+
+    expect(mockFiles.get(ENV_PATH)).toBe(
+      [
+        'RESEND_API_KEY=secret',
+        '# OPTIONAL_FLAG=true',
+        'NEW_KEY=value',
+      ].join('\n'),
+    );
   });
 });

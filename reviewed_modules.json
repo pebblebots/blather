@@ -78,5 +78,6 @@
   "packages/web/src/pages/MainPage.test.tsx",
   "packages/web/src/components/HuddleModal.tsx",
   "packages/web/src/components/Modal.tsx",
-  "packages/web/src/components/MenuBar.tsx"
+  "packages/web/src/components/MenuBar.tsx",
+  "packages/cli/src/utils.ts"
 ]

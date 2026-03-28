@@ -1,7 +1,7 @@
-import { execSync, spawn, type ChildProcess } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // ── Colors ──────────────────────────────────────────────────────────────────
@@ -27,7 +27,8 @@ export const header = (msg: string) => console.log(`\n  ${bold(cyan(msg))}\n`);
 // ── Paths ───────────────────────────────────────────────────────────────────
 
 const __filename = fileURLToPath(import.meta.url);
-export const ROOT = resolve(__filename, '..', '..', '..', '..');
+const __dirname = dirname(__filename);
+export const ROOT = resolve(__dirname, '..', '..', '..');
 export const ENV_PATH = resolve(ROOT, '.env');
 export const ENV_EXAMPLE_PATH = resolve(ROOT, '.env.example');
 export const DOCKER_COMPOSE_PATH = resolve(ROOT, 'docker-compose.yml');
@@ -162,17 +163,6 @@ export function getPidsOnPort(port: number): string[] {
   const { ok: found, stdout } = run(`lsof -i :${port} -sTCP:LISTEN -t 2>/dev/null`);
   if (!found || !stdout) return [];
   return stdout.split('\n').filter(Boolean);
-}
-
-/** Spawn a detached background process, return the ChildProcess. */
-export function spawnBg(cmd: string, args: string[], cwd?: string): ChildProcess {
-  const child = spawn(cmd, args, {
-    cwd: cwd ?? ROOT,
-    stdio: 'ignore',
-    detached: true,
-  });
-  child.unref();
-  return child;
 }
 
 // ── Mask secrets ────────────────────────────────────────────────────────────
