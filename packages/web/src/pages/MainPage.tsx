@@ -13,6 +13,7 @@ import { TypingIndicator } from '../components/TypingIndicator';
 import { TaskPanel } from '../components/TaskPanel';
 import { SearchPanel } from '../components/SearchPanel';
 import { ThreadPanel } from '../components/ThreadPanel';
+import MenuBar from '../components/MenuBar';
 import { HuddleModal } from '../components/HuddleModal';
 import { NewHuddleModal } from '../components/NewHuddleModal';
 import { HelpModal } from '../components/HelpModal';
@@ -1054,17 +1055,13 @@ export function MainPage() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#DDDDDD' }}>
       {/* Menu bar */}
-      <div className="mac-menubar" style={{ display: isMobile ? 'none' : 'flex' }}>
-        <span style={{ fontSize: 14 }}>🍎</span>
-        <span>File</span>
-        <span>Edit</span>
-        <span>View</span>
-        <span>Window</span>
-        <span onClick={() => setShowHelp(true)} style={{ cursor: 'pointer' }}>Help</span>
-        <div style={{ flex: 1 }} />
-        <span onClick={() => setShowNewHuddle(true)} style={{ cursor: "pointer", fontSize: 13 }} title="Start a Huddle">🎙️</span>
-        <span style={{ fontWeight: "normal", fontSize: 11 }}>⌘</span>
-      </div>
+      <MenuBar
+        showWindow
+        showExtras
+        onHelpClick={() => setShowHelp(true)}
+        onHuddleClick={() => setShowNewHuddle(true)}
+        style={{ display: isMobile ? 'none' : 'flex' }}
+      />
 
       {/* Main window */}
       <div className="mac-window" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', margin: isMobile ? 0 : 4, borderRadius: 0 }}>

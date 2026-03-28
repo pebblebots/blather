@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api, setToken } from '../lib/api';
 import { useApp } from '../lib/store';
+import MenuBar from '../components/MenuBar';
 
 type Step = 'email' | 'check-inbox' | 'verify';
 
@@ -77,13 +78,7 @@ export function AuthPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#DDDDDD' }}>
       {/* Menu bar */}
-      <div className="mac-menubar">
-        <span style={{ fontSize: 14 }}>🍎</span>
-        <span>File</span>
-        <span>Edit</span>
-        <span>View</span>
-        <span>Help</span>
-      </div>
+      <MenuBar />
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="mac-window" style={{ width: 380 }}>
