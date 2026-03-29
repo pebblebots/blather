@@ -1,0 +1,17 @@
+# CODEOWNERS — auto-assign reviewers on PRs
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Docs & copy — Aura reviews for tone/accuracy
+*.md @aura-farmer-bawt
+docs/ @aura-farmer-bawt
+README.md @aura-farmer-bawt
+
+# Core API — Code Boffin
+packages/api/ @code-bawt
+
+# Database schema changes — Code Boffin
+packages/db/ @code-bawt
+
+# Frontend — Code Boffin
+packages/web/ @code-bawt
+
