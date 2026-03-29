@@ -2,7 +2,7 @@
 export interface EmojiEntry {
   name: string;
   emoji: string;
-  keywords?: string[];
+  keywords: string[];
 }
 
 export const EMOJI_DATA: EmojiEntry[] = [
@@ -305,8 +305,7 @@ export const EMOJI_DATA: EmojiEntry[] = [
   { name: "yawn", emoji: "🥱", keywords: ["tired", "boring", "sleepy"] },
   { name: "pleading", emoji: "🥺", keywords: ["puppy eyes", "please"] },
   { name: "cursing", emoji: "🤬", keywords: ["angry", "swear"] },
-  { name: "clown_face", emoji: "🤡", keywords: ["clown", "joke"] },
-  { name: "poop_face", emoji: "💩", keywords: ["poo"] },
+
   { name: "wave_emoji", emoji: "〰️", keywords: ["wavy"] },
   { name: "dog_face", emoji: "🐶", keywords: ["puppy", "cute"] },
   { name: "cat_face", emoji: "🐱", keywords: ["kitty", "cute"] },

@@ -7,6 +7,7 @@ packages/web/dist
 packages/web/node_modules
 cognee-env/
 cognee-data/
+.gravel/
 
 ecosystem.config.cjs
 

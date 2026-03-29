@@ -1,6 +1,5 @@
 {
   "todo": [
-    "packages/web/src/components/emojiData.ts",
     "packages/web/src/components/HelpModal.tsx",
     "packages/web/src/hooks/useIsMobile.ts",
     "packages/web/src/pages/AuthPage.tsx"
@@ -98,6 +97,7 @@
     "packages/plugins/openclaw_blather/index.ts": true,
     "packages/plugins/openclaw_blather/src/api.ts": true,
     "packages/plugins/openclaw_blather/src/channel.ts": true,
-    "packages/web/src/App.tsx": true
+    "packages/web/src/App.tsx": true,
+    "packages/web/src/components/emojiData.ts": true
   }
 }
