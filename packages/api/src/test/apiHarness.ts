@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { apiKeys } from '@blather/db';
 import { createApp } from '../app.js';
 import { hashApiKey, signToken } from '../middleware/auth.js';
+import { createRateLimitStore } from '../middleware/rate-limit.js';
 import type { TestDatabase } from './testDb.js';
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -112,7 +113,8 @@ function createRequestClient(app: ReturnType<typeof createApp>): TestRequestClie
 }
 
 export function createApiTestHarness(testDatabase: TestDatabase): ApiTestHarness {
-  const app = createApp(testDatabase.db);
+  const rateLimitStore = createRateLimitStore();
+  const app = createApp(testDatabase.db, rateLimitStore);
   const request = createRequestClient(app);
 
   const jwtForUser = (userId: string): string => signToken(userId);
@@ -151,7 +153,7 @@ export function createApiTestHarness(testDatabase: TestDatabase): ApiTestHarness
       apiKey: apiKeyHeader,
       forApiKeyUser,
     },
-    reset: () => testDatabase.reset(),
-    close: () => testDatabase.close(),
+    reset: () => { rateLimitStore.clear(); return testDatabase.reset(); },
+    close: () => { rateLimitStore.destroy(); return testDatabase.close(); },
   };
 }

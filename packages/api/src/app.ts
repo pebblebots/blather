@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import { createDb, type Db } from '@blather/db';
-import { authRoutes } from './routes/auth.js';
+import { createAuthRoutes } from './routes/auth.js';
 import { workspaceRoutes } from './routes/workspaces.js';
 import { channelRoutes } from './routes/channels.js';
 import { taskRoutes } from './routes/tasks.js';
@@ -14,6 +14,7 @@ import { huddleRoutes } from './routes/huddles.js';
 import { activityRoutes } from './routes/activity.js';
 import { metricRoutes } from './routes/metrics.js';
 import { statusRoutes } from './routes/status.js';
+import { generalApiLimiter, messageSendLimiter, uploadLimiter, type RateLimitStore } from './middleware/rate-limit.js';
 
 export type Env = {
   Variables: {
@@ -22,7 +23,7 @@ export type Env = {
   };
 };
 
-export function createApp(db: Db = createDb()): Hono<Env> {
+export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore): Hono<Env> {
   const app = new Hono<Env>();
 
   app.use(
@@ -43,7 +44,17 @@ export function createApp(db: Db = createDb()): Hono<Env> {
 
   app.get('/', (c) => c.json({ name: 'blather', version: '0.1.0' }));
 
-  app.route('/auth', authRoutes);
+  // Per-user general rate limit on authenticated routes (applied before route handlers)
+  const generalLimiter = generalApiLimiter(rateLimitStore);
+  for (const prefix of ['/workspaces', '/channels', '/tasks', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status']) {
+    app.use(`${prefix}/*`, generalLimiter);
+  }
+
+  // Stricter per-user limits for message sending and file uploads
+  app.post('/messages/*', messageSendLimiter(rateLimitStore));
+  app.post('/uploads/*', uploadLimiter(rateLimitStore));
+
+  app.route('/auth', createAuthRoutes(rateLimitStore));
   app.route('/workspaces', workspaceRoutes);
   app.route('/channels', channelRoutes);
   app.route('/tasks', taskRoutes);

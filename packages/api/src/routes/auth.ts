@@ -9,6 +9,7 @@ import type { LoginRequest, CreateApiKeyRequest } from '@blather/types';
 import type { Db } from '@blather/db';
 import { Resend } from 'resend';
 import { publishEvent } from '../ws/manager.js';
+import { authMagicLimiter, authVerifyLimiter, type RateLimitStore } from '../middleware/rate-limit.js';
 
 /** Map a DB user row to the public JSON shape returned by auth endpoints. */
 function userToPublic(user: { id: string; email: string; displayName: string; avatarUrl: string | null; isAgent: boolean; createdAt: Date }) {
@@ -28,8 +29,6 @@ function getResend(): Resend | null {
   if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
   return _resend;
 }
-
-export const authRoutes = new Hono<Env>();
 
 // ── Helper: check email against BLA_ALLOWED_EMAILS allowlist ──
 // If BLA_ALLOWED_EMAILS is not set, email-based login is disabled entirely.
@@ -119,8 +118,11 @@ async function autoJoinDomainWorkspaces(db: Db, userId: string, email: string) {
   }
 }
 
+export function createAuthRoutes(rateLimitStore?: RateLimitStore): Hono<Env> {
+  const authRoutes = new Hono<Env>();
+
 // ── Magic Link: Request ──
-authRoutes.post('/magic', async (c) => {
+authRoutes.post('/magic', authMagicLimiter(rateLimitStore), async (c) => {
   const { email } = await c.req.json<{ email: string }>();
   const db = c.get('db');
 
@@ -172,7 +174,7 @@ authRoutes.post('/magic', async (c) => {
 });
 
 // ── Magic Link: Verify ──
-authRoutes.post('/magic/verify', async (c) => {
+authRoutes.post('/magic/verify', authVerifyLimiter(rateLimitStore), async (c) => {
   const { token } = await c.req.json<{ token: string }>();
   const db = c.get('db');
 
@@ -212,7 +214,7 @@ authRoutes.post('/magic/verify', async (c) => {
 });
 
 // ── Magic Code: Verify ──
-authRoutes.post('/magic/verify-code', async (c) => {
+authRoutes.post('/magic/verify-code', authVerifyLimiter(rateLimitStore), async (c) => {
   const { email, code } = await c.req.json<{ email: string; code: string }>();
   const db = c.get('db');
 
@@ -315,3 +317,9 @@ authRoutes.get("/me", authMiddleware, async (c) => {
   if (!user) return c.json({ error: "User not found" }, 404);
   return c.json(userToPublic(user));
 });
+
+  return authRoutes;
+}
+
+/** Default instance for production use. */
+export const authRoutes = createAuthRoutes();
