@@ -14,15 +14,19 @@ import { handleIncidentCommand } from '../bots/incidents.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
 
-/** Resolve a channel identifier: UUID passes through, #name or bare name looks up by name/slug. */
-async function resolveChannel(db: any, idOrName: string): Promise<string | null> {
+/** Resolve a channel identifier: UUID passes through, #name or bare name looks up by name/slug scoped to workspace. */
+async function resolveChannel(db: any, idOrName: string, workspaceId?: string): Promise<string | null> {
   if (UUID_RE.test(idOrName)) return idOrName;
+  if (!workspaceId) return null;
   const name = decodeURIComponent(idOrName).replace(/^#/, '').toLowerCase();
   const [result] = await db.select({ id: channels.id })
     .from(channels)
-    .where(or(
-      sql`lower(${channels.name}) = ${name}`,
-      sql`lower(${channels.slug}) = ${name}`
+    .where(and(
+      eq(channels.workspaceId, workspaceId),
+      or(
+        sql`lower(${channels.name}) = ${name}`,
+        sql`lower(${channels.slug}) = ${name}`
+      )
     ))
     .limit(1);
   return result?.id ?? null;
@@ -35,7 +39,7 @@ channelRoutes.use('*', authMiddleware);
 channelRoutes.get('/:id/messages', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const limit = parseInt(c.req.query('limit') || '50', 10);
   const after = c.req.query('after');
@@ -173,7 +177,7 @@ function looksLikeApiError(content: string): boolean {
 channelRoutes.post('/:id/messages', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const body = await c.req.json<{ content: string; threadId?: string; attachments?: any[]; canvas?: { html: string; title?: string; width?: number; height?: number } }>();
 
@@ -330,7 +334,7 @@ channelRoutes.post('/:id/messages', async (c) => {
 // Get replies for a message thread
 channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   const db = c.get('db');
-  const channelId = await resolveChannel(db, c.req.param('channelId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100);
@@ -383,7 +387,7 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
 channelRoutes.post('/:id/typing', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const { markTyping, getCachedChannel, setCachedChannel, getCachedUser, setCachedUser, getCachedMembership, setCachedMembership } = await import('../state/typingState.js');
@@ -439,7 +443,7 @@ channelRoutes.post('/:id/typing', async (c) => {
 channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();
@@ -477,7 +481,7 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
 channelRoutes.post('/:id/read', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   await db.execute(
@@ -495,7 +499,7 @@ channelRoutes.post('/:id/read', async (c) => {
 channelRoutes.post('/:id/members', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const body = await c.req.json<{ userId: string }>();
 
@@ -531,7 +535,7 @@ channelRoutes.post('/:id/members', async (c) => {
 channelRoutes.patch('/:id/archive', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -560,7 +564,7 @@ channelRoutes.patch('/:id/archive', async (c) => {
 // Get channel members
 channelRoutes.get('/:id/members', async (c) => {
   const db = c.get('db');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const members = await db
@@ -576,7 +580,7 @@ channelRoutes.get('/:id/members', async (c) => {
 channelRoutes.delete('/:id', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'));
+  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -612,7 +616,7 @@ channelRoutes.delete('/:id', async (c) => {
 channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ content: string; canvas?: { html: string; title?: string; width?: number; height?: number } | null }>();
@@ -675,7 +679,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
 channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
 
@@ -711,7 +715,7 @@ channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
 channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();

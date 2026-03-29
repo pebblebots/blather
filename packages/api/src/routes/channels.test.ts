@@ -550,4 +550,55 @@ describe('Canvas data retrieval', () => {
     expect(message.canvas).toBeNull();
   });
 });
+
+describe('resolveChannel workspace scoping', () => {
+  it('resolves channel by name only within the specified workspace', async () => {
+    const owner = await harness.factories.createUser({ email: 'ws-owner@example.com', displayName: 'WS Owner' });
+    const ws1 = await harness.factories.createWorkspace({ ownerId: owner.id });
+    const ws2 = await harness.factories.createWorkspace({ ownerId: owner.id });
+
+    const ch1 = await harness.factories.createChannel({
+      workspaceId: ws1.id,
+      name: 'shared-name',
+      slug: 'shared-name',
+      createdBy: owner.id,
+    });
+    const ch2 = await harness.factories.createChannel({
+      workspaceId: ws2.id,
+      name: 'shared-name',
+      slug: 'shared-name',
+      createdBy: owner.id,
+    });
+
+    // Lookup by name scoped to ws1 should return ch1
+    const res1 = await harness.request.get<MessageRow[]>(`/channels/shared-name/messages?workspaceId=${ws1.id}`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+    expect(res1.status).toBe(200);
+
+    // Lookup by name scoped to ws2 should return ch2
+    const res2 = await harness.request.get<MessageRow[]>(`/channels/shared-name/messages?workspaceId=${ws2.id}`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+    expect(res2.status).toBe(200);
+  });
+
+  it('returns 404 when looking up by name without workspaceId', async () => {
+    const { owner, channel } = await createFixture();
+
+    const res = await harness.request.get<{ error: string }>(`/channels/${channel.name}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('UUID-based lookup works without workspaceId', async () => {
+    const { owner, channel } = await createFixture();
+
+    const res = await harness.request.get<MessageRow[]>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+    expect(res.status).toBe(200);
+  });
+});
 });
