@@ -9,7 +9,7 @@ LOG_FILE="$LOG_DIR/fleet-health.log"
 mkdir -p "$LOG_DIR"
 
 ALERT_URL="https://blather.pbd.bot/api/channels/023a4be8-d738-4531-a126-4d2af1caf291/messages"
-API_KEY="blather_d3982e5cd14f043c15d8326437306ee0d963804387be07353688292aa4924026"
+API_KEY="${BLATHER_API_KEY:?BLATHER_API_KEY environment variable is required}"
 FAILURES=()
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
