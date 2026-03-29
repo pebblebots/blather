@@ -10,6 +10,7 @@ import type { Db } from '@blather/db';
 import { Resend } from 'resend';
 import { publishEvent } from '../ws/manager.js';
 import { authMagicLimiter, authVerifyLimiter, type RateLimitStore } from '../middleware/rate-limit.js';
+import { sendTourGuideWelcome } from '../onboarding/tourGuide.js';
 
 /** Map a DB user row to the public JSON shape returned by auth endpoints. */
 function userToPublic(user: { id: string; email: string; displayName: string; avatarUrl: string | null; isAgent: boolean; createdAt: Date }) {
@@ -112,6 +113,9 @@ async function autoJoinDomainWorkspaces(db: Db, userId: string, email: string) {
               avatarUrl: joinedUser.avatarUrl,
             },
           });
+
+          // Send Tour Guide welcome DM to new human users
+          await sendTourGuideWelcome(db, userId, ws.id, ws.name, joinedUser.isAgent);
         }
       }
     }
