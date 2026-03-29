@@ -3,6 +3,7 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CreateChannelModal } from './CreateChannelModal';
 import { CreateWorkspaceModal } from './CreateWorkspaceModal';
+import { HelpModal } from './HelpModal';
 import { InviteMemberModal } from './InviteMemberModal';
 import { NewHuddleModal } from './NewHuddleModal';
 import { HuddleModal } from './HuddleModal';
@@ -89,6 +90,61 @@ describe('Modal', () => {
     await user.click(screen.getByRole('button', { name: 'Close modal' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('HelpModal', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('renders an About dialog with core content', () => {
+    render(<HelpModal onClose={vi.fn()} />);
+
+    expect(screen.getByRole('dialog', { name: 'About Blather' })).toBeInTheDocument();
+    expect(screen.getByText('Blather')).toBeInTheDocument();
+    expect(screen.getByText(/Headless-first messaging platform/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'github.com/pebblebots/blather' })).toHaveAttribute(
+      'href',
+      'https://github.com/pebblebots/blather',
+    );
+    expect(screen.getByRole('link', { name: 'Pebblebed' })).toHaveAttribute(
+      'href',
+      'https://pebblebed.com',
+    );
+  });
+
+  it('shows plain text commit hash when full hash is unavailable', () => {
+    render(<HelpModal onClose={vi.fn()} />);
+
+    // With no globals defined, falls back to "dev" with no link
+    expect(screen.getByText(/Commit/)).toHaveTextContent('Commit dev');
+    const commitLinks = screen.queryAllByRole('link').filter(
+      (a) => (a as HTMLAnchorElement).href.includes('github.com/pebblebots/blather/commit'),
+    );
+    expect(commitLinks).toHaveLength(0);
+  });
+
+  it('links the commit hash to GitHub when full hash is available', () => {
+    vi.stubGlobal('__GIT_HASH__', 'abc1234');
+    vi.stubGlobal('__GIT_HASH_FULL__', 'abc1234567890def');
+    vi.stubGlobal('__GIT_DATE__', '2026-03-28 12:00:00');
+
+    render(<HelpModal onClose={vi.fn()} />);
+
+    const commitLink = screen.getByRole('link', { name: 'abc1234' });
+    expect(commitLink).toHaveAttribute(
+      'href',
+      'https://github.com/pebblebots/blather/commit/abc1234567890def',
+    );
+    expect(screen.getByText(/Commit/)).toHaveTextContent('Commit abc1234 — 2026-03-28');
+  });
+
+  it('displays the current year in the copyright', () => {
+    render(<HelpModal onClose={vi.fn()} />);
+
+    const year = new Date().getFullYear().toString();
+    expect(screen.getByText(new RegExp(`© ${year}`))).toBeInTheDocument();
   });
 });
 
