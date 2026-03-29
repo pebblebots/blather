@@ -1,7 +1,5 @@
 {
-  "todo": [
-    "packages/web/src/pages/AuthPage.tsx"
-  ],
+  "todo": [],
   "done": {
     "packages/api/src/app.ts": true,
     "packages/api/src/middleware/auth.ts": true,
@@ -70,6 +68,7 @@
     "packages/web/src/components/ThreadPanel.tsx": true,
     "packages/web/src/components/ThreadPanel.test.tsx": true,
     "packages/web/src/lib/chatUtils.ts": true,
+    "packages/web/src/pages/AuthPage.tsx": true,
     "packages/web/src/pages/AuthPage.test.tsx": true,
     "packages/web/src/components/InviteMemberModal.tsx": true,
     "packages/web/src/components/CreateWorkspaceModal.tsx": true,

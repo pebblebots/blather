@@ -3,7 +3,7 @@ import { api, setToken } from '../lib/api';
 import { useApp } from '../lib/store';
 import MenuBar from '../components/MenuBar';
 
-type Step = 'email' | 'check-inbox' | 'verify';
+type Step = 'email' | 'check-inbox';
 
 export function AuthPage() {
   const { setUser } = useApp();
@@ -97,8 +97,9 @@ export function AuthPage() {
 
                 <form onSubmit={requestMagicLink}>
                   <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Email:</label>
+                    <label htmlFor="auth-email" style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Email:</label>
                     <input
+                      id="auth-email"
                       className="mac-input"
                       style={{ flex: 1 }}
                       type="email"
@@ -147,24 +148,25 @@ export function AuthPage() {
                 {/* Code Input Form */}
                 <form onSubmit={verifyCode}>
                   <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Code:</label>
+                    <label htmlFor="auth-code" style={{ width: 60, textAlign: 'right', fontSize: 12 }}>Code:</label>
                     <input
+                      id="auth-code"
                       className="mac-input"
                       style={{ flex: 1 }}
                       type="text"
                       placeholder="123456"
                       value={code}
-                      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
+                      onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      maxLength={10}
+                      maxLength={6}
                       required
                       autoFocus
                     />
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                    <button type="submit" disabled={loading || code.length < 6 || code.length > 10} className="mac-btn-primary">
+                    <button type="submit" disabled={loading || code.length !== 6} className="mac-btn-primary">
                       {loading ? '⏳...' : 'Verify Code'}
                     </button>
                   </div>
