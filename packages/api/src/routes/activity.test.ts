@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
-import { agentActivityLog } from '@blather/db';
+import { agentActivityLog, workspaceMembers } from '@blather/db';
 
 describe('activity routes', () => {
   let testDatabase: TestDatabase;
@@ -84,7 +84,7 @@ describe('activity routes', () => {
     // Verify round-trip: the stored entry should include the optional fields
     const getRes = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
     });
     expect(getRes.body).toHaveLength(1);
     const entry = getRes.body![0];
@@ -125,7 +125,7 @@ describe('activity routes', () => {
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -139,7 +139,7 @@ describe('activity routes', () => {
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, limit: '2', since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, limit: '2', since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -153,7 +153,7 @@ describe('activity routes', () => {
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, limit: 'bogus', since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, limit: 'bogus', since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -168,7 +168,7 @@ describe('activity routes', () => {
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, limit: '999', since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, limit: '999', since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -202,7 +202,7 @@ describe('activity routes', () => {
 
     const res = await harness.request.get<any>('/activity/summary', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -212,11 +212,11 @@ describe('activity routes', () => {
   });
 
   it('GET /activity/summary shows "No activity" when empty', async () => {
-    const { agent } = await createFixture();
+    const { agent, workspace } = await createFixture();
 
     const res = await harness.request.get<any>('/activity/summary', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -232,10 +232,73 @@ describe('activity routes', () => {
 
     const res = await harness.request.get<any>('/activity/summary', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, since: LONG_AGO },
+      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
     expect(res.body.summary).toContain('custom_thing: 1 time');
+  });
+
+  // ── Authorization checks ──
+
+  it('POST /activity rejects non-members of the workspace', async () => {
+    const { workspace } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'outsider@example.com', displayName: 'Outsider' });
+
+    const res = await harness.request.post('/activity', {
+      headers: harness.headers.forUser(outsider.id),
+      json: { workspaceId: workspace.id, agentUserId: outsider.id, action: 'message_sent' },
+    });
+
+    expect(res.status).toBe(403);
+    expect((res.body as any)?.error).toContain('Not a member');
+  });
+
+  it('GET /activity rejects non-members of the workspace', async () => {
+    const { agent, workspace } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'outsider2@example.com', displayName: 'Outsider' });
+
+    const res = await harness.request.get('/activity', {
+      headers: harness.headers.forUser(outsider.id),
+      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /activity returns 400 without workspaceId', async () => {
+    const { agent } = await createFixture();
+
+    const res = await harness.request.get('/activity', {
+      headers: harness.headers.forUser(agent.id),
+      query: { agentId: agent.id, since: LONG_AGO },
+    });
+
+    expect(res.status).toBe(400);
+    expect((res.body as any)?.error).toContain('workspaceId required');
+  });
+
+  it('GET /activity/summary rejects non-members of the workspace', async () => {
+    const { agent, workspace } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'outsider3@example.com', displayName: 'Outsider' });
+
+    const res = await harness.request.get('/activity/summary', {
+      headers: harness.headers.forUser(outsider.id),
+      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /activity/summary returns 400 without workspaceId', async () => {
+    const { agent } = await createFixture();
+
+    const res = await harness.request.get('/activity/summary', {
+      headers: harness.headers.forUser(agent.id),
+      query: { agentId: agent.id, since: LONG_AGO },
+    });
+
+    expect(res.status).toBe(400);
+    expect((res.body as any)?.error).toContain('workspaceId required');
   });
 });

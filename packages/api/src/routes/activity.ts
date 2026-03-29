@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { sql, eq } from "drizzle-orm";
-import { agentActivityLog, users, type Db } from "@blather/db";
+import { sql, eq, and } from "drizzle-orm";
+import { agentActivityLog, users, workspaceMembers, type Db } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
 
@@ -118,6 +118,7 @@ function metadataList(value: unknown): ActivityMetadata[] {
 // POST /activity — log an activity entry
 activityRoutes.post("/", async (c) => {
   const db = c.get("db");
+  const userId = c.get("userId");
   const body = await c.req.json<{
     workspaceId: string;
     agentUserId: string;
@@ -131,6 +132,11 @@ activityRoutes.post("/", async (c) => {
   if (!workspaceId || !agentUserId || !action) {
     return c.json({ error: "workspaceId, agentUserId, and action are required" }, 400);
   }
+
+  // Verify caller is a member of the workspace
+  const [membership] = await db.select().from(workspaceMembers)
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+  if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
 
   const [row] = await db
     .insert(agentActivityLog)
@@ -153,15 +159,23 @@ activityRoutes.post("/", async (c) => {
 // GET /activity — query recent activity
 activityRoutes.get("/", async (c) => {
   const db = c.get("db");
+  const userId = c.get("userId");
   const agentId = c.req.query("agentId");
+  const workspaceId = c.req.query("workspaceId");
   const since = c.req.query("since") || defaultSince();
   const limit = parseActivityLimit(c.req.query("limit"));
   if (!agentId) return c.json({ error: "agentId required" }, 400);
+  if (!workspaceId) return c.json({ error: "workspaceId required" }, 400);
+
+  // Verify caller is a member of the workspace
+  const [membership] = await db.select().from(workspaceMembers)
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+  if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
 
   const rows = await db.execute(sql`
     SELECT id, workspace_id, agent_user_id, session_key, action, target_channel_id, target_message_id, metadata, created_at
     FROM agent_activity_log
-    WHERE agent_user_id = ${agentId} AND created_at >= ${since}::timestamptz
+    WHERE agent_user_id = ${agentId} AND workspace_id = ${workspaceId} AND created_at >= ${since}::timestamptz
     ORDER BY created_at DESC
     LIMIT ${limit}
   `);
@@ -171,16 +185,24 @@ activityRoutes.get("/", async (c) => {
 // GET /activity/summary — condensed text summary
 activityRoutes.get("/summary", async (c) => {
   const db = c.get("db");
+  const userId = c.get("userId");
   const agentId = c.req.query("agentId");
+  const workspaceId = c.req.query("workspaceId");
   const since = c.req.query("since") || defaultSince();
   if (!agentId) return c.json({ error: "agentId required" }, 400);
+  if (!workspaceId) return c.json({ error: "workspaceId required" }, 400);
+
+  // Verify caller is a member of the workspace
+  const [membership] = await db.select().from(workspaceMembers)
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+  if (!membership) return c.json({ error: "Not a member of this workspace" }, 403);
 
   const rows = await db.execute(sql`
     SELECT a.action, c.name as channel_name, a.target_channel_id, count(*)::int as cnt,
            jsonb_agg(a.metadata ORDER BY a.created_at DESC) as metas
     FROM agent_activity_log a
     LEFT JOIN channels c ON c.id = a.target_channel_id
-    WHERE a.agent_user_id = ${agentId} AND a.created_at >= ${since}::timestamptz
+    WHERE a.agent_user_id = ${agentId} AND a.workspace_id = ${workspaceId} AND a.created_at >= ${since}::timestamptz
     GROUP BY a.action, c.name, a.target_channel_id
     ORDER BY cnt DESC
   `);
