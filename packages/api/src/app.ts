@@ -14,7 +14,6 @@ import { huddleRoutes } from './routes/huddles.js';
 import { activityRoutes } from './routes/activity.js';
 import { metricRoutes } from './routes/metrics.js';
 import { statusRoutes } from './routes/status.js';
-import { legacyWorkspaceRoutes } from './routes/legacy.js';
 import { generalApiLimiter, messageSendLimiter, uploadLimiter, type RateLimitStore } from './middleware/rate-limit.js';
 
 export type Env = {
@@ -67,7 +66,6 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
   app.route('/metrics', metricRoutes);
   app.route('/activity', activityRoutes);
   app.route('/status', statusRoutes);
-  app.route('/workspaces', legacyWorkspaceRoutes); // Remove after 2026-04-02
 
   return app;
 }
