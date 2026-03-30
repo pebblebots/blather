@@ -24,14 +24,14 @@ export interface MonitorParams {
   abortSignal: AbortSignal;
   apiUrl: string;
   apiKey: string;
-  workspaceId: string;
+  workspaceId?: string;
   channelId?: string;
   accountId: string;
   log?: Log;
 }
 
 export async function startMonitor(params: MonitorParams) {
-  const { core, cfg, abortSignal, apiUrl, apiKey, workspaceId, channelId, accountId, log } =
+  const { core, cfg, abortSignal, apiUrl, apiKey, channelId, accountId, log } =
     params;
 
   const client = new BlatherClient(apiUrl, apiKey);
@@ -43,7 +43,7 @@ export async function startMonitor(params: MonitorParams) {
   // Cache members
   const members = new Map<string, BlatherUser>();
   try {
-    for (const m of await client.getMembers(workspaceId)) members.set(m.id, m);
+    for (const m of await client.getMembers()) members.set(m.id, m);
   } catch (e) {
     log?.warn(`failed to load members: ${e}`);
   }
@@ -51,7 +51,7 @@ export async function startMonitor(params: MonitorParams) {
   // Cache channels
   const channels = new Map<string, { name: string; channelType: string }>();
   try {
-    for (const ch of await client.getChannels(workspaceId))
+    for (const ch of await client.getChannels())
       channels.set(ch.id, { name: ch.name || ch.slug, channelType: ch.channelType });
   } catch (e) {
     log?.warn(`failed to load channels: ${e}`);
@@ -83,7 +83,7 @@ export async function startMonitor(params: MonitorParams) {
 
     connecting = true;
     const wsBase = apiUrl.replace(/^http/, "ws").replace(/\/api$/, "");
-    const wsUrl = `${wsBase}/ws/events?api_key=${apiKey}&workspace_id=${workspaceId}`;
+    const wsUrl = `${wsBase}/ws/events?api_key=${apiKey}`;
 
     log?.info("connecting WebSocket");
     const ws = new WebSocket(wsUrl);
@@ -173,7 +173,7 @@ export async function startMonitor(params: MonitorParams) {
       if (!channels.has(data.channelId)) {
         // Refresh channels cache — maybe we were added to a new channel (e.g., huddle)
         try {
-          for (const ch of await client.getChannels(workspaceId))
+          for (const ch of await client.getChannels())
             channels.set(ch.id, { name: ch.name || ch.slug, channelType: ch.channelType });
         } catch (_) {}
       }
@@ -189,7 +189,7 @@ export async function startMonitor(params: MonitorParams) {
     if (!sender) {
       // Refresh members cache on unknown user
       try {
-        for (const m of await client.getMembers(workspaceId)) members.set(m.id, m);
+        for (const m of await client.getMembers()) members.set(m.id, m);
         sender = members.get(data.userId);
       } catch (_) {}
     }
