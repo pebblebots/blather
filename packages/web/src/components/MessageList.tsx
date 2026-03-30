@@ -375,7 +375,7 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
               </span>
             ) : (
               <>
-                <MarkdownText text={msg.content} />
+                <MarkdownText text={msg.content} usersMap={usersMap} currentUserId={currentUserId} />
                 {isEdited(msg) && (
                   <span style={{ fontSize: 10, color: "#999999", marginLeft: 4 }}>(edited)</span>
                 )}

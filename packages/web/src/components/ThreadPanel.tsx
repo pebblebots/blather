@@ -83,7 +83,7 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
         {' '}
         <span style={{ fontWeight: 'bold', color: nickColor, fontSize: 12 }}>&lt;{user.displayName}&gt;</span>
         {' '}
-        <MarkdownText text={msg.content} />
+        <MarkdownText text={msg.content} usersMap={usersMap} currentUserId={currentUserId} />
       </div>
     );
   };
