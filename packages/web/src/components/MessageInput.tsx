@@ -1,6 +1,14 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { uploadFile } from '../lib/api';
+import { uploadFile, api } from '../lib/api';
 import { EMOJI_DATA } from './emojiData';
+
+interface Member {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  email?: string;
+  isAgent?: boolean;
+}
 
 interface AttachedFile {
   file: File;
@@ -52,6 +60,17 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
   const [emojiSelectedIdx, setEmojiSelectedIdx] = useState(0);
   const emojiListRef = useRef<HTMLDivElement>(null);
 
+  // Mention picker state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
+  const mentionListRef = useRef<HTMLDivElement>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+
+  // Fetch members on mount
+  useEffect(() => {
+    api.getMembers().then((data: Member[]) => setMembers(data)).catch(() => {});
+  }, []);
+
   // Auto-grow textarea height
   const adjustHeight = useCallback(() => {
     const el = inputRef.current;
@@ -78,6 +97,64 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     setEmojiQuery(afterColon.toLowerCase());
     setEmojiSelectedIdx(0);
   }, []);
+
+  // Find the @-triggered query from current text and cursor position
+  const updateMentionQuery = useCallback((value: string, cursorPos: number) => {
+    const before = value.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf('@');
+    if (atIdx === -1) {
+      setMentionQuery(null);
+      return;
+    }
+    // '@' must be at start or preceded by a space
+    if (atIdx > 0 && before[atIdx - 1] !== ' ' && before[atIdx - 1] !== '\n') {
+      setMentionQuery(null);
+      return;
+    }
+    const afterAt = before.slice(atIdx + 1);
+    // Must not contain spaces (for now, single-word matching)
+    if (afterAt.includes(' ') || afterAt.includes('@')) {
+      setMentionQuery(null);
+      return;
+    }
+    setMentionQuery(afterAt.toLowerCase());
+    setMentionSelectedIdx(0);
+  }, []);
+
+  const filteredMembers = useMemo(() => {
+    if (mentionQuery === null) return [];
+    if (mentionQuery === '') return members.slice(0, 8);
+    return members.filter(m =>
+      m.displayName.toLowerCase().includes(mentionQuery)
+    ).slice(0, 8);
+  }, [mentionQuery, members]);
+
+  const insertMention = useCallback((member: Member) => {
+    const input = inputRef.current;
+    if (!input) return;
+    const cursorPos = input.selectionStart ?? text.length;
+    const before = text.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf('@');
+    if (atIdx === -1) return;
+    const mention = `@${member.displayName} `;
+    const newText = text.slice(0, atIdx) + mention + text.slice(cursorPos);
+    setText(newText);
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      input.focus();
+      const newPos = atIdx + mention.length;
+      input.setSelectionRange(newPos, newPos);
+      adjustHeight();
+    });
+  }, [text, adjustHeight]);
+
+  // Scroll selected mention into view
+  useEffect(() => {
+    if (mentionListRef.current) {
+      const selected = mentionListRef.current.children[mentionSelectedIdx + 1] as HTMLElement;
+      if (selected) selected.scrollIntoView({ block: 'nearest' });
+    }
+  }, [mentionSelectedIdx]);
 
   const filteredEmojis = useMemo(() => {
     if (!emojiQuery) return [];
@@ -116,7 +193,9 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setText(val);
-    updateEmojiQuery(val, e.target.selectionStart ?? val.length);
+    const cursor = e.target.selectionStart ?? val.length;
+    updateEmojiQuery(val, cursor);
+    updateMentionQuery(val, cursor);
     requestAnimationFrame(() => adjustHeight());
     if (onTyping && val.length > 0) {
       const now = Date.now();
@@ -125,7 +204,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
         onTyping();
       }
     }
-  }, [onTyping, updateEmojiQuery, adjustHeight]);
+  }, [onTyping, updateEmojiQuery, updateMentionQuery, adjustHeight]);
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const arr = Array.from(newFiles);
@@ -169,6 +248,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     onSend(trimmed, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
     setText('');
     setEmojiQuery(null);
+    setMentionQuery(null);
     // Reset textarea height after clearing
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
@@ -178,6 +258,30 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Mention picker navigation (takes priority)
+    if (mentionQuery !== null && filteredMembers.length > 0) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionSelectedIdx(prev => (prev - 1 + filteredMembers.length) % filteredMembers.length);
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionSelectedIdx(prev => (prev + 1) % filteredMembers.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(filteredMembers[mentionSelectedIdx]);
+        return;
+      }
+    }
+    if (e.key === 'Escape') {
+      if (mentionQuery !== null) {
+        setMentionQuery(null);
+        return;
+      }
+    }
     // Emoji picker navigation
     if (emojiQuery !== null && filteredEmojis.length > 0) {
       if (e.key === 'ArrowUp') {
@@ -217,6 +321,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
             onSend(trimmed, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
             setText('');
             setEmojiQuery(null);
+            setMentionQuery(null);
             if (inputRef.current) inputRef.current.style.height = 'auto';
             files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
             setFiles([]);
@@ -313,6 +418,87 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
             >
               <span style={{ fontSize: 16 }}>{entry.emoji}</span>
               <span style={{ color: '#333' }}>:{entry.name}:</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Mention autocomplete popup */}
+      {mentionQuery !== null && filteredMembers.length > 0 && (
+        <div
+          ref={mentionListRef}
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: 4,
+            right: 4,
+            maxHeight: 220,
+            overflowY: 'auto',
+            background: '#F5F0E8',
+            border: '2px solid #999',
+            borderBottom: '2px solid #666',
+            borderRight: '2px solid #666',
+            borderTop: '2px solid #CCC',
+            borderLeft: '2px solid #CCC',
+            boxShadow: '2px 2px 0px rgba(0,0,0,0.15), inset 1px 1px 0px #FFF',
+            fontFamily: "Monaco, 'IBM Plex Mono', monospace",
+            fontSize: 12,
+            zIndex: 100,
+          }}
+        >
+          <div style={{
+            padding: '2px 6px',
+            fontSize: 10,
+            color: '#666',
+            borderBottom: '1px solid #CCC',
+            background: '#EDE8DC',
+          }}>
+            @{mentionQuery}
+          </div>
+          {filteredMembers.map((member, i) => (
+            <div
+              key={member.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                insertMention(member);
+              }}
+              onMouseEnter={() => setMentionSelectedIdx(i)}
+              style={{
+                padding: '4px 8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: i === mentionSelectedIdx ? '#C0C0E0' : 'transparent',
+                borderBottom: '1px solid #E0D8CC',
+              }}
+            >
+              {member.avatarUrl ? (
+                <img
+                  src={member.avatarUrl}
+                  alt=""
+                  style={{ width: 20, height: 20, borderRadius: 10, objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  background: member.isAgent ? '#7C6FA0' : '#8B7E6A',
+                  color: '#FFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                }}>
+                  {member.displayName.charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span style={{ color: '#333' }}>
+                {member.displayName}
+                {member.isAgent && <span style={{ color: '#999', marginLeft: 4, fontSize: 10 }}>bot</span>}
+              </span>
             </div>
           ))}
         </div>
