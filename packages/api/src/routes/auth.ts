@@ -121,7 +121,7 @@ authRoutes.post('/magic', authMagicLimiter(rateLimitStore), async (c) => {
     expiresAt,
   });
 
-  const magicUrl = `${c.req.header('origin') || 'http://localhost:8080'}/auth/verify?token=${token}`;
+  const magicUrl = `${process.env.APP_URL || c.req.header('origin') || 'http://localhost:8080'}/auth/verify?token=${token}`;
   console.log(`[MAGIC LINK] ${email} → ${magicUrl}`);
   console.log(`[MAGIC CODE] ${email} → ${code}`);
 
