@@ -1,9 +1,8 @@
 import { eq, and, sql, ne } from 'drizzle-orm';
-import { incidents, users, messages, channels, channelMembers, workspaceMembers } from '@blather/db';
+import { incidents, users, messages, channels, channelMembers } from '@blather/db';
 import type { Db } from '@blather/db';
 import { emitEvent } from '../ws/events.js';
 
-const WORKSPACE_ID = 'bad75ecc-7531-4802-9928-df4e14ae8442';
 const BOT_EMAIL = 'incidents@system.blather';
 
 let botUserId: string | null = null;
@@ -25,15 +24,6 @@ async function ensureBotUser(db: Db): Promise<string> {
     } as any).returning();
     botUserId = created.id;
     console.log('[IncidentBot] Created bot user:', botUserId);
-  }
-
-  // Ensure workspace membership
-  const [wsMember] = await db.select().from(workspaceMembers)
-    .where(and(eq(workspaceMembers.workspaceId, WORKSPACE_ID), eq(workspaceMembers.userId, botUserId as string)))
-    .limit(1);
-  if (!wsMember) {
-    await db.insert(workspaceMembers).values({ workspaceId: WORKSPACE_ID, userId: botUserId, role: 'member' } as any);
-    console.log('[IncidentBot] Added to workspace');
   }
 
   return botUserId;
@@ -63,7 +53,6 @@ async function postBotMessage(db: Db, channelId: string, content: string, thread
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (channel) {
     await emitEvent(db, {
-      workspaceId: channel.workspaceId,
       channelId,
       userId: uid,
       type: 'message.created',
@@ -112,7 +101,7 @@ export async function handleIncidentCommand(db: Db, channelId: string, content: 
 
 async function cmdList(db: Db, channelId: string, threadId?: string | null) {
   const result = await db.select().from(incidents)
-    .where(and(eq(incidents.workspaceId, WORKSPACE_ID), ne(incidents.status, 'resolved')))
+    .where(and(ne(incidents.status, 'resolved')))
     .orderBy(sql`CASE WHEN ${incidents.severity} = 'critical' THEN 1 WHEN ${incidents.severity} = 'warning' THEN 2 ELSE 3 END, ${incidents.createdAt} DESC`);
 
   if (result.length === 0) {
@@ -155,7 +144,6 @@ async function cmdOpen(db: Db, channelId: string, args: string[], threadId?: str
 
   const uid = await ensureBotUser(db);
   const [incident] = await db.insert(incidents).values({
-    workspaceId: WORKSPACE_ID,
     title,
     severity,
     openedBy: uid,
@@ -174,7 +162,6 @@ async function cmdAck(db: Db, channelId: string, query: string, threadId?: strin
 
   const found = await db.select().from(incidents)
     .where(and(
-      eq(incidents.workspaceId, WORKSPACE_ID),
       eq(incidents.status, 'open'),
       sql`${incidents.id}::text LIKE ${query + '%'}`
     ))
@@ -205,7 +192,6 @@ async function cmdResolve(db: Db, channelId: string, args: string[], threadId?: 
 
   const found = await db.select().from(incidents)
     .where(and(
-      eq(incidents.workspaceId, WORKSPACE_ID),
       ne(incidents.status, 'resolved'),
       sql`${incidents.id}::text LIKE ${idPrefix + '%'}`
     ))
@@ -238,10 +224,7 @@ async function cmdInfo(db: Db, channelId: string, query: string, threadId?: stri
   }
 
   const found = await db.select().from(incidents)
-    .where(and(
-      eq(incidents.workspaceId, WORKSPACE_ID),
-      sql`${incidents.id}::text LIKE ${query + '%'}`
-    ))
+    .where(sql`${incidents.id}::text LIKE ${query + '%'}`)
     .limit(1);
 
   if (found.length === 0) {

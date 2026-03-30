@@ -17,13 +17,11 @@ function normalizeStatus(s: string): TaskStatus {
   return mapped as TaskStatus;
 }
 
-// List tasks for a workspace
+// List tasks
 taskRoutes.get('/', async (c) => {
   const db = c.get('db');
-  const workspaceId = c.req.query('workspaceId');
-  if (!workspaceId) return c.json({ error: 'workspaceId required' }, 400);
 
-  const conditions: any[] = [eq(tasks.workspaceId, workspaceId)];
+  const conditions: any[] = [];
   const status = c.req.query('status');
   if (status) conditions.push(eq(tasks.status, normalizeStatus(status)));
   const priority = c.req.query('priority');
@@ -32,7 +30,7 @@ taskRoutes.get('/', async (c) => {
   if (assignee) conditions.push(eq(tasks.assigneeId, assignee));
 
   const result = await db.select().from(tasks)
-    .where(and(...conditions))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(tasks.createdAt));
 
   return c.json(result);
@@ -43,7 +41,6 @@ taskRoutes.post('/', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
   const body = await c.req.json<{
-    workspaceId: string;
     title: string;
     description?: string;
     priority?: 'urgent' | 'normal' | 'low';
@@ -51,12 +48,11 @@ taskRoutes.post('/', async (c) => {
     sourceChannelId?: string;
   }>();
 
-  if (!body.workspaceId || !body.title) {
-    return c.json({ error: 'workspaceId and title required' }, 400);
+  if (!body.title) {
+    return c.json({ error: 'title required' }, 400);
   }
 
   const [task] = await db.insert(tasks).values({
-    workspaceId: body.workspaceId,
     title: body.title,
     description: body.description ?? null,
     priority: body.priority ?? 'normal',
@@ -68,7 +64,7 @@ taskRoutes.post('/', async (c) => {
   // Auto-log agent task creation (fire-and-forget)
   isAgentUser(db, userId).then(isAgent => {
     if (isAgent) logAgentActivity(db, {
-      workspaceId: body.workspaceId, userId, action: 'task_created',
+      userId, action: 'task_created',
       metadata: { taskId: task.id, title: task.title, shortId: task.shortId },
     });
   }).catch(() => {});
@@ -119,7 +115,7 @@ taskRoutes.patch('/:id', async (c) => {
     if (!isAgent) return;
     const action = body.status === 'done' ? 'task_completed' : 'task_updated';
     logAgentActivity(db, {
-      workspaceId: existing.workspaceId, userId, action,
+      userId, action,
       metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status },
     });
   }).catch(() => {});

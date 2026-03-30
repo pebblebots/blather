@@ -10,7 +10,6 @@ import { publishEvent } from './manager.js';
 
 type StoredEvent = {
   id: string;
-  workspaceId: string;
   channelId: string | null;
   userId: string;
   type: string;
@@ -19,7 +18,6 @@ type StoredEvent = {
 };
 
 type InsertedEventValues = {
-  workspaceId: string;
   channelId: string | null;
   userId: string;
   type: string;
@@ -29,7 +27,6 @@ type InsertedEventValues = {
 function makeStoredEvent(overrides: Partial<StoredEvent> = {}): StoredEvent {
   return {
     id: 'evt-1',
-    workspaceId: 'ws-1',
     channelId: 'ch-1',
     userId: 'u-1',
     type: 'message.created',
@@ -67,7 +64,6 @@ describe('emitEvent', () => {
     const db = createDbMock(storedEvent);
 
     const result = await emitEvent(db.db, {
-      workspaceId: 'ws-1',
       channelId: 'ch-1',
       userId: 'u-1',
       type: 'message.created',
@@ -76,16 +72,14 @@ describe('emitEvent', () => {
 
     expect(result).toEqual(storedEvent);
     expect(db.getInsertedValues()).toEqual({
-      workspaceId: 'ws-1',
       channelId: 'ch-1',
       userId: 'u-1',
       type: 'message.created',
       payload: { text: 'hello' },
     });
-    expect(mockedPublishEvent).toHaveBeenCalledWith('ws-1', {
+    expect(mockedPublishEvent).toHaveBeenCalledWith({
       id: 'evt-1',
       type: 'message.created',
-      workspace_id: 'ws-1',
       channel_id: 'ch-1',
       data: { text: 'hello' },
       timestamp: '2026-03-24T12:00:00.000Z',
@@ -104,7 +98,6 @@ describe('emitEvent', () => {
       const db = createDbMock(storedEvent);
 
       await emitEvent(db.db, {
-        workspaceId: 'ws-1',
         channelId,
         userId: 'u-1',
         type: 'presence.changed',
@@ -113,7 +106,6 @@ describe('emitEvent', () => {
 
       expect(db.getInsertedValues()).toMatchObject({ channelId: null });
       expect(mockedPublishEvent).toHaveBeenCalledWith(
-        'ws-1',
         expect.objectContaining({ channel_id: null })
       );
     }

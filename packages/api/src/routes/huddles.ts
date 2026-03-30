@@ -17,11 +17,11 @@ huddleRoutes.use("*", authMiddleware);
 huddleRoutes.post("/", async (c) => {
   const db = c.get("db");
   const userId = c.get("userId");
-  const body = await c.req.json<{ workspaceId: string; topic: string; agentIds: string[]; starter?: string }>();
+  const body = await c.req.json<{ topic: string; agentIds: string[]; starter?: string }>();
 
-  const { workspaceId, topic, agentIds, starter } = body;
-  if (!workspaceId || !topic || !agentIds?.length) {
-    return c.json({ error: "workspaceId, topic, and agentIds are required" }, 400);
+  const { topic, agentIds, starter } = body;
+  if (!topic || !agentIds?.length) {
+    return c.json({ error: "topic and agentIds are required" }, 400);
   }
   if (agentIds.length > 3) {
     return c.json({ error: "Maximum 3 agents per huddle" }, 400);
@@ -46,7 +46,6 @@ huddleRoutes.post("/", async (c) => {
   const channelName = `huddle-${shortId}`;
 
   const [channel] = await db.insert(channels).values({
-    workspaceId,
     name: channelName,
     slug: channelName,
     channelType: "private",
@@ -62,7 +61,6 @@ huddleRoutes.post("/", async (c) => {
 
   // Create huddle record
   const [huddle] = await db.insert(huddles).values({
-    workspaceId,
     topic,
     channelId: channel.id,
     createdBy: userId,
@@ -79,7 +77,6 @@ huddleRoutes.post("/", async (c) => {
   await startOrchestrator({
     huddleId: huddle.id,
     channelId: channel.id,
-    workspaceId,
     topic,
     agentNames: agentUsers.map(a => a.displayName),
     maxDurationMs: huddle.maxDurationMs,
@@ -101,19 +98,17 @@ huddleRoutes.post("/", async (c) => {
   return c.json({ ...huddle, channel, participants }, 201);
 });
 
-// GET /huddles?workspaceId=X&status=active
+// GET /huddles?status=active
 huddleRoutes.get("/", async (c) => {
   const db = c.get("db");
-  const workspaceId = c.req.query("workspaceId");
-  if (!workspaceId) return c.json({ error: "workspaceId required" }, 400);
 
   const status = c.req.query("status") || "active";
-  const conditions = [eq(huddles.workspaceId, workspaceId)];
+  const conditions: any[] = [];
   if (status !== "all") {
     conditions.push(eq(huddles.status, status as "active" | "ended"));
   }
 
-  const result = await db.select().from(huddles).where(and(...conditions));
+  const result = await db.select().from(huddles).where(conditions.length > 0 ? and(...conditions) : undefined);
   return c.json(result);
 });
 
@@ -163,7 +158,7 @@ huddleRoutes.post("/:id/join", async (c) => {
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
-  await publishEvent(huddle.workspaceId, {
+  await publishEvent({
     type: "huddle.joined",
     data: { huddleId, userId, displayName: user?.displayName },
   });
@@ -194,7 +189,6 @@ huddleRoutes.post("/:id/speak", async (c) => {
 
   // Emit message event
   await emitEvent(db, {
-    workspaceId: huddle.workspaceId,
     channelId: huddle.channelId,
     userId,
     type: "message.created",
@@ -213,7 +207,7 @@ huddleRoutes.post("/:id/speak", async (c) => {
   // TTS and broadcast
   try {
     const { audioUrl, duration } = await generateTTS(body.content, voice, msg.id);
-    await publishEvent(huddle.workspaceId, {
+    await publishEvent({
       type: "huddle.audio",
       data: {
         huddleId,

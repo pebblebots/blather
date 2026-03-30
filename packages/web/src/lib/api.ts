@@ -40,15 +40,10 @@ export const api = {
   login: (data: { email: string; password: string }) =>
     request<{ token: string; user: any }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
 
-  getWorkspaces: () => request<any[]>('/workspaces'),
+  getChannels: () => request<any[]>('/channels'),
 
-  createWorkspace: (data: { name: string; slug: string; allowedDomains?: string[] }) =>
-    request<any>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
-
-  getChannels: (workspaceId: string) => request<any[]>(`/workspaces/${workspaceId}/channels`),
-
-  createChannel: (workspaceId: string, data: { name: string; slug: string; topic?: string; channelType?: string; isDefault?: boolean }) =>
-    request<any>(`/workspaces/${workspaceId}/channels`, { method: 'POST', body: JSON.stringify(data) }),
+  createChannel: (data: { name: string; slug: string; topic?: string; channelType?: string; isDefault?: boolean }) =>
+    request<any>('/channels', { method: 'POST', body: JSON.stringify(data) }),
 
   getMessages: (channelId: string, limit = 50, after?: string, before?: string) => {
     const params = new URLSearchParams({ limit: String(limit) });
@@ -65,11 +60,11 @@ export const api = {
   sendMessage: (channelId: string, content: string, attachments?: any[]) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content, attachments }) }),
 
-  getWorkspaceMembers: (workspaceId: string) =>
-    request<any[]>(`/workspaces/${workspaceId}/members`),
+  getMembers: () =>
+    request<any[]>('/members'),
 
-  getOrCreateDM: (workspaceId: string, userId: string) =>
-    request<any>(`/workspaces/${workspaceId}/dm`, { method: 'POST', body: JSON.stringify({ userId }) }),
+  getOrCreateDM: (userId: string) =>
+    request<any>('/channels/dm', { method: 'POST', body: JSON.stringify({ userId }) }),
 
   inviteMember: (channelId: string, userId: string) =>
     request<any>(`/channels/${channelId}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
@@ -107,8 +102,8 @@ export const api = {
   sendThreadReply: (channelId: string, content: string, threadId: string, attachments?: any[]) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content, threadId, attachments }) }),
 
-  searchMessages: (params: { q: string; workspaceId: string; channelId?: string; userId?: string; before?: string; after?: string; limit?: number }) => {
-    const p = new URLSearchParams({ q: params.q, workspaceId: params.workspaceId });
+  searchMessages: (params: { q: string; channelId?: string; userId?: string; before?: string; after?: string; limit?: number }) => {
+    const p = new URLSearchParams({ q: params.q });
     if (params.channelId) p.set("channelId", params.channelId);
     if (params.userId) p.set("userId", params.userId);
     if (params.before) p.set("before", params.before);
@@ -117,11 +112,11 @@ export const api = {
     return request<any[]>(`/messages/search?${p}`);
   },
 
-  createHuddle: (data: { workspaceId: string; topic: string; agentIds: string[] }) =>
+  createHuddle: (data: { topic: string; agentIds: string[] }) =>
     request<any>('/huddles', { method: 'POST', body: JSON.stringify(data) }),
 
-  getActiveHuddles: (workspaceId: string) =>
-    request<any[]>(`/huddles?workspaceId=${workspaceId}&status=active`),
+  getActiveHuddles: () =>
+    request<any[]>('/huddles?status=active'),
 
   getHuddle: (huddleId: string) =>
     request<any>(`/huddles/${huddleId}`),
@@ -141,14 +136,14 @@ export const unreadApi = {
   markRead: (channelId: string) =>
     request<{ ok: boolean }>(`/channels/${channelId}/read`, { method: 'POST' }),
 
-  getUnreadCounts: (workspaceId: string) =>
-    request<Record<string, number>>(`/workspaces/${workspaceId}/unread`),
+  getUnreadCounts: () =>
+    request<Record<string, number>>('/channels/unread'),
 };
 
 // Presence
 export const presenceApi = {
-  getPresence: (workspaceId: string) =>
-    request<{ userId: string; status: string }[]>(`/workspaces/${workspaceId}/presence`),
+  getPresence: () =>
+    request<{ userId: string; status: string }[]>('/channels/presence'),
 };
 
 // Agent status
@@ -159,14 +154,14 @@ export const statusApi = {
 
 // Tasks
 export const taskApi = {
-  list: (workspaceId: string, filters?: { status?: string; priority?: string; assigneeId?: string }) => {
-    const params = new URLSearchParams({ workspaceId });
+  list: (filters?: { status?: string; priority?: string; assigneeId?: string }) => {
+    const params = new URLSearchParams();
     if (filters?.status) params.set('status', filters.status);
     if (filters?.priority) params.set('priority', filters.priority);
     if (filters?.assigneeId) params.set('assigneeId', filters.assigneeId);
     return request<any[]>(`/tasks?${params}`);
   },
-  create: (data: { workspaceId: string; title: string; description?: string; priority?: string; assigneeId?: string }) =>
+  create: (data: { title: string; description?: string; priority?: string; assigneeId?: string }) =>
     request<any>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: { title?: string; description?: string | null; priority?: string; status?: string; assigneeId?: string | null }) =>
     request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

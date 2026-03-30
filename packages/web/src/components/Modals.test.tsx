@@ -2,19 +2,15 @@ import { describe, it, expect, vi, afterEach, beforeEach, beforeAll } from 'vite
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CreateChannelModal } from './CreateChannelModal';
-import { CreateWorkspaceModal } from './CreateWorkspaceModal';
 import { HelpModal } from './HelpModal';
 import { InviteMemberModal } from './InviteMemberModal';
 import { NewHuddleModal } from './NewHuddleModal';
 import { HuddleModal } from './HuddleModal';
 import { Modal } from './Modal';
-import { AppContext } from '../lib/store';
-import type { ReactNode } from 'react';
 
 afterEach(() => cleanup());
 
 const mockCreateChannel = vi.fn();
-const mockCreateWorkspace = vi.fn();
 const mockInviteMember = vi.fn();
 const mockCreateHuddle = vi.fn();
 const mockGetHuddle = vi.fn();
@@ -34,7 +30,6 @@ beforeEach(() => {
 vi.mock('../lib/api', () => ({
   api: {
     createChannel: (...args: any[]) => mockCreateChannel(...args),
-    createWorkspace: (...args: any[]) => mockCreateWorkspace(...args),
     inviteMember: (...args: any[]) => mockInviteMember(...args),
     createHuddle: (...args: any[]) => mockCreateHuddle(...args),
     getHuddle: (...args: any[]) => mockGetHuddle(...args),
@@ -44,14 +39,6 @@ vi.mock('../lib/api', () => ({
     getMessages: (...args: any[]) => mockGetMessages(...args),
   },
 }));
-
-function UserWrapper({ children }: { children: ReactNode }) {
-  return (
-    <AppContext.Provider value={{ user: { id: 'u-1', email: 'alice@test.com', displayName: 'Alice', avatarUrl: null, isAgent: false }, setUser: vi.fn() }}>
-      {children}
-    </AppContext.Provider>
-  );
-}
 
 describe('Modal', () => {
   it('renders an accessible dialog with its title and children', () => {
@@ -150,7 +137,7 @@ describe('HelpModal', () => {
 
 describe('CreateChannelModal', () => {
   it('renders labeled form fields and action buttons', () => {
-    render(<CreateChannelModal workspaceId="ws-1" onClose={vi.fn()} onCreated={vi.fn()} />);
+    render(<CreateChannelModal onClose={vi.fn()} onCreated={vi.fn()} />);
 
     expect(screen.getByLabelText('Name:')).toBeInTheDocument();
     expect(screen.getByLabelText('Private:')).toBeInTheDocument();
@@ -164,7 +151,7 @@ describe('CreateChannelModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
+    render(<CreateChannelModal onClose={onClose} onCreated={onCreated} />);
 
     await user.type(screen.getByLabelText('Name:'), '   ');
     await user.click(screen.getByRole('button', { name: 'Create' }));
@@ -181,7 +168,7 @@ describe('CreateChannelModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
+    render(<CreateChannelModal onClose={onClose} onCreated={onCreated} />);
 
     await user.type(screen.getByLabelText('Name:'), '  Project Alpha  ');
     await user.click(screen.getByLabelText('Private:'));
@@ -189,7 +176,7 @@ describe('CreateChannelModal', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => {
-      expect(mockCreateChannel).toHaveBeenCalledWith('ws-1', {
+      expect(mockCreateChannel).toHaveBeenCalledWith({
         name: 'Project Alpha',
         slug: 'project-alpha',
         topic: 'Launch plans',
@@ -205,7 +192,7 @@ describe('CreateChannelModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
+    render(<CreateChannelModal onClose={onClose} onCreated={onCreated} />);
 
     await user.type(screen.getByLabelText('Name:'), '!!!');
     await user.click(screen.getByRole('button', { name: 'Create' }));
@@ -222,7 +209,7 @@ describe('CreateChannelModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={onCreated} />);
+    render(<CreateChannelModal onClose={onClose} onCreated={onCreated} />);
 
     await user.type(screen.getByLabelText('Name:'), 'Roadmap');
     await user.click(screen.getByRole('button', { name: 'Create' }));
@@ -235,76 +222,11 @@ describe('CreateChannelModal', () => {
   it('calls onClose on cancel', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<CreateChannelModal workspaceId="ws-1" onClose={onClose} onCreated={vi.fn()} />);
+    render(<CreateChannelModal onClose={onClose} onCreated={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(onClose).toHaveBeenCalled();
-  });
-});
-
-describe('CreateWorkspaceModal', () => {
-  it('renders labeled form fields with the current user domain pre-filled', () => {
-    render(<CreateWorkspaceModal onClose={vi.fn()} onCreated={vi.fn()} />, { wrapper: UserWrapper });
-
-    expect(screen.getByLabelText('Name:')).toBeInTheDocument();
-    expect(screen.getByLabelText('Domains:')).toHaveValue('test.com');
-  });
-
-  it('shows a validation error and skips the API call when the name is blank after trimming', async () => {
-    const onCreated = vi.fn();
-    const onClose = vi.fn();
-    const user = userEvent.setup();
-
-    render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
-
-    await user.type(screen.getByLabelText('Name:'), '   ');
-    await user.click(screen.getByRole('button', { name: 'Create' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Workspace name is required');
-    expect(mockCreateWorkspace).not.toHaveBeenCalled();
-    expect(onCreated).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
-  });
-
-  it('trims the workspace name and normalizes domains before submitting', async () => {
-    mockCreateWorkspace.mockResolvedValue({ id: 'ws-new' });
-    const onCreated = vi.fn();
-    const onClose = vi.fn();
-    const user = userEvent.setup();
-
-    render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
-
-    await user.type(screen.getByLabelText('Name:'), '  Acme Labs  ');
-    await user.clear(screen.getByLabelText('Domains:'));
-    await user.type(screen.getByLabelText('Domains:'), ' Example.com, OTHER.org, example.com ');
-    await user.click(screen.getByRole('button', { name: 'Create' }));
-
-    await waitFor(() => {
-      expect(mockCreateWorkspace).toHaveBeenCalledWith({
-        name: 'Acme Labs',
-        slug: 'acme-labs',
-        allowedDomains: ['example.com', 'other.org'],
-      });
-    });
-    expect(onCreated).toHaveBeenCalledWith({ id: 'ws-new' });
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows an alert and stays open when workspace creation fails', async () => {
-    mockCreateWorkspace.mockRejectedValue(new Error('Workspace slug already exists'));
-    const onCreated = vi.fn();
-    const onClose = vi.fn();
-    const user = userEvent.setup();
-
-    render(<CreateWorkspaceModal onClose={onClose} onCreated={onCreated} />, { wrapper: UserWrapper });
-
-    await user.type(screen.getByLabelText('Name:'), 'Acme');
-    await user.click(screen.getByRole('button', { name: 'Create' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Workspace slug already exists');
-    expect(onCreated).not.toHaveBeenCalled();
-    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
@@ -315,7 +237,7 @@ describe('InviteMemberModal', () => {
   ];
 
   it('renders member select and action buttons', () => {
-    render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={vi.fn()} />);
+    render(<InviteMemberModal channelId="ch-1" members={members} onClose={vi.fn()} />);
 
     expect(screen.getByLabelText('Select a user to invite:')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
@@ -324,7 +246,7 @@ describe('InviteMemberModal', () => {
 
   it('enables invite after selecting a member', async () => {
     const user = userEvent.setup();
-    render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={vi.fn()} />);
+    render(<InviteMemberModal channelId="ch-1" members={members} onClose={vi.fn()} />);
 
     await user.selectOptions(screen.getByRole('combobox'), 'u-2');
 
@@ -336,7 +258,7 @@ describe('InviteMemberModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={onClose} />);
+    render(<InviteMemberModal channelId="ch-1" members={members} onClose={onClose} />);
 
     await user.selectOptions(screen.getByRole('combobox'), 'u-2');
     await user.click(screen.getByRole('button', { name: 'Invite' }));
@@ -352,7 +274,7 @@ describe('InviteMemberModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={onClose} />);
+    render(<InviteMemberModal channelId="ch-1" members={members} onClose={onClose} />);
 
     await user.selectOptions(screen.getByRole('combobox'), 'u-2');
     await user.click(screen.getByRole('button', { name: 'Invite' }));
@@ -364,7 +286,7 @@ describe('InviteMemberModal', () => {
   it('calls onClose on cancel', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<InviteMemberModal channelId="ch-1" workspaceMembers={members} onClose={onClose} />);
+    render(<InviteMemberModal channelId="ch-1" members={members} onClose={onClose} />);
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
@@ -382,7 +304,7 @@ describe('NewHuddleModal', () => {
   ];
 
   it('renders labeled topic input and only agent checkboxes', () => {
-    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
+    render(<NewHuddleModal members={members} onClose={vi.fn()} onCreated={vi.fn()} />);
 
     expect(screen.getByLabelText('Topic:')).toBeInTheDocument();
     expect(screen.getByText('AgentBot')).toBeInTheDocument();
@@ -392,14 +314,14 @@ describe('NewHuddleModal', () => {
   });
 
   it('submit button is disabled without topic or agents selected', () => {
-    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
+    render(<NewHuddleModal members={members} onClose={vi.fn()} onCreated={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Start Huddle' })).toBeDisabled();
   });
 
   it('calls onClose on cancel', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={onClose} onCreated={vi.fn()} />);
+    render(<NewHuddleModal members={members} onClose={onClose} onCreated={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalled();
   });
@@ -411,7 +333,7 @@ describe('NewHuddleModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={onClose} onCreated={onCreated} />);
+    render(<NewHuddleModal members={members} onClose={onClose} onCreated={onCreated} />);
 
     await user.type(screen.getByLabelText('Topic:'), '  AI Ethics  ');
     await user.click(screen.getByText('AgentBot'));
@@ -420,7 +342,6 @@ describe('NewHuddleModal', () => {
 
     await waitFor(() => {
       expect(mockCreateHuddle).toHaveBeenCalledWith({
-        workspaceId: 'ws-1',
         topic: 'AI Ethics',
         agentIds: ['u-2', 'u-3'],
       });
@@ -435,7 +356,7 @@ describe('NewHuddleModal', () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
 
-    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={onClose} onCreated={onCreated} />);
+    render(<NewHuddleModal members={members} onClose={onClose} onCreated={onCreated} />);
 
     await user.type(screen.getByLabelText('Topic:'), 'Test huddle');
     await user.click(screen.getByText('AgentBot'));
@@ -449,7 +370,7 @@ describe('NewHuddleModal', () => {
   it('caps agent selection at 3 — fourth checkbox is disabled', async () => {
     const user = userEvent.setup();
 
-    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
+    render(<NewHuddleModal members={members} onClose={vi.fn()} onCreated={vi.fn()} />);
 
     await user.click(screen.getByText('AgentBot'));
     await user.click(screen.getByText('AgentTwo'));
@@ -463,7 +384,7 @@ describe('NewHuddleModal', () => {
   it('allows deselecting an agent to free a slot', async () => {
     const user = userEvent.setup();
 
-    render(<NewHuddleModal workspaceId="ws-1" workspaceMembers={members} onClose={vi.fn()} onCreated={vi.fn()} />);
+    render(<NewHuddleModal members={members} onClose={vi.fn()} onCreated={vi.fn()} />);
 
     // Select 3
     await user.click(screen.getByText('AgentBot'));

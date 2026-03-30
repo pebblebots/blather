@@ -41,16 +41,14 @@ describe('channel routes', () => {
   async function createFixture() {
     const owner = await harness.factories.createUser({ email: 'owner@example.com', displayName: 'Owner' });
     const member = await harness.factories.createUser({ email: 'member@example.com', displayName: 'Member' });
-    const workspace = await harness.factories.createWorkspace({ ownerId: owner.id });
     const channel = await harness.factories.createChannel({
-      workspaceId: workspace.id,
       name: 'general',
       slug: 'general',
       channelType: 'public',
       createdBy: owner.id,
     });
 
-    return { owner, member, workspace, channel };
+    return { owner, member, channel };
   }
 
   async function tick() {
@@ -344,10 +342,9 @@ describe('channel routes', () => {
   });
 
   it('rejects messages to DM channels from non-members', async () => {
-    const { owner, member, workspace } = await createFixture();
+    const { owner, member } = await createFixture();
     const outsider = await harness.factories.createUser({ email: 'outsider@example.com', displayName: 'Outsider' });
     const dm = await harness.factories.createChannel({
-      workspaceId: workspace.id,
       name: 'dm',
       slug: 'dm-1',
       channelType: 'dm',
@@ -551,48 +548,93 @@ describe('Canvas data retrieval', () => {
   });
 });
 
-describe('resolveChannel workspace scoping', () => {
-  it('resolves channel by name only within the specified workspace', async () => {
+describe('channel creation', () => {
+  it('POST /channels creates a channel and auto-joins the creator', async () => {
+    const owner = await harness.factories.createUser({ email: 'creator@example.com', displayName: 'Creator' });
+
+    const res = await harness.request.post<any>('/channels', {
+      headers: harness.headers.forUser(owner.id),
+      json: { name: 'new-channel', slug: 'new-channel', channelType: 'public' },
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ name: 'new-channel', slug: 'new-channel', channelType: 'public' });
+
+    // Creator should be auto-joined
+    const members = await harness.db.select().from(channelMembers)
+      .where(eq(channelMembers.channelId, res.body.id));
+    expect(members).toHaveLength(1);
+    expect(members[0]?.userId).toBe(owner.id);
+  });
+
+  it('POST /channels returns 409 on duplicate slug', async () => {
+    const owner = await harness.factories.createUser({ email: 'dup@example.com', displayName: 'Dup' });
+
+    const first = await harness.request.post<any>('/channels', {
+      headers: harness.headers.forUser(owner.id),
+      json: { name: 'taken', slug: 'taken-slug', channelType: 'public' },
+    });
+    expect(first.status).toBe(201);
+
+    const second = await harness.request.post<{ error: string }>('/channels', {
+      headers: harness.headers.forUser(owner.id),
+      json: { name: 'different-name', slug: 'taken-slug', channelType: 'public' },
+    });
+    expect(second.status).toBe(409);
+    expect(second.body?.error).toMatch(/slug already exists/);
+  });
+
+  it('POST /channels/dm creates a DM and returns it on repeat calls', async () => {
+    const userA = await harness.factories.createUser({ email: 'dm-a@example.com', displayName: 'A' });
+    const userB = await harness.factories.createUser({ email: 'dm-b@example.com', displayName: 'B' });
+
+    const first = await harness.request.post<any>('/channels/dm', {
+      headers: harness.headers.forUser(userA.id),
+      json: { userId: userB.id },
+    });
+    expect(first.status).toBe(201);
+    expect(first.body?.channelType).toBe('dm');
+
+    // Both users should be members
+    const members = await harness.db.select().from(channelMembers)
+      .where(eq(channelMembers.channelId, first.body.id));
+    expect(members).toHaveLength(2);
+
+    // Second call returns the same channel
+    const second = await harness.request.post<any>('/channels/dm', {
+      headers: harness.headers.forUser(userA.id),
+      json: { userId: userB.id },
+    });
+    expect(second.status).toBe(200);
+    expect(second.body?.id).toBe(first.body?.id);
+
+    // Reversed caller also returns the same channel
+    const reversed = await harness.request.post<any>('/channels/dm', {
+      headers: harness.headers.forUser(userB.id),
+      json: { userId: userA.id },
+    });
+    expect(reversed.status).toBe(200);
+    expect(reversed.body?.id).toBe(first.body?.id);
+  });
+});
+
+describe('resolveChannel lookup', () => {
+  it('resolves channel by slug', async () => {
     const owner = await harness.factories.createUser({ email: 'ws-owner@example.com', displayName: 'WS Owner' });
-    const ws1 = await harness.factories.createWorkspace({ ownerId: owner.id });
-    const ws2 = await harness.factories.createWorkspace({ ownerId: owner.id });
 
-    const ch1 = await harness.factories.createChannel({
-      workspaceId: ws1.id,
-      name: 'shared-name',
-      slug: 'shared-name',
-      createdBy: owner.id,
-    });
-    const ch2 = await harness.factories.createChannel({
-      workspaceId: ws2.id,
-      name: 'shared-name',
-      slug: 'shared-name',
+    await harness.factories.createChannel({
+      name: 'lookup-test',
+      slug: 'lookup-test',
       createdBy: owner.id,
     });
 
-    // Lookup by name scoped to ws1 should return ch1
-    const res1 = await harness.request.get<MessageRow[]>(`/channels/shared-name/messages?workspaceId=${ws1.id}`, {
+    const res = await harness.request.get<MessageRow[]>(`/channels/lookup-test/messages`, {
       headers: harness.headers.forUser(owner.id),
     });
-    expect(res1.status).toBe(200);
-
-    // Lookup by name scoped to ws2 should return ch2
-    const res2 = await harness.request.get<MessageRow[]>(`/channels/shared-name/messages?workspaceId=${ws2.id}`, {
-      headers: harness.headers.forUser(owner.id),
-    });
-    expect(res2.status).toBe(200);
+    expect(res.status).toBe(200);
   });
 
-  it('returns 404 when looking up by name without workspaceId', async () => {
-    const { owner, channel } = await createFixture();
-
-    const res = await harness.request.get<{ error: string }>(`/channels/${channel.name}/messages`, {
-      headers: harness.headers.forUser(owner.id),
-    });
-    expect(res.status).toBe(404);
-  });
-
-  it('UUID-based lookup works without workspaceId', async () => {
+  it('UUID-based lookup works', async () => {
     const { owner, channel } = await createFixture();
 
     const res = await harness.request.get<MessageRow[]>(`/channels/${channel.id}/messages`, {

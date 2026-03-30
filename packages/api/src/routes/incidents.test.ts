@@ -21,37 +21,25 @@ describe('incident routes', () => {
 
   async function createFixture() {
     const owner = await harness.factories.createUser({ email: 'owner@example.com', displayName: 'Owner' });
-    const workspace = await harness.factories.createWorkspace({ ownerId: owner.id });
-    return { owner, workspace };
+    return { owner };
   }
 
-  // ── List incidents ──
+  // -- List incidents --
 
-  it('GET /incidents returns 400 without workspaceId', async () => {
+  it('GET /incidents lists incidents', async () => {
     const { owner } = await createFixture();
 
-    const res = await harness.request.get('/incidents', {
-      headers: harness.headers.forUser(owner.id),
-    });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('GET /incidents lists incidents for a workspace', async () => {
-    const { owner, workspace } = await createFixture();
-
     await harness.request.post('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Incident A' },
+      json: { title: 'Incident A' },
     });
     await harness.request.post('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Incident B' },
+      json: { title: 'Incident B' },
     });
 
     const res = await harness.request.get<any[]>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id },
     });
 
     expect(res.status).toBe(200);
@@ -59,11 +47,11 @@ describe('incident routes', () => {
   });
 
   it('GET /incidents filters by status', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'To ack' },
+      json: { title: 'To ack' },
     });
     await harness.request.patch(`/incidents/${createRes.body.id}`, {
       headers: harness.headers.forUser(owner.id),
@@ -72,12 +60,12 @@ describe('incident routes', () => {
 
     await harness.request.post('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Still open' },
+      json: { title: 'Still open' },
     });
 
     const res = await harness.request.get<any[]>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id, status: 'acked' },
+      query: { status: 'acked' },
     });
 
     expect(res.status).toBe(200);
@@ -86,20 +74,20 @@ describe('incident routes', () => {
   });
 
   it('GET /incidents filters by severity', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     await harness.request.post('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Critical one', severity: 'critical' },
+      json: { title: 'Critical one', severity: 'critical' },
     });
     await harness.request.post('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Info one', severity: 'info' },
+      json: { title: 'Info one', severity: 'info' },
     });
 
     const res = await harness.request.get<any[]>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id, severity: 'critical' },
+      query: { severity: 'critical' },
     });
 
     expect(res.status).toBe(200);
@@ -107,14 +95,14 @@ describe('incident routes', () => {
     expect(res.body![0].title).toBe('Critical one');
   });
 
-  // ── Get single incident ──
+  // -- Get single incident --
 
   it('GET /incidents/:id returns a single incident', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Single incident' },
+      json: { title: 'Single incident' },
     });
 
     const res = await harness.request.get<any>(`/incidents/${createRes.body.id}`, {
@@ -136,19 +124,18 @@ describe('incident routes', () => {
     expect(res.status).toBe(404);
   });
 
-  // ── Create incident ──
+  // -- Create incident --
 
   it('POST /incidents creates an incident with defaults', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const res = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'New incident' },
+      json: { title: 'New incident' },
     });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
-      workspaceId: workspace.id,
       title: 'New incident',
       severity: 'warning',
       status: 'open',
@@ -158,11 +145,11 @@ describe('incident routes', () => {
   });
 
   it('POST /incidents creates an incident with custom severity', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const res = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Critical!', severity: 'critical' },
+      json: { title: 'Critical!', severity: 'critical' },
     });
 
     expect(res.status).toBe(201);
@@ -170,48 +157,24 @@ describe('incident routes', () => {
   });
 
   it('POST /incidents returns 400 without title', async () => {
-    const { owner, workspace } = await createFixture();
-
-    const res = await harness.request.post('/incidents', {
-      headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id },
-    });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('POST /incidents returns 400 without workspaceId', async () => {
     const { owner } = await createFixture();
 
     const res = await harness.request.post('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { title: 'No workspace' },
+      json: {},
     });
 
     expect(res.status).toBe(400);
   });
 
-  it('POST /incidents returns 403 for non-member', async () => {
-    const { workspace } = await createFixture();
-
-    const outsider = await harness.factories.createUser({ email: 'outsider@example.com', displayName: 'Outsider' });
-
-    const res = await harness.request.post('/incidents', {
-      headers: harness.headers.forUser(outsider.id),
-      json: { workspaceId: workspace.id, title: 'Should fail' },
-    });
-
-    expect(res.status).toBe(403);
-  });
-
-  // ── Update incident (status transitions) ──
+  // -- Update incident (status transitions) --
 
   it('PATCH /incidents/:id transitions open -> acked with timestamp', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Ack me' },
+      json: { title: 'Ack me' },
     });
     expect(createRes.body.status).toBe('open');
     expect(createRes.body.ackedAt).toBeNull();
@@ -228,11 +191,11 @@ describe('incident routes', () => {
   });
 
   it('PATCH /incidents/:id transitions open -> resolved with timestamp and resolution', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Resolve me' },
+      json: { title: 'Resolve me' },
     });
 
     const res = await harness.request.patch<any>(`/incidents/${createRes.body.id}`, {
@@ -248,12 +211,12 @@ describe('incident routes', () => {
   });
 
   it('PATCH /incidents/:id transitions acked -> resolved by another member', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
     const otherUser = await harness.factories.createUser({ email: 'other@example.com', displayName: 'Other' });
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Two-step' },
+      json: { title: 'Two-step' },
     });
 
     // First ack
@@ -276,11 +239,11 @@ describe('incident routes', () => {
   });
 
   it('PATCH /incidents/:id updates severity', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/incidents', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Escalate', severity: 'info' },
+      json: { title: 'Escalate', severity: 'info' },
     });
     expect(createRes.body.severity).toBe('info');
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import type {
   RegisterRequest, LoginRequest, AuthResponse, CreateApiKeyRequest, ApiKeyResponse,
-  UserPublic,
-  CreateWorkspaceRequest, Workspace, WorkspaceRole, ChannelType, WorkspaceMember, CreateDMRequest,
+  UserPublic, UserRole,
+  ChannelType, CreateDMRequest,
   CreateChannelRequest, Channel,
   CreateMessageRequest, Message, CreateReactionRequest, Reaction,
   EventType, WsEvent,
@@ -29,8 +29,8 @@ describe('types compile check', () => {
     expect(types).toHaveLength(3);
   });
 
-  it('WorkspaceRole includes expected values', () => {
-    const roles: WorkspaceRole[] = ['owner', 'admin', 'member'];
+  it('UserRole includes expected values', () => {
+    const roles: UserRole[] = ['owner', 'admin', 'member'];
     expect(roles).toHaveLength(3);
   });
 
@@ -54,9 +54,7 @@ describe('types compile check', () => {
     expectTypeOf<UserPublic>().toHaveProperty('email');
     expectTypeOf<UserPublic>().toHaveProperty('displayName');
     expectTypeOf<UserPublic>().toHaveProperty('isAgent');
-
-    expectTypeOf<Workspace>().toHaveProperty('slug');
-    expectTypeOf<Workspace>().toHaveProperty('allowedDomains');
+    expectTypeOf<UserPublic>().toHaveProperty('role');
 
     expectTypeOf<Channel>().toHaveProperty('channelType');
     expectTypeOf<Channel>().toHaveProperty('archived');

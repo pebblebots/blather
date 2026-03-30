@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 
-const mockGetWorkspaces = vi.fn();
+const mockGetChannels = vi.fn();
 const mockClearToken = vi.fn();
 
 vi.mock('./lib/api', () => ({
-  api: { getWorkspaces: () => mockGetWorkspaces() },
+  api: { getChannels: () => mockGetChannels() },
   clearToken: (...args: unknown[]) => mockClearToken(...args),
 }));
 
@@ -39,13 +39,13 @@ describe('App', () => {
     render(<App />);
     // No token → skip fetch, checking becomes false → render AuthPage
     await screen.findByTestId('auth-page');
-    expect(mockGetWorkspaces).not.toHaveBeenCalled();
+    expect(mockGetChannels).not.toHaveBeenCalled();
   });
 
   it('shows loading state while validating token', () => {
     localStorage.setItem('blather_token', 'tok');
     // Never resolve the workspace call
-    mockGetWorkspaces.mockReturnValue(new Promise(() => {}));
+    mockGetChannels.mockReturnValue(new Promise(() => {}));
     render(<App />);
     expect(screen.getByText('⏳ Loading...')).toBeInTheDocument();
   });
@@ -53,7 +53,7 @@ describe('App', () => {
   it('shows MainPage when token and stored user are valid', async () => {
     localStorage.setItem('blather_token', 'tok');
     localStorage.setItem('blather_user', JSON.stringify(TEST_USER));
-    mockGetWorkspaces.mockResolvedValue([]);
+    mockGetChannels.mockResolvedValue([]);
 
     render(<App />);
     await screen.findByTestId('main-page');
@@ -61,7 +61,7 @@ describe('App', () => {
 
   it('clears token and shows AuthPage when validation fails', async () => {
     localStorage.setItem('blather_token', 'bad-tok');
-    mockGetWorkspaces.mockRejectedValue(new Error('401'));
+    mockGetChannels.mockRejectedValue(new Error('401'));
 
     render(<App />);
     await screen.findByTestId('auth-page');
@@ -71,7 +71,7 @@ describe('App', () => {
   it('clears token when token is valid but no stored user', async () => {
     localStorage.setItem('blather_token', 'tok');
     // No blather_user in storage
-    mockGetWorkspaces.mockResolvedValue([]);
+    mockGetChannels.mockResolvedValue([]);
 
     render(<App />);
     await screen.findByTestId('auth-page');

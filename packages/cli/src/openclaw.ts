@@ -167,28 +167,16 @@ async function init() {
     ok('Plugin installed (linked)');
   }
 
-  // 3. Find workspace
-  const allWorkspaces = await dbQuery<{ id: string; name: string }>(
-    'SELECT id, name FROM workspaces LIMIT 5'
-  );
-  if (allWorkspaces.length === 0) {
-    fail('No workspaces found — create one in the Blather UI first');
-    process.exit(1);
-  }
-  const workspace = allWorkspaces[0];
-  ok(`Workspace: ${bold(workspace.name)} ${dim(`(${workspace.id})`)}`);
-
-  // 4. Configure OpenClaw channel
+  // 3. Configure OpenClaw channel
   console.log();
   info('Configuring OpenClaw...');
 
   oc('config set channels.blather.enabled true --strict-json');
   oc(`config set channels.blather.apiUrl "${apiUrl}"`);
-  oc(`config set channels.blather.workspaceId "${workspace.id}"`);
   ok('Channel configured');
 
-  // 5. Register clankers from clankers/ directory
-  await initBuiltInClankers(workspace, apiUrl);
+  // 4. Register clankers from clankers/ directory
+  await initBuiltInClankers(apiUrl);
 
   // Restart gateway
   console.log();
@@ -207,7 +195,7 @@ async function init() {
 
 // ── built-in clankers ──────────────────────────────────────────────────────
 
-async function initBuiltInClankers(workspace: { id: string; name: string }, apiUrl: string) {
+async function initBuiltInClankers(apiUrl: string) {
   const clankersDir = resolve(ROOT, 'clankers');
   if (!existsSync(clankersDir)) return;
 
@@ -221,13 +209,12 @@ async function initBuiltInClankers(workspace: { id: string; name: string }, apiU
 
   const templateVars: Record<string, string> = {
     '$API_BASE': apiUrl,
-    '$WORKSPACE_ID': workspace.id,
     '$WEB_URL': webUrl,
     '$REPO_ROOT_PATH': ROOT,
   };
 
   // Scan all clanker templates for #channel references and ensure they exist
-  await ensureClankerChannels(clankersDir, clankerDirs.map(d => d.name), workspace);
+  await ensureClankerChannels(clankersDir, clankerDirs.map(d => d.name));
 
   console.log();
   info(`Registering ${clankerDirs.length} built-in clanker(s)...`);
@@ -239,11 +226,10 @@ async function initBuiltInClankers(workspace: { id: string; name: string }, apiU
     console.log();
     info(bold(`Clanker: ${name}`));
 
-    // Create agent user + workspace membership
+    // Create agent user
     const email = `${name}@${AGENT_DOMAIN}`;
     const displayName = name;
     const agentUser = await findOrCreateAgent(email, displayName);
-    await ensureWorkspaceMember(workspace.id, agentUser.id);
 
     // Generate API key
     const jwt = signJwt(agentUser.id);
@@ -288,7 +274,6 @@ async function initBuiltInClankers(workspace: { id: string; name: string }, apiU
 async function ensureClankerChannels(
   clankersDir: string,
   clankerNames: string[],
-  workspace: { id: string },
 ) {
   // Collect all #channel references from template files
   const allRefs = new Set<string>();
@@ -307,8 +292,7 @@ async function ensureClankerChannels(
 
   // Check which channels already exist
   const existing = await dbQuery<{ slug: string }>(
-    'SELECT slug FROM channels WHERE workspace_id = $1',
-    [workspace.id],
+    'SELECT slug FROM channels',
   );
   const existingSlugs = new Set(existing.map(r => r.slug));
 
@@ -320,9 +304,9 @@ async function ensureClankerChannels(
 
   for (const slug of missing) {
     await dbQuery(
-      `INSERT INTO channels (workspace_id, name, slug, channel_type, is_default)
-       VALUES ($1, $2, $3, 'public', false)`,
-      [workspace.id, slug, slug],
+      `INSERT INTO channels (name, slug, channel_type, is_default)
+       VALUES ($1, $2, 'public', false)`,
+      [slug, slug],
     );
     ok(`Created #${slug}`);
   }
@@ -360,19 +344,8 @@ async function add() {
     process.exit(1);
   }
 
-  // Find workspace
-  const allWorkspaces = await dbQuery<{ id: string; name: string }>(
-    'SELECT id, name FROM workspaces LIMIT 5'
-  );
-  if (allWorkspaces.length === 0) {
-    fail('No workspaces found');
-    process.exit(1);
-  }
-  const workspace = allWorkspaces[0];
-
   // Create or find agent user
   const agentUser = await findOrCreateAgent(email, displayName);
-  await ensureWorkspaceMember(workspace.id, agentUser.id);
 
   // Generate API key
   const jwt = signJwt(agentUser.id);
@@ -443,7 +416,6 @@ async function showStatus() {
   info(bold('Channel'));
   const enabled = oc('config get channels.blather.enabled 2>/dev/null');
   const cfgApiUrl = oc('config get channels.blather.apiUrl 2>/dev/null');
-  const wsId = oc('config get channels.blather.workspaceId 2>/dev/null');
   const apiKey = oc('config get channels.blather.apiKey 2>/dev/null');
 
   const strip = (s: string) => s.replace(/"/g, '').trim() || null;
@@ -454,7 +426,6 @@ async function showStatus() {
     warn(`Enabled: ${yellow('no')}`);
   }
   info(`API URL: ${dim(strip(cfgApiUrl.stdout) ?? 'not set')}`);
-  info(`Workspace: ${dim(strip(wsId.stdout) ?? 'not set')}`);
   info(`API Key: ${dim(strip(apiKey.stdout) ? mask(strip(apiKey.stdout)!) : 'not set')}`);
 
   // Accounts
@@ -544,16 +515,3 @@ async function findOrCreateAgent(email: string, displayName: string): Promise<{ 
   return created;
 }
 
-async function ensureWorkspaceMember(workspaceId: string, userId: string) {
-  const membership = await dbQuery(
-    'SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2 LIMIT 1',
-    [workspaceId, userId]
-  );
-  if (membership.length === 0) {
-    await dbQuery(
-      'INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)',
-      [workspaceId, userId, 'member']
-    );
-    ok('Added agent to workspace');
-  }
-}

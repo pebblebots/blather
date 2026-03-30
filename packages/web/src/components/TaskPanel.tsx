@@ -15,11 +15,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 interface TaskPanelProps {
-  workspaceId: string;
   members: { id: string; displayName: string; isAgent: boolean }[];
 }
 
-export function TaskPanel({ workspaceId, members }: TaskPanelProps) {
+export function TaskPanel({ members }: TaskPanelProps) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [showCreate, setShowCreate] = useState(false);
@@ -27,8 +26,8 @@ export function TaskPanel({ workspaceId, members }: TaskPanelProps) {
 
   const load = useCallback(() => {
     const filters = filter === 'all' ? undefined : { status: filter };
-    taskApi.list(workspaceId, filters).then((t) => { setTasks(t); setLoading(false); }).catch(() => setLoading(false));
-  }, [workspaceId, filter]);
+    taskApi.list(filters).then((t) => { setTasks(t); setLoading(false); }).catch(() => setLoading(false));
+  }, [filter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -156,7 +155,6 @@ export function TaskPanel({ workspaceId, members }: TaskPanelProps) {
 
       {showCreate && (
         <CreateTaskModal
-          workspaceId={workspaceId}
           members={members}
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); load(); }}
@@ -166,8 +164,7 @@ export function TaskPanel({ workspaceId, members }: TaskPanelProps) {
   );
 }
 
-function CreateTaskModal({ workspaceId, members, onClose, onCreated }: {
-  workspaceId: string;
+function CreateTaskModal({ members, onClose, onCreated }: {
   members: { id: string; displayName: string }[];
   onClose: () => void;
   onCreated: () => void;
@@ -183,7 +180,6 @@ function CreateTaskModal({ workspaceId, members, onClose, onCreated }: {
     setSubmitting(true);
     try {
       await taskApi.create({
-        workspaceId,
         title: title.trim(),
         description: description.trim() || undefined,
         priority,

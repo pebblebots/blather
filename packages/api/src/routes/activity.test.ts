@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
-import { agentActivityLog, workspaceMembers } from '@blather/db';
+import { agentActivityLog } from '@blather/db';
 
 describe('activity routes', () => {
   let testDatabase: TestDatabase;
@@ -25,9 +25,8 @@ describe('activity routes', () => {
 
   async function createFixture() {
     const agent = await harness.factories.createUser({ email: 'bot@system.blather', displayName: 'Bot' });
-    const workspace = await harness.factories.createWorkspace({ ownerId: agent.id });
-    const channel = await harness.factories.createChannel({ workspaceId: workspace.id, name: 'general' });
-    return { agent, workspace, channel };
+    const channel = await harness.factories.createChannel({ name: 'general' });
+    return { agent, channel };
   }
 
   async function logActivity(agentId: string, body: Record<string, unknown>) {
@@ -40,7 +39,6 @@ describe('activity routes', () => {
   /** Bulk-insert activity rows directly into DB (faster than HTTP for volume tests). */
   async function insertActivityRows(count: number, overrides: Record<string, unknown>) {
     const rows = Array.from({ length: count }, (_, i) => ({
-      workspaceId: overrides.workspaceId as string,
       agentUserId: overrides.agentUserId as string,
       sessionKey: '',
       action: overrides.action ? String(overrides.action) : `action_${i}`,
@@ -51,13 +49,12 @@ describe('activity routes', () => {
     await testDatabase.db.insert(agentActivityLog).values(rows);
   }
 
-  // ── Log activity ──
+  // -- Log activity --
 
   it('POST /activity logs an activity entry', async () => {
-    const { agent, workspace } = await createFixture();
+    const { agent } = await createFixture();
 
     const res = await logActivity(agent.id, {
-      workspaceId: workspace.id,
       agentUserId: agent.id,
       action: 'message_sent',
     });
@@ -68,10 +65,9 @@ describe('activity routes', () => {
   });
 
   it('POST /activity persists optional fields', async () => {
-    const { agent, workspace, channel } = await createFixture();
+    const { agent, channel } = await createFixture();
 
     const postRes = await logActivity(agent.id, {
-      workspaceId: workspace.id,
       agentUserId: agent.id,
       action: 'task_created',
       targetChannelId: channel.id,
@@ -84,7 +80,7 @@ describe('activity routes', () => {
     // Verify round-trip: the stored entry should include the optional fields
     const getRes = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
+      query: { agentId: agent.id, since: LONG_AGO },
     });
     expect(getRes.body).toHaveLength(1);
     const entry = getRes.body![0];
@@ -99,13 +95,13 @@ describe('activity routes', () => {
 
     const res = await harness.request.post('/activity', {
       headers: harness.headers.forUser(agent.id),
-      json: { workspaceId: 'x' },
+      json: {},
     });
 
     expect(res.status).toBe(400);
   });
 
-  // ── Query activity ──
+  // -- Query activity --
 
   it('GET /activity returns 400 without agentId', async () => {
     const { agent } = await createFixture();
@@ -118,14 +114,14 @@ describe('activity routes', () => {
   });
 
   it('GET /activity returns logged entries for an agent', async () => {
-    const { agent, workspace } = await createFixture();
+    const { agent } = await createFixture();
 
-    await logActivity(agent.id, { workspaceId: workspace.id, agentUserId: agent.id, action: 'message_sent' });
-    await logActivity(agent.id, { workspaceId: workspace.id, agentUserId: agent.id, action: 'search_performed' });
+    await logActivity(agent.id, { agentUserId: agent.id, action: 'message_sent' });
+    await logActivity(agent.id, { agentUserId: agent.id, action: 'search_performed' });
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
+      query: { agentId: agent.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -133,13 +129,13 @@ describe('activity routes', () => {
   });
 
   it('GET /activity respects limit param', async () => {
-    const { agent, workspace } = await createFixture();
+    const { agent } = await createFixture();
 
-    await insertActivityRows(5, { workspaceId: workspace.id, agentUserId: agent.id });
+    await insertActivityRows(5, { agentUserId: agent.id });
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, limit: '2', since: LONG_AGO },
+      query: { agentId: agent.id, limit: '2', since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -147,13 +143,13 @@ describe('activity routes', () => {
   });
 
   it('GET /activity falls back to the default limit (50) when limit is invalid', async () => {
-    const { agent, workspace } = await createFixture();
+    const { agent } = await createFixture();
 
-    await insertActivityRows(55, { workspaceId: workspace.id, agentUserId: agent.id });
+    await insertActivityRows(55, { agentUserId: agent.id });
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, limit: 'bogus', since: LONG_AGO },
+      query: { agentId: agent.id, limit: 'bogus', since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -161,14 +157,14 @@ describe('activity routes', () => {
   });
 
   it('GET /activity caps limit at 200', async () => {
-    const { agent, workspace } = await createFixture();
+    const { agent } = await createFixture();
 
     // Insert just enough to distinguish 200 from "no cap"
-    await insertActivityRows(5, { workspaceId: workspace.id, agentUserId: agent.id });
+    await insertActivityRows(5, { agentUserId: agent.id });
 
     const res = await harness.request.get<any[]>('/activity', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, limit: '999', since: LONG_AGO },
+      query: { agentId: agent.id, limit: '999', since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -178,7 +174,7 @@ describe('activity routes', () => {
     expect(res.body).toHaveLength(5);
   });
 
-  // ── Summary endpoint ──
+  // -- Summary endpoint --
 
   it('GET /activity/summary returns 400 without agentId', async () => {
     const { agent } = await createFixture();
@@ -191,18 +187,18 @@ describe('activity routes', () => {
   });
 
   it('GET /activity/summary returns markdown summary for messages', async () => {
-    const { agent, workspace, channel } = await createFixture();
+    const { agent, channel } = await createFixture();
 
     await logActivity(agent.id, {
-      workspaceId: workspace.id, agentUserId: agent.id, action: 'message_sent', targetChannelId: channel.id,
+      agentUserId: agent.id, action: 'message_sent', targetChannelId: channel.id,
     });
     await logActivity(agent.id, {
-      workspaceId: workspace.id, agentUserId: agent.id, action: 'message_sent', targetChannelId: channel.id,
+      agentUserId: agent.id, action: 'message_sent', targetChannelId: channel.id,
     });
 
     const res = await harness.request.get<any>('/activity/summary', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
+      query: { agentId: agent.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -212,11 +208,11 @@ describe('activity routes', () => {
   });
 
   it('GET /activity/summary shows "No activity" when empty', async () => {
-    const { agent, workspace } = await createFixture();
+    const { agent } = await createFixture();
 
     const res = await harness.request.get<any>('/activity/summary', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
+      query: { agentId: agent.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
@@ -224,81 +220,18 @@ describe('activity routes', () => {
   });
 
   it('GET /activity/summary uses fallback formatter for unknown actions', async () => {
-    const { agent, workspace } = await createFixture();
+    const { agent } = await createFixture();
 
     await logActivity(agent.id, {
-      workspaceId: workspace.id, agentUserId: agent.id, action: 'custom_thing',
+      agentUserId: agent.id, action: 'custom_thing',
     });
 
     const res = await harness.request.get<any>('/activity/summary', {
       headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
+      query: { agentId: agent.id, since: LONG_AGO },
     });
 
     expect(res.status).toBe(200);
     expect(res.body.summary).toContain('custom_thing: 1 time');
-  });
-
-  // ── Authorization checks ──
-
-  it('POST /activity rejects non-members of the workspace', async () => {
-    const { workspace } = await createFixture();
-    const outsider = await harness.factories.createUser({ email: 'outsider@example.com', displayName: 'Outsider' });
-
-    const res = await harness.request.post('/activity', {
-      headers: harness.headers.forUser(outsider.id),
-      json: { workspaceId: workspace.id, agentUserId: outsider.id, action: 'message_sent' },
-    });
-
-    expect(res.status).toBe(403);
-    expect((res.body as any)?.error).toContain('Not a member');
-  });
-
-  it('GET /activity rejects non-members of the workspace', async () => {
-    const { agent, workspace } = await createFixture();
-    const outsider = await harness.factories.createUser({ email: 'outsider2@example.com', displayName: 'Outsider' });
-
-    const res = await harness.request.get('/activity', {
-      headers: harness.headers.forUser(outsider.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
-    });
-
-    expect(res.status).toBe(403);
-  });
-
-  it('GET /activity returns 400 without workspaceId', async () => {
-    const { agent } = await createFixture();
-
-    const res = await harness.request.get('/activity', {
-      headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, since: LONG_AGO },
-    });
-
-    expect(res.status).toBe(400);
-    expect((res.body as any)?.error).toContain('workspaceId required');
-  });
-
-  it('GET /activity/summary rejects non-members of the workspace', async () => {
-    const { agent, workspace } = await createFixture();
-    const outsider = await harness.factories.createUser({ email: 'outsider3@example.com', displayName: 'Outsider' });
-
-    const res = await harness.request.get('/activity/summary', {
-      headers: harness.headers.forUser(outsider.id),
-      query: { agentId: agent.id, workspaceId: workspace.id, since: LONG_AGO },
-    });
-
-    expect(res.status).toBe(403);
-  });
-
-  it('GET /activity/summary returns 400 without workspaceId', async () => {
-    const { agent } = await createFixture();
-
-    const res = await harness.request.get('/activity/summary', {
-      headers: harness.headers.forUser(agent.id),
-      query: { agentId: agent.id, since: LONG_AGO },
-    });
-
-    expect(res.status).toBe(400);
-    expect((res.body as any)?.error).toContain('workspaceId required');
   });
 });

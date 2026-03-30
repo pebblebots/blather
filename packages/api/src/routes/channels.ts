@@ -6,6 +6,7 @@ import { messages, reactions, channels, channelMembers, channelReads, events, us
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { emitEvent } from '../ws/events.js';
+import type { CreateChannelRequest, CreateDMRequest } from '@blather/types';
 
 import { handleTasksCommand } from '../bots/tasks.js';
 import { handleIncidentCommand } from '../bots/incidents.js';
@@ -14,20 +15,18 @@ import { handleIncidentCommand } from '../bots/incidents.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
 
-/** Resolve a channel identifier: UUID passes through, #name or bare name looks up by name/slug scoped to workspace. */
-async function resolveChannel(db: any, idOrName: string, workspaceId?: string): Promise<string | null> {
+/** Resolve a channel identifier: UUID passes through, #name or bare name looks up by name/slug globally. */
+async function resolveChannel(db: any, idOrName: string): Promise<string | null> {
   if (UUID_RE.test(idOrName)) return idOrName;
-  if (!workspaceId) return null;
   const name = decodeURIComponent(idOrName).replace(/^#/, '').toLowerCase();
   const [result] = await db.select({ id: channels.id })
     .from(channels)
-    .where(and(
-      eq(channels.workspaceId, workspaceId),
+    .where(
       or(
         sql`lower(${channels.name}) = ${name}`,
         sql`lower(${channels.slug}) = ${name}`
       )
-    ))
+    )
     .limit(1);
   return result?.id ?? null;
 }
@@ -35,11 +34,215 @@ async function resolveChannel(db: any, idOrName: string, workspaceId?: string): 
 export const channelRoutes = new Hono<Env>();
 channelRoutes.use('*', authMiddleware);
 
+// List all channels visible to the current user (public + private they're in + their DMs)
+channelRoutes.get('/', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+
+  // Get public non-archived channels
+  const publicChannels = await db.select().from(channels).where(
+    and(eq(channels.channelType, 'public'), eq(channels.archived, false))
+  );
+
+  // Get private channels the user is a member of (non-archived)
+  const privateChannelRows = await db
+    .select({ channel: channels })
+    .from(channelMembers)
+    .innerJoin(channels, eq(channels.id, channelMembers.channelId))
+    .where(
+      and(
+        eq(channelMembers.userId, userId),
+        eq(channels.channelType, 'private'),
+        eq(channels.archived, false)
+      )
+    );
+
+  // Get DM channels the user is a member of
+  const dmChannelRows = await db
+    .select({ channel: channels })
+    .from(channelMembers)
+    .innerJoin(channels, eq(channels.id, channelMembers.channelId))
+    .where(
+      and(
+        eq(channelMembers.userId, userId),
+        eq(channels.channelType, 'dm')
+      )
+    );
+
+  const result = [...publicChannels, ...privateChannelRows.map(r => r.channel), ...dmChannelRows.map(r => r.channel)];
+  return c.json(result);
+});
+
+// Create channel
+channelRoutes.post('/', async (c) => {
+  const body = await c.req.json<CreateChannelRequest>();
+  const db = c.get('db');
+  const userId = c.get('userId');
+
+  const result = await db.insert(channels).values({
+    name: body.name,
+    slug: body.slug,
+    channelType: body.channelType ?? 'public',
+    isDefault: body.isDefault ?? false,
+    topic: body.topic ?? null,
+    createdBy: userId,
+  }).onConflictDoNothing({ target: channels.slug }).returning();
+
+  if (result.length === 0) {
+    return c.json({ error: 'A channel with this slug already exists' }, 409);
+  }
+  const [ch] = result;
+
+  // Auto-join creator
+  await db.insert(channelMembers).values({ channelId: ch.id, userId });
+
+  await emitEvent(db, {
+    channelId: ch.id,
+    userId,
+    type: 'channel.created',
+    payload: {
+      id: ch.id,
+      name: ch.name,
+      slug: ch.slug,
+      channelType: ch.channelType,
+      isDefault: ch.isDefault,
+      topic: ch.topic,
+      createdBy: ch.createdBy,
+      createdAt: ch.createdAt.toISOString(),
+    },
+  });
+
+  return c.json(ch, 201);
+});
+
+// Create or get DM channel
+channelRoutes.post('/dm', async (c) => {
+  const body = await c.req.json<CreateDMRequest>();
+  const db = c.get('db');
+  const userId = c.get('userId');
+
+  // Sort user IDs to ensure consistent slug
+  const userIds = [userId, body.userId].sort();
+  const dmSlug = `dm-${userIds.join('-')}`;
+
+  // Try to find existing DM channel
+  const existingChannels = await db
+    .select()
+    .from(channels)
+    .where(and(
+      eq(channels.slug, dmSlug),
+      eq(channels.channelType, 'dm')
+    ));
+
+  if (existingChannels.length > 0) {
+    const existingCh = existingChannels[0];
+    for (const uid of userIds) {
+      const [existing] = await db.select().from(channelMembers)
+        .where(and(eq(channelMembers.channelId, existingCh.id), eq(channelMembers.userId, uid)))
+        .limit(1);
+      if (!existing) {
+        await db.insert(channelMembers).values({ channelId: existingCh.id, userId: uid })
+          .onConflictDoNothing();
+      }
+    }
+    return c.json(existingCh);
+  }
+
+  // Create new DM channel (race-safe: onConflictDoNothing handles the case
+  // where another request created it between the SELECT above and this INSERT)
+  const dmResult = await db.insert(channels).values({
+    name: '',
+    slug: dmSlug,
+    channelType: 'dm',
+    isDefault: false,
+    topic: null,
+    createdBy: userId,
+  }).onConflictDoNothing({ target: channels.slug }).returning();
+
+  if (dmResult.length === 0) {
+    const [raced] = await db.select().from(channels)
+      .where(and(eq(channels.slug, dmSlug), eq(channels.channelType, 'dm')))
+      .limit(1);
+    if (raced) return c.json(raced);
+    return c.json({ error: 'Failed to create DM channel' }, 500);
+  }
+  const [dmChannel] = dmResult;
+
+  await db.insert(channelMembers).values([
+    { channelId: dmChannel.id, userId },
+    { channelId: dmChannel.id, userId: body.userId },
+  ]);
+
+  await emitEvent(db, {
+    channelId: dmChannel.id,
+    userId,
+    type: 'channel.created',
+    payload: {
+      id: dmChannel.id,
+      name: dmChannel.name,
+      slug: dmChannel.slug,
+      channelType: dmChannel.channelType,
+      isDefault: dmChannel.isDefault,
+      topic: dmChannel.topic,
+      createdBy: dmChannel.createdBy,
+      createdAt: dmChannel.createdAt.toISOString(),
+    },
+  });
+
+  return c.json(dmChannel, 201);
+});
+
+// Get unread counts per channel
+channelRoutes.get('/unread', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+
+  const unreadRows = await db
+    .select({
+      channelId: channels.id,
+      unreadCount: sql<number>`count(${messages.id})`.mapWith(Number),
+    })
+    .from(channels)
+    .innerJoin(
+      channelMembers,
+      and(eq(channelMembers.channelId, channels.id), eq(channelMembers.userId, userId))
+    )
+    .leftJoin(
+      channelReads,
+      and(eq(channelReads.channelId, channels.id), eq(channelReads.userId, userId))
+    )
+    .leftJoin(
+      messages,
+      and(
+        eq(messages.channelId, channels.id),
+        sql`case
+              when ${channelReads.lastReadAt} is null then ${messages.createdAt} >= ${channelMembers.joinedAt}
+              else ${messages.createdAt} > ${channelReads.lastReadAt}
+            end`
+      )
+    )
+    .groupBy(channels.id)
+    .having(sql`count(${messages.id}) > 0`);
+
+  const counts: Record<string, number> = {};
+  for (const row of unreadRows) {
+    counts[row.channelId] = row.unreadCount;
+  }
+  return c.json(counts);
+});
+
+// Get presence for all connected users
+channelRoutes.get('/presence', async (c) => {
+  const { getPresence } = await import('../ws/manager.js');
+  const presence = getPresence();
+  return c.json(presence);
+});
+
 // List messages in channel
 channelRoutes.get('/:id/messages', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const limit = parseInt(c.req.query('limit') || '50', 10);
   const after = c.req.query('after');
@@ -177,7 +380,7 @@ function looksLikeApiError(content: string): boolean {
 channelRoutes.post('/:id/messages', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const body = await c.req.json<{ content: string; threadId?: string; attachments?: any[]; canvas?: { html: string; title?: string; width?: number; height?: number } }>();
 
@@ -245,7 +448,6 @@ channelRoutes.post('/:id/messages', async (c) => {
   const [msgUser] = await db.select({ displayName: users.displayName, isAgent: users.isAgent }).from(users).where(eq(users.id, userId)).limit(1);
 
   await emitEvent(db, {
-    workspaceId: channel.workspaceId,
     channelId,
     userId,
     type: 'message.created',
@@ -266,7 +468,6 @@ channelRoutes.post('/:id/messages', async (c) => {
   if (msg.threadId) {
     const [replyCountResult] = await db.select({ count: sql<number>`count(*)::int` }).from(messages).where(eq(messages.threadId, msg.threadId));
     await emitEvent(db, {
-      workspaceId: channel.workspaceId,
       channelId,
       userId,
       type: 'thread.updated' as any,
@@ -327,14 +528,14 @@ channelRoutes.post('/:id/messages', async (c) => {
     handleIncidentCommand(db, channelId, body.content.trim(), body.threadId ?? null).catch((err) => console.error("[IncidentBot] Error:", err));
   }
   // Auto-log agent activity
-  isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => {});
+  isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => {});
   return c.json(msg, 201);
 });
 
 // Get replies for a message thread
 channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   const db = c.get('db');
-  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100);
@@ -387,7 +588,7 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
 channelRoutes.post('/:id/typing', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const { markTyping, getCachedChannel, setCachedChannel, getCachedUser, setCachedUser, getCachedMembership, setCachedMembership } = await import('../state/typingState.js');
@@ -396,7 +597,7 @@ channelRoutes.post('/:id/typing', async (c) => {
   let chan = getCachedChannel(channelId);
   if (!chan) {
     const db = c.get('db');
-    const [row] = await db.select({ workspaceId: channels.workspaceId, channelType: channels.channelType }).from(channels).where(eq(channels.id, channelId)).limit(1);
+    const [row] = await db.select({ channelType: channels.channelType }).from(channels).where(eq(channels.id, channelId)).limit(1);
     if (!row) return c.json({ error: 'Channel not found' }, 404);
     chan = row;
     setCachedChannel(channelId, chan);
@@ -430,7 +631,7 @@ channelRoutes.post('/:id/typing', async (c) => {
   markTyping(channelId, userId);
 
   const { publishEphemeralEvent } = await import('../ws/manager.js');
-  await publishEphemeralEvent(chan.workspaceId, {
+  await publishEphemeralEvent({
     type: 'typing.started',
     channel_id: channelId,
     data: { userId, channelId, user: typingUser ? { displayName: typingUser.displayName, isAgent: typingUser.isAgent } : undefined },
@@ -443,7 +644,7 @@ channelRoutes.post('/:id/typing', async (c) => {
 channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();
@@ -454,11 +655,10 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
     emoji: body.emoji,
   }).returning();
 
-  // Look up channel to get workspaceId
+  // Look up channel for event emission
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (channel) {
     await emitEvent(db, {
-      workspaceId: channel.workspaceId,
       channelId,
       userId,
       type: 'reaction.added',
@@ -473,7 +673,7 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
   }
 
   // Auto-log agent reaction
-  isAgentUser(db, userId).then(isAgent => { if (isAgent && channel) logAgentActivity(db, { workspaceId: channel.workspaceId, userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => {});
+  isAgentUser(db, userId).then(isAgent => { if (isAgent && channel) logAgentActivity(db, { userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => {});
   return c.json(reaction, 201);
 });
 
@@ -481,7 +681,7 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
 channelRoutes.post('/:id/read', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   await db.execute(
@@ -499,7 +699,7 @@ channelRoutes.post('/:id/read', async (c) => {
 channelRoutes.post('/:id/members', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const body = await c.req.json<{ userId: string }>();
 
@@ -521,7 +721,6 @@ channelRoutes.post('/:id/members', async (c) => {
   await db.insert(channelMembers).values({ channelId, userId: body.userId });
 
   await emitEvent(db, {
-    workspaceId: channel.workspaceId,
     channelId,
     userId,
     type: 'channel.created',
@@ -535,7 +734,7 @@ channelRoutes.post('/:id/members', async (c) => {
 channelRoutes.patch('/:id/archive', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -551,7 +750,6 @@ channelRoutes.patch('/:id/archive', async (c) => {
   const [updated] = await db.update(channels).set({ archived: true }).where(eq(channels.id, channelId)).returning();
 
   await emitEvent(db, {
-    workspaceId: channel.workspaceId,
     channelId,
     userId,
     type: 'channel.archived',
@@ -564,7 +762,7 @@ channelRoutes.patch('/:id/archive', async (c) => {
 // Get channel members
 channelRoutes.get('/:id/members', async (c) => {
   const db = c.get('db');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const members = await db
@@ -580,7 +778,7 @@ channelRoutes.get('/:id/members', async (c) => {
 channelRoutes.delete('/:id', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('id'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -588,7 +786,6 @@ channelRoutes.delete('/:id', async (c) => {
 
   // Emit event before deleting (channel must still exist for FK)
   await emitEvent(db, {
-    workspaceId: channel.workspaceId,
     channelId,
     userId,
     type: 'channel.deleted',
@@ -616,7 +813,7 @@ channelRoutes.delete('/:id', async (c) => {
 channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ content: string; canvas?: { html: string; title?: string; width?: number; height?: number } | null }>();
@@ -654,7 +851,6 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (channel) {
     await emitEvent(db, {
-      workspaceId: channel.workspaceId,
       channelId,
       userId,
       type: 'message.updated',
@@ -679,7 +875,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
 channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
 
@@ -696,7 +892,6 @@ channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
 
   if (channel) {
     await emitEvent(db, {
-      workspaceId: channel.workspaceId,
       channelId,
       userId,
       type: 'message.deleted',
@@ -715,7 +910,7 @@ channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
 channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  const channelId = await resolveChannel(db, c.req.param('channelId'), c.req.query('workspaceId'));
+  const channelId = await resolveChannel(db, c.req.param('channelId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();
@@ -734,7 +929,6 @@ channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (channel) {
     await emitEvent(db, {
-      workspaceId: channel.workspaceId,
       channelId,
       userId,
       type: 'reaction.removed' as any,

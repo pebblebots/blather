@@ -3,8 +3,8 @@ import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import { createDb, type Db } from '@blather/db';
 import { createAuthRoutes } from './routes/auth.js';
-import { workspaceRoutes } from './routes/workspaces.js';
 import { channelRoutes } from './routes/channels.js';
+import { memberRoutes } from './routes/members.js';
 import { taskRoutes } from './routes/tasks.js';
 import { incidentRoutes } from './routes/incidents.js';
 import { messageRoutes } from './routes/messages.js';
@@ -14,6 +14,7 @@ import { huddleRoutes } from './routes/huddles.js';
 import { activityRoutes } from './routes/activity.js';
 import { metricRoutes } from './routes/metrics.js';
 import { statusRoutes } from './routes/status.js';
+import { legacyWorkspaceRoutes } from './routes/legacy.js';
 import { generalApiLimiter, messageSendLimiter, uploadLimiter, type RateLimitStore } from './middleware/rate-limit.js';
 
 export type Env = {
@@ -46,7 +47,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
 
   // Per-user general rate limit on authenticated routes (applied before route handlers)
   const generalLimiter = generalApiLimiter(rateLimitStore);
-  for (const prefix of ['/workspaces', '/channels', '/tasks', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status']) {
+  for (const prefix of ['/channels', '/members', '/tasks', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status', '/presence']) {
     app.use(`${prefix}/*`, generalLimiter);
   }
 
@@ -55,8 +56,8 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
   app.post('/uploads/*', uploadLimiter(rateLimitStore));
 
   app.route('/auth', createAuthRoutes(rateLimitStore));
-  app.route('/workspaces', workspaceRoutes);
   app.route('/channels', channelRoutes);
+  app.route('/members', memberRoutes);
   app.route('/tasks', taskRoutes);
   app.route('/incidents', incidentRoutes);
   app.route('/messages', messageRoutes);
@@ -66,6 +67,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
   app.route('/metrics', metricRoutes);
   app.route('/activity', activityRoutes);
   app.route('/status', statusRoutes);
+  app.route('/workspaces', legacyWorkspaceRoutes); // Remove after 2026-04-02
 
   return app;
 }

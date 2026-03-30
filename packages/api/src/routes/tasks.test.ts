@@ -23,38 +23,26 @@ describe('task routes', () => {
   async function createFixture() {
     const owner = await harness.factories.createUser({ email: 'owner@example.com', displayName: 'Owner' });
     const member = await harness.factories.createUser({ email: 'member@example.com', displayName: 'Member' });
-    const workspace = await harness.factories.createWorkspace({ ownerId: owner.id });
 
-    return { owner, member, workspace };
+    return { owner, member };
   }
 
-  // ── List tasks ──
+  // -- List tasks --
 
-  it('GET /tasks returns 400 without workspaceId', async () => {
+  it('GET /tasks lists tasks', async () => {
     const { owner } = await createFixture();
 
-    const res = await harness.request.get('/tasks', {
-      headers: harness.headers.forUser(owner.id),
-    });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('GET /tasks lists tasks for a workspace', async () => {
-    const { owner, workspace } = await createFixture();
-
     await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Task A' },
+      json: { title: 'Task A' },
     });
     await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Task B' },
+      json: { title: 'Task B' },
     });
 
     const res = await harness.request.get<any[]>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id },
     });
 
     expect(res.status).toBe(200);
@@ -62,11 +50,11 @@ describe('task routes', () => {
   });
 
   it('GET /tasks filters by status', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Done task' },
+      json: { title: 'Done task' },
     });
     await harness.request.patch(`/tasks/${createRes.body.id}`, {
       headers: harness.headers.forUser(owner.id),
@@ -75,12 +63,12 @@ describe('task routes', () => {
 
     await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Queued task' },
+      json: { title: 'Queued task' },
     });
 
     const res = await harness.request.get<any[]>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id, status: 'done' },
+      query: { status: 'done' },
     });
 
     expect(res.status).toBe(200);
@@ -89,20 +77,20 @@ describe('task routes', () => {
   });
 
   it('GET /tasks filters by priority', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Urgent task', priority: 'urgent' },
+      json: { title: 'Urgent task', priority: 'urgent' },
     });
     await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Low task', priority: 'low' },
+      json: { title: 'Low task', priority: 'low' },
     });
 
     const res = await harness.request.get<any[]>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id, priority: 'urgent' },
+      query: { priority: 'urgent' },
     });
 
     expect(res.status).toBe(200);
@@ -111,20 +99,20 @@ describe('task routes', () => {
   });
 
   it('GET /tasks filters by assigneeId', async () => {
-    const { owner, member, workspace } = await createFixture();
+    const { owner, member } = await createFixture();
 
     await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Assigned task', assigneeId: member.id },
+      json: { title: 'Assigned task', assigneeId: member.id },
     });
     await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Unassigned task' },
+      json: { title: 'Unassigned task' },
     });
 
     const res = await harness.request.get<any[]>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id, assigneeId: member.id },
+      query: { assigneeId: member.id },
     });
 
     expect(res.status).toBe(200);
@@ -132,19 +120,18 @@ describe('task routes', () => {
     expect(res.body![0].title).toBe('Assigned task');
   });
 
-  // ── Create task ──
+  // -- Create task --
 
   it('POST /tasks creates a task with defaults', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const res = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'New task' },
+      json: { title: 'New task' },
     });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
-      workspaceId: workspace.id,
       title: 'New task',
       priority: 'normal',
       status: 'queued',
@@ -156,12 +143,11 @@ describe('task routes', () => {
   });
 
   it('POST /tasks creates a task with all fields', async () => {
-    const { owner, member, workspace } = await createFixture();
+    const { owner, member } = await createFixture();
 
     const res = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
       json: {
-        workspaceId: workspace.id,
         title: 'Full task',
         description: 'Detailed description',
         priority: 'urgent',
@@ -179,35 +165,24 @@ describe('task routes', () => {
   });
 
   it('POST /tasks returns 400 without title', async () => {
-    const { owner, workspace } = await createFixture();
-
-    const res = await harness.request.post('/tasks', {
-      headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id },
-    });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('POST /tasks returns 400 without workspaceId', async () => {
     const { owner } = await createFixture();
 
     const res = await harness.request.post('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { title: 'No workspace' },
+      json: {},
     });
 
     expect(res.status).toBe(400);
   });
 
-  // ── Update task ──
+  // -- Update task --
 
   it('PATCH /tasks/:id updates task fields', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Original' },
+      json: { title: 'Original' },
     });
 
     const res = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
@@ -225,11 +200,11 @@ describe('task routes', () => {
   });
 
   it('PATCH /tasks/:id updates status', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Status task' },
+      json: { title: 'Status task' },
     });
     expect(createRes.body.status).toBe('queued');
 
@@ -251,11 +226,11 @@ describe('task routes', () => {
   });
 
   it('PATCH /tasks/:id accepts hyphenated status (in-progress)', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Hyphen task' },
+      json: { title: 'Hyphen task' },
     });
 
     const res = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
@@ -278,14 +253,14 @@ describe('task routes', () => {
     expect(res.status).toBe(404);
   });
 
-  // ── Delete task ──
+  // -- Delete task --
 
   it('DELETE /tasks/:id deletes a task', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const createRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'To delete' },
+      json: { title: 'To delete' },
     });
 
     const res = await harness.request.delete(`/tasks/${createRes.body.id}`, {
@@ -298,7 +273,6 @@ describe('task routes', () => {
     // Verify it's gone
     const listRes = await harness.request.get<any[]>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      query: { workspaceId: workspace.id },
     });
     expect(listRes.body).toHaveLength(0);
   });
@@ -313,14 +287,14 @@ describe('task routes', () => {
     expect(res.status).toBe(404);
   });
 
-  // ── Task Comments ──
+  // -- Task Comments --
 
   it('POST /tasks/:taskId/comments creates a comment', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const taskRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Commentable' },
+      json: { title: 'Commentable' },
     });
 
     const res = await harness.request.post<any>(`/tasks/${taskRes.body.id}/comments`, {
@@ -337,11 +311,11 @@ describe('task routes', () => {
   });
 
   it('POST /tasks/:taskId/comments returns 400 for empty content', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const taskRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Commentable' },
+      json: { title: 'Commentable' },
     });
 
     const res = await harness.request.post(`/tasks/${taskRes.body.id}/comments`, {
@@ -364,11 +338,11 @@ describe('task routes', () => {
   });
 
   it('GET /tasks/:taskId/comments lists comments with user display name', async () => {
-    const { owner, member, workspace } = await createFixture();
+    const { owner, member } = await createFixture();
 
     const taskRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Multi-comment' },
+      json: { title: 'Multi-comment' },
     });
 
     await harness.request.post(`/tasks/${taskRes.body.id}/comments`, {
@@ -391,11 +365,11 @@ describe('task routes', () => {
   });
 
   it('DELETE /tasks/:taskId/comments/:commentId deletes own comment', async () => {
-    const { owner, workspace } = await createFixture();
+    const { owner } = await createFixture();
 
     const taskRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Delete comment test' },
+      json: { title: 'Delete comment test' },
     });
 
     const commentRes = await harness.request.post<any>(`/tasks/${taskRes.body.id}/comments`, {
@@ -412,11 +386,11 @@ describe('task routes', () => {
   });
 
   it('DELETE /tasks/:taskId/comments/:commentId returns 403 for non-author', async () => {
-    const { owner, member, workspace } = await createFixture();
+    const { owner, member } = await createFixture();
 
     const taskRes = await harness.request.post<any>('/tasks', {
       headers: harness.headers.forUser(owner.id),
-      json: { workspaceId: workspace.id, title: 'Auth test' },
+      json: { title: 'Auth test' },
     });
 
     const commentRes = await harness.request.post<any>(`/tasks/${taskRes.body.id}/comments`, {

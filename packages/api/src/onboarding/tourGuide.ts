@@ -1,5 +1,5 @@
 import { eq, and } from 'drizzle-orm';
-import { users, channels, channelMembers, messages, workspaceMembers } from '@blather/db';
+import { users, channels, channelMembers, messages } from '@blather/db';
 import type { Db } from '@blather/db';
 import { publishEvent } from '../ws/manager.js';
 
@@ -37,8 +37,8 @@ export async function ensureTourGuideUser(db: Db) {
 /**
  * Build the static fallback welcome message.
  */
-export function buildWelcomeMessage(workspaceName: string): string {
-  return `Hey! 👋 Welcome to ${workspaceName}! I'm the Tour Guide — here to help you get oriented.
+export function buildWelcomeMessage(): string {
+  return `Hey! 👋 Welcome to Blather! I'm the Tour Guide — here to help you get oriented.
 
 A few things to know:
 • **#intros** is where people introduce themselves — drop in and say hi!
@@ -53,12 +53,11 @@ Have fun! 🎉`;
  * Falls back to the static message if the API call fails.
  */
 export async function generateWelcomeMessage(
-  workspaceName: string,
   channelNames: string[],
   userDisplayName?: string,
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY_TOURGUIDE;
-  if (!apiKey) return buildWelcomeMessage(workspaceName);
+  if (!apiKey) return buildWelcomeMessage();
 
   const channelList = channelNames.length > 0
     ? channelNames.map(n => `#${n}`).join(', ')
@@ -80,55 +79,38 @@ export async function generateWelcomeMessage(
         system: `You are Tour Guide, a friendly onboarding bot for a messaging platform called Blather. Write a short, warm welcome DM for a new user who just joined. Be casual and helpful — like a coworker showing someone around on their first day. Use 1-2 emoji max. Keep it under 4 short paragraphs. Don't use bullet points or lists. Mention a couple of channels naturally in conversation.`,
         messages: [{
           role: 'user',
-          content: `New user just joined the "${workspaceName}" workspace. ${nameGreeting} Available channels: ${channelList}. Write a welcome DM.`,
+          content: `New user just joined Blather. ${nameGreeting} Available channels: ${channelList}. Write a welcome DM.`,
         }],
       }),
     });
 
     if (!res.ok) {
       console.warn(`Tour Guide Haiku call failed: ${res.status}`);
-      return buildWelcomeMessage(workspaceName);
+      return buildWelcomeMessage();
     }
 
     const data = await res.json() as { content: Array<{ type: string; text: string }> };
     const text = data.content?.[0]?.text?.trim();
-    return text || buildWelcomeMessage(workspaceName);
+    return text || buildWelcomeMessage();
   } catch (err) {
     console.warn('Tour Guide Haiku call failed:', err);
-    return buildWelcomeMessage(workspaceName);
+    return buildWelcomeMessage();
   }
 }
 
 /**
- * Send a Tour Guide welcome DM to a new human user who just joined a workspace.
+ * Send a Tour Guide welcome DM to a new human user.
  * Skips agent users. Creates the DM channel and sends the welcome message.
  */
 export async function sendTourGuideWelcome(
   db: Db,
   userId: string,
-  workspaceId: string,
-  workspaceName: string,
   isAgent: boolean,
 ) {
   // Only DM humans
   if (isAgent) return;
 
   const tourGuide = await ensureTourGuideUser(db);
-
-  // Ensure Tour Guide is a workspace member (needed for DM to work)
-  const [existingWsMember] = await db.select().from(workspaceMembers)
-    .where(and(
-      eq(workspaceMembers.workspaceId, workspaceId),
-      eq(workspaceMembers.userId, tourGuide.id),
-    )).limit(1);
-
-  if (!existingWsMember) {
-    await db.insert(workspaceMembers).values({
-      workspaceId,
-      userId: tourGuide.id,
-      role: 'member',
-    });
-  }
 
   // Create DM channel between Tour Guide and the new user
   const userIds = [tourGuide.id, userId].sort();
@@ -137,7 +119,6 @@ export async function sendTourGuideWelcome(
   // Check for existing DM
   const [existingDm] = await db.select().from(channels)
     .where(and(
-      eq(channels.workspaceId, workspaceId),
       eq(channels.slug, dmSlug),
       eq(channels.channelType, 'dm'),
     ))
@@ -148,7 +129,6 @@ export async function sendTourGuideWelcome(
     dmChannel = existingDm;
   } else {
     [dmChannel] = await db.insert(channels).values({
-      workspaceId,
       name: '',
       slug: dmSlug,
       channelType: 'dm',
@@ -164,13 +144,11 @@ export async function sendTourGuideWelcome(
     ]);
 
     // Emit channel.created
-    await publishEvent(workspaceId, {
+    await publishEvent({
       type: 'channel.created',
-      workspace_id: workspaceId,
       channel_id: dmChannel.id,
       data: {
         id: dmChannel.id,
-        workspaceId,
         name: dmChannel.name,
         slug: dmChannel.slug,
         channelType: dmChannel.channelType,
@@ -185,10 +163,7 @@ export async function sendTourGuideWelcome(
   // Fetch public channel names for context
   const publicChannels = await db.select({ name: channels.name })
     .from(channels)
-    .where(and(
-      eq(channels.workspaceId, workspaceId),
-      eq(channels.channelType, 'public'),
-    ));
+    .where(eq(channels.channelType, 'public'));
   const channelNames = publicChannels.map(c => c.name).filter(Boolean) as string[];
 
   // Fetch the new user's display name
@@ -197,7 +172,6 @@ export async function sendTourGuideWelcome(
 
   // Generate personalized welcome via Haiku (falls back to static)
   const content = await generateWelcomeMessage(
-    workspaceName,
     channelNames,
     newUser?.displayName ?? undefined,
   );
@@ -208,9 +182,8 @@ export async function sendTourGuideWelcome(
   }).returning();
 
   // Emit message.created
-  await publishEvent(workspaceId, {
+  await publishEvent({
     type: 'message.created',
-    workspace_id: workspaceId,
     channel_id: dmChannel.id,
     data: {
       id: msg.id,

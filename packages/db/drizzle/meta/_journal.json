@@ -64,6 +64,13 @@
       "when": 1774588800000,
       "tag": "0009_add_code_column",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1774675200000,
+      "tag": "0010_remove_workspaces",
+      "breakpoints": true
     }
   ]
 }

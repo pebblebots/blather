@@ -8,8 +8,6 @@ import {
   channels,
   messages,
   users,
-  workspaceMembers,
-  workspaces,
 } from '@blather/db';
 import * as schema from '@blather/db';
 
@@ -33,15 +31,7 @@ type CreateUserInput = {
   bio?: string | null;
 };
 
-type CreateWorkspaceInput = {
-  name?: string;
-  slug?: string;
-  allowedDomains?: string[];
-  ownerId?: string;
-};
-
 type CreateChannelInput = {
-  workspaceId: string;
   name?: string;
   slug?: string;
   channelType?: 'public' | 'private' | 'dm';
@@ -61,8 +51,7 @@ type CreateMessageInput = {
 
 export type TestFactories = {
   createUser(input?: CreateUserInput): Promise<typeof users.$inferSelect>;
-  createWorkspace(input?: CreateWorkspaceInput): Promise<typeof workspaces.$inferSelect>;
-  createChannel(input: CreateChannelInput): Promise<typeof channels.$inferSelect>;
+  createChannel(input?: CreateChannelInput): Promise<typeof channels.$inferSelect>;
   createMessage(input: CreateMessageInput): Promise<typeof messages.$inferSelect>;
 };
 
@@ -94,8 +83,6 @@ async function truncateAllTables(sql: PGlite): Promise<void> {
     'messages',
     'channel_members',
     'channels',
-    'workspace_members',
-    'workspaces',
     'api_keys',
     'magic_tokens',
     'users',
@@ -124,34 +111,11 @@ function createTestFactories(db: Db): TestFactories {
       return user;
     },
 
-    async createWorkspace(input = {}) {
-      const suffix = uniqueSuffix();
-      const [workspace] = await db
-        .insert(workspaces)
-        .values({
-          name: input.name ?? `Test Workspace ${suffix}`,
-          slug: input.slug ?? `test-workspace-${suffix}`,
-          allowedDomains: input.allowedDomains ?? [],
-        })
-        .returning();
-
-      if (input.ownerId) {
-        await db.insert(workspaceMembers).values({
-          workspaceId: workspace.id,
-          userId: input.ownerId,
-          role: 'owner',
-        });
-      }
-
-      return workspace;
-    },
-
-    async createChannel(input) {
+    async createChannel(input = {}) {
       const suffix = uniqueSuffix();
       const [channel] = await db
         .insert(channels)
         .values({
-          workspaceId: input.workspaceId,
           name: input.name ?? `test-channel-${suffix}`,
           slug: input.slug ?? `test-channel-${suffix}`,
           channelType: input.channelType ?? 'public',

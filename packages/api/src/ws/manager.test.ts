@@ -28,10 +28,8 @@ vi.mock('@blather/db', () => {
   };
 });
 
-import { __testing, getPresenceForWorkspace, publishEvent, publishEphemeralEvent } from './manager.js';
+import { __testing, getPresence, publishEvent, publishEphemeralEvent } from './manager.js';
 import { JWT_SECRET } from '../config.js';
-
-let testCounter = 0;
 
 function signToken(userId: string): string {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '1h' });
@@ -94,17 +92,13 @@ function waitForClose(ws: FakeWebSocket): Promise<{ code: number; reason: string
   });
 }
 
-function createAuthedClient(userId: string, workspaceId: string): FakeWebSocket {
+function createAuthedClient(userId: string): FakeWebSocket {
   const ws = new FakeWebSocket();
-  __testing.setupAuthedClient(ws as any, userId, workspaceId);
+  __testing.setupAuthedClient(ws as any, userId);
   return ws;
 }
 
 describe('WebSocket manager', () => {
-  function uniqueWorkspaceId() {
-    return `ws-${++testCounter}`;
-  }
-
   beforeEach(() => {
     dbQueryResults = [];
     dbQueryIndex = 0;
@@ -120,14 +114,13 @@ describe('WebSocket manager', () => {
   });
 
   it('setupPendingClient authenticates via auth message', async () => {
-    const wsId = uniqueWorkspaceId();
     const ws = new FakeWebSocket();
     __testing.setupPendingClient(ws as any);
 
     const connected = waitForType(ws, 'connected');
-    ws.clientSend({ type: 'auth', token: signToken('user-2'), workspaceId: wsId });
+    ws.clientSend({ type: 'auth', token: signToken('user-2') });
 
-    await expect(connected).resolves.toEqual({ type: 'connected', userId: 'user-2', workspaceId: wsId });
+    await expect(connected).resolves.toEqual({ type: 'connected', userId: 'user-2' });
   });
 
   it('setupPendingClient rejects invalid token in auth message (code 4003)', async () => {
@@ -135,7 +128,7 @@ describe('WebSocket manager', () => {
     __testing.setupPendingClient(ws as any);
 
     const closed = waitForClose(ws);
-    ws.clientSend({ type: 'auth', token: 'bad-token', workspaceId: uniqueWorkspaceId() });
+    ws.clientSend({ type: 'auth', token: 'bad-token' });
 
     await expect(closed).resolves.toMatchObject({ code: 4003 });
   });
@@ -161,27 +154,24 @@ describe('WebSocket manager', () => {
   });
 
   it('tracks online presence for connected user', () => {
-    const wsId = uniqueWorkspaceId();
-    createAuthedClient('user-p1', wsId);
-    expect(getPresenceForWorkspace(wsId)).toEqual([{ userId: 'user-p1', status: 'online' }]);
+    createAuthedClient('user-p1');
+    expect(getPresence()).toEqual([{ userId: 'user-p1', status: 'online' }]);
   });
 
   it('removes presence when user disconnects', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws = createAuthedClient('user-p2', wsId);
+    const ws = createAuthedClient('user-p2');
     ws.close();
-    expect(getPresenceForWorkspace(wsId)).toEqual([]);
+    expect(getPresence()).toEqual([]);
   });
 
-  it('returns empty presence for unknown workspace', () => {
-    expect(getPresenceForWorkspace('nonexistent')).toEqual([]);
+  it('returns empty presence when no clients connected', () => {
+    expect(getPresence()).toEqual([]);
   });
 
   it('broadcasts presence.changed online when user connects', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws1 = createAuthedClient('user-a', wsId);
+    const ws1 = createAuthedClient('user-a');
     const presencePromise = waitForType(ws1, 'presence.changed');
-    createAuthedClient('user-b', wsId);
+    createAuthedClient('user-b');
     await expect(presencePromise).resolves.toEqual({
       type: 'presence.changed',
       data: { userId: 'user-b', status: 'online' },
@@ -189,9 +179,8 @@ describe('WebSocket manager', () => {
   });
 
   it('broadcasts presence.changed offline when user disconnects', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws1 = createAuthedClient('user-c', wsId);
-    const ws2 = createAuthedClient('user-d', wsId);
+    const ws1 = createAuthedClient('user-c');
+    const ws2 = createAuthedClient('user-d');
     expect(ws1.sent).toContainEqual({
       type: 'presence.changed',
       data: { userId: 'user-d', status: 'online' },
@@ -208,97 +197,90 @@ describe('WebSocket manager', () => {
 
   it('enforces max 3 connections per user (closes oldest)', async () => {
     const userId = 'user-max';
-    const wsId = uniqueWorkspaceId();
 
-    const conns = [createAuthedClient(userId, wsId), createAuthedClient(userId, wsId), createAuthedClient(userId, wsId)];
+    const conns = [createAuthedClient(userId), createAuthedClient(userId), createAuthedClient(userId)];
     const closePromise = waitForClose(conns[0]);
-    createAuthedClient(userId, wsId);
+    createAuthedClient(userId);
 
     await expect(closePromise).resolves.toMatchObject({ code: 4008 });
   });
 
   it('responds to application ping with pong', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws = createAuthedClient('user-ping', wsId);
+    const ws = createAuthedClient('user-ping');
     const pong = waitForType(ws, 'pong');
     ws.clientSend({ type: 'ping' });
     await expect(pong).resolves.toEqual({ type: 'pong' });
   });
 
   it('publishEvent sends to all clients for public channel', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws1 = createAuthedClient('user-e1', wsId);
-    const ws2 = createAuthedClient('user-e2', wsId);
+    const ws1 = createAuthedClient('user-e1');
+    const ws2 = createAuthedClient('user-e2');
 
     dbQueryResults = [[{ channelType: 'public' }]];
     const event = { type: 'message.created', channel_id: 'ch-1', data: { text: 'hello' } };
 
     const p1 = waitForType(ws1, 'message.created');
     const p2 = waitForType(ws2, 'message.created');
-    await publishEvent(wsId, event);
+    await publishEvent(event);
 
     await expect(Promise.all([p1, p2])).resolves.toEqual([event, event]);
   });
 
   it('publishEvent restricts private channel events to members only', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws1 = createAuthedClient('user-priv1', wsId);
-    const ws2 = createAuthedClient('user-priv2', wsId);
+    const ws1 = createAuthedClient('user-priv1');
+    const ws2 = createAuthedClient('user-priv2');
 
     dbQueryResults = [[{ channelType: 'private' }], [{ userId: 'user-priv1' }]];
 
     const event = { type: 'message.created', channel_id: 'ch-priv', data: { text: 'secret' } };
     const p1 = waitForType(ws1, 'message.created');
-    await publishEvent(wsId, event);
+    await publishEvent(event);
 
     await expect(p1).resolves.toEqual(event);
     expect(ws2.sent.some((message) => message.type === 'message.created')).toBe(false);
   });
 
   it('publishEvent restricts DM channel events to members only', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws1 = createAuthedClient('user-dm1', wsId);
-    const ws2 = createAuthedClient('user-dm2', wsId);
+    const ws1 = createAuthedClient('user-dm1');
+    const ws2 = createAuthedClient('user-dm2');
 
     dbQueryResults = [[{ channelType: 'dm' }], [{ userId: 'user-dm1' }]];
 
     const event = { type: 'message.created', channel_id: 'ch-dm', data: { text: 'hi' } };
     const p1 = waitForType(ws1, 'message.created');
-    await publishEvent(wsId, event);
+    await publishEvent(event);
 
     await expect(p1).resolves.toEqual(event);
     expect(ws2.sent.some((message) => message.type === 'message.created')).toBe(false);
   });
 
   it('publishEvent sends to all when no channel_id', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws = createAuthedClient('user-noc', wsId);
-    const event = { type: 'workspace.updated', data: { name: 'new' } };
+    const ws = createAuthedClient('user-noc');
+    const event = { type: 'app.updated', data: { name: 'new' } };
 
-    const received = waitForType(ws, 'workspace.updated');
-    await publishEvent(wsId, event);
+    const received = waitForType(ws, 'app.updated');
+    await publishEvent(event);
 
     await expect(received).resolves.toEqual(event);
   });
 
-  it('publishEvent is a no-op for unknown workspace', async () => {
-    await expect(publishEvent('nonexistent', { type: 'test' })).resolves.toBeUndefined();
+  it('publishEvent is a no-op when no clients connected', async () => {
+    await expect(publishEvent({ type: 'test' })).resolves.toBeUndefined();
   });
 
-  it('publishEphemeralEvent broadcasts to all workspace clients', async () => {
-    const wsId = uniqueWorkspaceId();
-    const ws1 = createAuthedClient('user-eph1', wsId);
-    const ws2 = createAuthedClient('user-eph2', wsId);
+  it('publishEphemeralEvent broadcasts to all clients', async () => {
+    const ws1 = createAuthedClient('user-eph1');
+    const ws2 = createAuthedClient('user-eph2');
 
     const event = { type: 'typing', channelId: 'ch-1', userId: 'user-eph1' };
     const p1 = waitForType(ws1, 'typing');
     const p2 = waitForType(ws2, 'typing');
-    await publishEphemeralEvent(wsId, event);
+    await publishEphemeralEvent(event);
 
     await expect(Promise.all([p1, p2])).resolves.toEqual([event, event]);
   });
 
-  it('publishEphemeralEvent is a no-op for unknown workspace', async () => {
-    await expect(publishEphemeralEvent('nonexistent', { type: 'typing' })).resolves.toBeUndefined();
+  it('publishEphemeralEvent is a no-op when no clients connected', async () => {
+    await expect(publishEphemeralEvent({ type: 'typing' })).resolves.toBeUndefined();
   });
 });

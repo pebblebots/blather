@@ -33,7 +33,4 @@ program.command('openclaw')
 const usersCmd = (await import('./users.js')).registerUsers();
 program.addCommand(usersCmd);
 
-const workspacesCmd = (await import('./workspaces.js')).registerWorkspaces();
-program.addCommand(workspacesCmd);
-
 await program.parseAsync();

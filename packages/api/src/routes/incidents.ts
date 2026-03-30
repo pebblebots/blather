@@ -1,26 +1,24 @@
 import { Hono } from 'hono';
 import { eq, and, desc } from 'drizzle-orm';
-import { incidents, workspaceMembers } from '@blather/db';
+import { incidents } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 export const incidentRoutes = new Hono<Env>();
 incidentRoutes.use('*', authMiddleware);
 
-// List incidents for a workspace
+// List incidents
 incidentRoutes.get('/', async (c) => {
   const db = c.get('db');
-  const workspaceId = c.req.query('workspaceId');
-  if (!workspaceId) return c.json({ error: 'workspaceId required' }, 400);
 
-  const conditions: any[] = [eq(incidents.workspaceId, workspaceId)];
+  const conditions: any[] = [];
   const status = c.req.query('status');
   if (status) conditions.push(eq(incidents.status, status as any));
   const severity = c.req.query('severity');
   if (severity) conditions.push(eq(incidents.severity, severity as any));
 
   const results = await db.select().from(incidents)
-    .where(and(...conditions))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(incidents.createdAt));
 
   return c.json(results);
@@ -41,24 +39,17 @@ incidentRoutes.get('/:id', async (c) => {
 incidentRoutes.post('/', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
-  
+
   const body = await c.req.json<{
-    workspaceId: string;
     title: string;
     severity?: 'critical' | 'warning' | 'info';
     channelId?: string;
   }>();
 
-  const { workspaceId, title, severity = 'warning', channelId } = body;
-  if (!workspaceId || !title) return c.json({ error: 'workspaceId and title required' }, 400);
-
-  // Check workspace membership
-  const [membership] = await db.select().from(workspaceMembers)
-    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
-  if (!membership) return c.json({ error: 'Not a member of this workspace' }, 403);
+  const { title, severity = 'warning', channelId } = body;
+  if (!title) return c.json({ error: 'title required' }, 400);
 
   const [incident] = await db.insert(incidents).values({
-    workspaceId,
     title,
     severity,
     openedBy: userId,
@@ -80,7 +71,7 @@ incidentRoutes.patch('/:id', async (c) => {
   }>();
 
   const updates: any = { updatedAt: new Date() };
-  
+
   if (body.status) {
     updates.status = body.status;
     if (body.status === 'acked') {
@@ -91,7 +82,7 @@ incidentRoutes.patch('/:id', async (c) => {
       updates.resolvedAt = new Date();
     }
   }
-  
+
   if (body.severity) updates.severity = body.severity;
   if (body.resolution) updates.resolution = body.resolution;
 

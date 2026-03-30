@@ -15,7 +15,7 @@ vi.mock('../lib/api', () => ({
 
 describe('SearchPanel', () => {
   it('renders search input and initial state', () => {
-    render(<SearchPanel workspaceId="ws-1" onNavigate={vi.fn()} onClose={vi.fn()} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByPlaceholderText('Search messages...')).toBeInTheDocument();
     expect(screen.getByText(/type to search/i)).toBeInTheDocument();
   });
@@ -26,7 +26,7 @@ describe('SearchPanel', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-1" onNavigate={vi.fn()} onClose={vi.fn()} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={vi.fn()} />);
     await user.type(screen.getByPlaceholderText('Search messages...'), 'Hello');
 
     // Wait for debounce + render
@@ -38,7 +38,7 @@ describe('SearchPanel', () => {
     mockSearchMessages.mockResolvedValue([]);
 
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-1" onNavigate={vi.fn()} onClose={vi.fn()} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={vi.fn()} />);
     await user.type(screen.getByPlaceholderText('Search messages...'), 'nonexistent');
 
     await waitFor(() => expect(mockSearchMessages).toHaveBeenCalled(), { timeout: 2000 });
@@ -48,7 +48,7 @@ describe('SearchPanel', () => {
   it('calls onClose when clicking the backdrop overlay', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-1" onNavigate={vi.fn()} onClose={onClose} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={onClose} />);
     // The search title is inside the panel; clicking the backdrop (outside) should close.
     // Find the outermost overlay by its role as backdrop — it covers the full viewport.
     const backdrop = screen.getByText('🔍 Search Messages').closest('.mac-window')!.parentElement!;
@@ -63,7 +63,7 @@ describe('SearchPanel', () => {
 
     const onNavigate = vi.fn();
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-1" onNavigate={onNavigate} onClose={vi.fn()} />);
+    render(<SearchPanel onNavigate={onNavigate} onClose={vi.fn()} />);
     await user.type(screen.getByPlaceholderText('Search messages...'), 'query');
 
     await waitFor(() => expect(mockSearchMessages).toHaveBeenCalled(), { timeout: 2000 });
@@ -76,7 +76,7 @@ describe('SearchPanel', () => {
   it('closes on Escape key', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-1" onNavigate={vi.fn()} onClose={onClose} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={onClose} />);
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalled();
   });
@@ -87,7 +87,7 @@ describe('SearchPanel', () => {
     ]);
 
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-1" onNavigate={vi.fn()} onClose={vi.fn()} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={vi.fn()} />);
     await user.type(screen.getByPlaceholderText('Search messages...'), 'hello');
 
     await waitFor(() => expect(mockSearchMessages).toHaveBeenCalled(), { timeout: 2000 });
@@ -102,7 +102,7 @@ describe('SearchPanel', () => {
     mockSearchMessages.mockRejectedValue(new Error('Network error'));
 
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-1" onNavigate={vi.fn()} onClose={vi.fn()} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={vi.fn()} />);
     await user.type(screen.getByPlaceholderText('Search messages...'), 'fail');
 
     await waitFor(() => expect(mockSearchMessages).toHaveBeenCalled(), { timeout: 2000 });
@@ -113,13 +113,12 @@ describe('SearchPanel', () => {
     mockSearchMessages.mockResolvedValue([]);
 
     const user = userEvent.setup();
-    render(<SearchPanel workspaceId="ws-42" onNavigate={vi.fn()} onClose={vi.fn()} />);
+    render(<SearchPanel onNavigate={vi.fn()} onClose={vi.fn()} />);
     await user.type(screen.getByPlaceholderText('Search messages...'), 'test query');
 
     await waitFor(() => expect(mockSearchMessages).toHaveBeenCalled(), { timeout: 2000 });
     expect(mockSearchMessages).toHaveBeenCalledWith({
       q: 'test query',
-      workspaceId: 'ws-42',
       limit: 30,
     });
   });
