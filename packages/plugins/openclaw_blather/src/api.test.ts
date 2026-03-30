@@ -53,14 +53,14 @@ describe("BlatherClient", () => {
     mockFetch.mockResolvedValue(jsonResponse([]));
     await client.getChannels("ws-1");
 
-    expect(mockFetch.mock.calls[0][0]).toBe("https://example.com/api/workspaces/ws-1/channels");
+    expect(mockFetch.mock.calls[0][0]).toBe("https://example.com/api/channels");
   });
 
   it("getMembers hits correct URL", async () => {
     mockFetch.mockResolvedValue(jsonResponse([]));
     await client.getMembers("ws-1");
 
-    expect(mockFetch.mock.calls[0][0]).toBe("https://example.com/api/workspaces/ws-1/members");
+    expect(mockFetch.mock.calls[0][0]).toBe("https://example.com/api/members");
   });
 
   it("sendMessage posts content and returns the message", async () => {
