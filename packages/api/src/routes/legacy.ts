@@ -19,11 +19,11 @@ legacyWorkspaceRoutes.use('*', authMiddleware);
 // GET /workspaces/:id/channels → 307 to GET /channels
 legacyWorkspaceRoutes.get('/:id/channels', (c) => {
   console.warn(`[legacy] GET /workspaces/${c.req.param('id')}/channels → /channels (deprecated, remove after 2026-04-02)`);
-  return c.redirect('/channels', 307);
+  return c.redirect('/api/channels', 307);
 });
 
 // GET /workspaces/:id/members → 307 to GET /members
 legacyWorkspaceRoutes.get('/:id/members', (c) => {
   console.warn(`[legacy] GET /workspaces/${c.req.param('id')}/members → /members (deprecated, remove after 2026-04-02)`);
-  return c.redirect('/members', 307);
+  return c.redirect('/api/members', 307);
 });
