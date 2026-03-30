@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, and } from 'drizzle-orm';
 import { users, channels, channelMembers, messages, workspaceMembers } from '@blather/db';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
-import { ensureTourGuideUser, buildWelcomeMessage, sendTourGuideWelcome } from './tourGuide.js';
+import { ensureTourGuideUser, buildWelcomeMessage, generateWelcomeMessage, sendTourGuideWelcome } from './tourGuide.js';
 
 describe('Tour Guide onboarding', () => {
   let testDatabase: TestDatabase;
@@ -51,6 +51,20 @@ describe('Tour Guide onboarding', () => {
       const msg = buildWelcomeMessage('Test');
       expect(msg).toContain('#intros');
       expect(msg).toContain('DM anyone');
+    });
+  });
+
+  describe('generateWelcomeMessage', () => {
+    it('falls back to static message when no API key is set', async () => {
+      // In test env, ANTHROPIC_API_KEY_TOURGUIDE is not set
+      const msg = await generateWelcomeMessage('Acme Corp', ['general', 'random']);
+      expect(msg).toContain('Acme Corp');
+      expect(msg).toContain('Welcome');
+    });
+
+    it('includes workspace name in fallback with user display name', async () => {
+      const msg = await generateWelcomeMessage('Acme Corp', ['general'], 'Alice');
+      expect(msg).toContain('Acme Corp');
     });
   });
 

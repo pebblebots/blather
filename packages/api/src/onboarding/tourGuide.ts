@@ -4,6 +4,7 @@ import type { Db } from '@blather/db';
 import { publishEvent } from '../ws/manager.js';
 
 const TOUR_GUIDE_EMAIL = 'tourguide@system.blather';
+const HAIKU_MODEL = 'claude-haiku-4-5-20250414';
 
 /**
  * Ensure the Tour Guide system user exists, creating it if needed.
@@ -34,7 +35,7 @@ export async function ensureTourGuideUser(db: Db) {
 }
 
 /**
- * Build the welcome message for a workspace.
+ * Build the static fallback welcome message.
  */
 export function buildWelcomeMessage(workspaceName: string): string {
   return `Hey! 👋 Welcome to ${workspaceName}! I'm the Tour Guide — here to help you get oriented.
@@ -45,6 +46,57 @@ A few things to know:
 • You can DM anyone directly
 
 Have fun! 🎉`;
+}
+
+/**
+ * Generate a personalized welcome message using Claude Haiku.
+ * Falls back to the static message if the API call fails.
+ */
+export async function generateWelcomeMessage(
+  workspaceName: string,
+  channelNames: string[],
+  userDisplayName?: string,
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY_TOURGUIDE;
+  if (!apiKey) return buildWelcomeMessage(workspaceName);
+
+  const channelList = channelNames.length > 0
+    ? channelNames.map(n => `#${n}`).join(', ')
+    : 'browse the sidebar to find channels';
+
+  const nameGreeting = userDisplayName ? `The user's name is ${userDisplayName}.` : '';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: HAIKU_MODEL,
+        max_tokens: 300,
+        system: `You are Tour Guide, a friendly onboarding bot for a messaging platform called Blather. Write a short, warm welcome DM for a new user who just joined. Be casual and helpful — like a coworker showing someone around on their first day. Use 1-2 emoji max. Keep it under 4 short paragraphs. Don't use bullet points or lists. Mention a couple of channels naturally in conversation.`,
+        messages: [{
+          role: 'user',
+          content: `New user just joined the "${workspaceName}" workspace. ${nameGreeting} Available channels: ${channelList}. Write a welcome DM.`,
+        }],
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`Tour Guide Haiku call failed: ${res.status}`);
+      return buildWelcomeMessage(workspaceName);
+    }
+
+    const data = await res.json() as { content: Array<{ type: string; text: string }> };
+    const text = data.content?.[0]?.text?.trim();
+    return text || buildWelcomeMessage(workspaceName);
+  } catch (err) {
+    console.warn('Tour Guide Haiku call failed:', err);
+    return buildWelcomeMessage(workspaceName);
+  }
 }
 
 /**
@@ -130,8 +182,25 @@ export async function sendTourGuideWelcome(
     });
   }
 
-  // Send welcome message
-  const content = buildWelcomeMessage(workspaceName);
+  // Fetch public channel names for context
+  const publicChannels = await db.select({ name: channels.name })
+    .from(channels)
+    .where(and(
+      eq(channels.workspaceId, workspaceId),
+      eq(channels.channelType, 'public'),
+    ));
+  const channelNames = publicChannels.map(c => c.name).filter(Boolean) as string[];
+
+  // Fetch the new user's display name
+  const [newUser] = await db.select({ displayName: users.displayName })
+    .from(users).where(eq(users.id, userId)).limit(1);
+
+  // Generate personalized welcome via Haiku (falls back to static)
+  const content = await generateWelcomeMessage(
+    workspaceName,
+    channelNames,
+    newUser?.displayName ?? undefined,
+  );
   const [msg] = await db.insert(messages).values({
     channelId: dmChannel.id,
     userId: tourGuide.id,
