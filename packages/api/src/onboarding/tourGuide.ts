@@ -4,7 +4,7 @@ import type { Db } from '@blather/db';
 import { publishEvent } from '../ws/manager.js';
 
 const TOUR_GUIDE_EMAIL = 'tourguide@system.blather';
-const HAIKU_MODEL = 'claude-haiku-4-5-20250414';
+const HAIKU_MODEL = 'claude-3-haiku-20240307';
 
 /**
  * Ensure the Tour Guide system user exists, creating it if needed.
