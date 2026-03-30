@@ -124,9 +124,15 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
   const filteredMembers = useMemo(() => {
     if (mentionQuery === null) return [];
     if (mentionQuery === '') return members.slice(0, 8);
-    return members.filter(m =>
-      m.displayName.toLowerCase().includes(mentionQuery)
-    ).slice(0, 8);
+    const q = mentionQuery;
+    return members
+      .filter(m => m.displayName.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aPrefix = a.displayName.toLowerCase().startsWith(q) ? 0 : 1;
+        const bPrefix = b.displayName.toLowerCase().startsWith(q) ? 0 : 1;
+        return aPrefix - bPrefix;
+      })
+      .slice(0, 8);
   }, [mentionQuery, members]);
 
   const insertMention = useCallback((member: Member) => {
