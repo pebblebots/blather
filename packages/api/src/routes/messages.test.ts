@@ -37,10 +37,8 @@ describe('message routes', () => {
   async function createFixture() {
     const requester = await harness.factories.createUser({ email: 'requester@example.com', displayName: 'Requester' });
     const teammate = await harness.factories.createUser({ email: 'teammate@example.com', displayName: 'Teammate' });
-    const workspace = await harness.factories.createWorkspace({ ownerId: requester.id });
 
     const general = await harness.factories.createChannel({
-      workspaceId: workspace.id,
       name: 'general',
       slug: 'general',
       channelType: 'public',
@@ -48,18 +46,17 @@ describe('message routes', () => {
     });
 
     const random = await harness.factories.createChannel({
-      workspaceId: workspace.id,
       name: 'random',
       slug: 'random',
       channelType: 'public',
       createdBy: requester.id,
     });
 
-    return { requester, teammate, workspace, general, random };
+    return { requester, teammate, general, random };
   }
 
   it('GET /messages/search finds messages by keyword', async () => {
-    const { requester, workspace, general } = await createFixture();
+    const { requester, general } = await createFixture();
 
     const match = await harness.factories.createMessage({
       channelId: general.id,
@@ -75,7 +72,6 @@ describe('message routes', () => {
     const response = await harness.request.get<SearchResult[]>('/messages/search', {
       headers: harness.headers.forUser(requester.id),
       query: {
-        workspaceId: workspace.id,
         q: 'checklist',
       },
     });
@@ -93,7 +89,7 @@ describe('message routes', () => {
   });
 
   it('GET /messages/search filters by channelId', async () => {
-    const { requester, workspace, general, random } = await createFixture();
+    const { requester, general, random } = await createFixture();
 
     const inGeneral = await harness.factories.createMessage({
       channelId: general.id,
@@ -109,7 +105,6 @@ describe('message routes', () => {
     const response = await harness.request.get<SearchResult[]>('/messages/search', {
       headers: harness.headers.forUser(requester.id),
       query: {
-        workspaceId: workspace.id,
         q: 'incident alpha',
         channelId: general.id,
       },
@@ -122,7 +117,7 @@ describe('message routes', () => {
   });
 
   it('GET /messages/search filters by userId', async () => {
-    const { requester, teammate, workspace, general } = await createFixture();
+    const { requester, teammate, general } = await createFixture();
 
     await harness.factories.createMessage({
       channelId: general.id,
@@ -138,7 +133,6 @@ describe('message routes', () => {
     const response = await harness.request.get<SearchResult[]>('/messages/search', {
       headers: harness.headers.forUser(requester.id),
       query: {
-        workspaceId: workspace.id,
         q: 'deployment',
         userId: teammate.id,
       },
@@ -154,34 +148,19 @@ describe('message routes', () => {
   });
 
   it('GET /messages/search returns 400 when required params are missing', async () => {
-    const { requester, workspace } = await createFixture();
+    const { requester } = await createFixture();
     const headers = harness.headers.forUser(requester.id);
 
-    // Missing both q and workspaceId
+    // Missing q
     const noParams = await harness.request.get('/messages/search', { headers });
     expect(noParams.status).toBe(400);
-
-    // Missing q
-    const noQ = await harness.request.get('/messages/search', {
-      headers,
-      query: { workspaceId: workspace.id },
-    });
-    expect(noQ.status).toBe(400);
-
-    // Missing workspaceId
-    const noWs = await harness.request.get('/messages/search', {
-      headers,
-      query: { q: 'hello' },
-    });
-    expect(noWs.status).toBe(400);
   });
 
   it('GET /messages/search excludes messages from private channels the user is not a member of', async () => {
-    const { requester, teammate, workspace } = await createFixture();
+    const { requester, teammate } = await createFixture();
 
     // Create a private channel that only teammate is a member of
     const secret = await harness.factories.createChannel({
-      workspaceId: workspace.id,
       name: 'secret',
       slug: 'secret',
       channelType: 'private',
@@ -199,7 +178,7 @@ describe('message routes', () => {
     // Requester (non-member) searches for it — should not find it
     const response = await harness.request.get<SearchResult[]>('/messages/search', {
       headers: harness.headers.forUser(requester.id),
-      query: { workspaceId: workspace.id, q: 'classified' },
+      query: { q: 'classified' },
     });
 
     expect(response.status).toBe(200);
@@ -207,7 +186,7 @@ describe('message routes', () => {
   });
 
   it('GET /messages/search returns an empty array when no messages match', async () => {
-    const { requester, workspace, general } = await createFixture();
+    const { requester, general } = await createFixture();
 
     await harness.factories.createMessage({
       channelId: general.id,
@@ -218,7 +197,6 @@ describe('message routes', () => {
     const response = await harness.request.get<SearchResult[]>('/messages/search', {
       headers: harness.headers.forUser(requester.id),
       query: {
-        workspaceId: workspace.id,
         q: 'nonexistent-keyword',
       },
     });

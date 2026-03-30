@@ -2,18 +2,18 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { Modal } from './Modal';
 
-type WorkspaceMemberOption = {
+type MemberOption = {
   id: string;
   displayName: string;
 };
 
 type InviteMemberModalProps = {
   channelId: string;
-  workspaceMembers: WorkspaceMemberOption[];
+  members: MemberOption[];
   onClose: () => void;
 };
 
-export function InviteMemberModal({ channelId, workspaceMembers, onClose }: InviteMemberModalProps) {
+export function InviteMemberModal({ channelId, members, onClose }: InviteMemberModalProps) {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,7 +50,7 @@ export function InviteMemberModal({ channelId, workspaceMembers, onClose }: Invi
           style={{ width: '100%', fontSize: 12, padding: 4, marginBottom: 8, fontFamily: 'inherit' }}
         >
           <option value="">— Choose —</option>
-          {workspaceMembers.map((member) => (
+          {members.map((member) => (
             <option key={member.id} value={member.id}>
               {member.displayName}
             </option>

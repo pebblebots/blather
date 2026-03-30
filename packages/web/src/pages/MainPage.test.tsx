@@ -7,19 +7,17 @@ import type { ReactNode } from 'react';
 beforeAll(() => { Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => cleanup());
 
-const mockGetWorkspaces = vi.fn();
 const mockGetChannels = vi.fn();
 const mockGetMessages = vi.fn();
-const mockGetWorkspaceMembers = vi.fn();
+const mockGetMembers = vi.fn();
 const mockGetUnreadCounts = vi.fn();
 const mockGetPresence = vi.fn();
 
 vi.mock('../lib/api', () => ({
   api: {
-    getWorkspaces: (...args: any[]) => mockGetWorkspaces(...args),
     getChannels: (...args: any[]) => mockGetChannels(...args),
     getMessages: (...args: any[]) => mockGetMessages(...args),
-    getWorkspaceMembers: (...args: any[]) => mockGetWorkspaceMembers(...args),
+    getMembers: (...args: any[]) => mockGetMembers(...args),
     getActiveHuddles: vi.fn(async () => []),
     sendMessage: vi.fn(),
     sendTyping: vi.fn(),
@@ -63,12 +61,11 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 describe('MainPage', () => {
   it('renders sidebar with channels', async () => {
-    mockGetWorkspaces.mockResolvedValue([{ id: 'ws-1', name: 'Test WS', slug: 'test' }]);
     mockGetChannels.mockResolvedValue([
       { id: 'ch-1', name: 'general', slug: 'general', channelType: 'public' },
       { id: 'ch-2', name: 'random', slug: 'random', channelType: 'public' },
     ]);
-    mockGetWorkspaceMembers.mockResolvedValue([{ id: 'u-1', displayName: 'Alice', isAgent: false }]);
+    mockGetMembers.mockResolvedValue([{ id: 'u-1', displayName: 'Alice', isAgent: false }]);
     mockGetMessages.mockResolvedValue([]);
     mockGetUnreadCounts.mockResolvedValue({});
     mockGetPresence.mockResolvedValue([]);
@@ -81,9 +78,8 @@ describe('MainPage', () => {
   });
 
   it('loads messages when channel is selected', async () => {
-    mockGetWorkspaces.mockResolvedValue([{ id: 'ws-1', name: 'WS', slug: 'ws' }]);
     mockGetChannels.mockResolvedValue([{ id: 'ch-1', name: 'general', slug: 'general', channelType: 'public' }]);
-    mockGetWorkspaceMembers.mockResolvedValue([{ id: 'u-1', displayName: 'Alice', isAgent: false }]);
+    mockGetMembers.mockResolvedValue([{ id: 'u-1', displayName: 'Alice', isAgent: false }]);
     mockGetMessages.mockResolvedValue([
       { id: 'm-1', userId: 'u-1', content: 'Hello world', createdAt: '2026-01-01T12:00:00Z', channelId: 'ch-1' },
     ]);
@@ -96,9 +92,8 @@ describe('MainPage', () => {
   });
 
   it('shows workspace members', async () => {
-    mockGetWorkspaces.mockResolvedValue([{ id: 'ws-1', name: 'WS', slug: 'ws' }]);
     mockGetChannels.mockResolvedValue([{ id: 'ch-1', name: 'general', slug: 'general', channelType: 'public' }]);
-    mockGetWorkspaceMembers.mockResolvedValue([
+    mockGetMembers.mockResolvedValue([
       { id: 'u-1', displayName: 'Alice', isAgent: false },
       { id: 'u-2', displayName: 'BobMember', isAgent: false },
     ]);
@@ -122,9 +117,8 @@ describe('T#65 – Reaction dedup', () => {
     const { api } = await import('../lib/api');
     (api as any).addReaction = mockAddReaction;
 
-    mockGetWorkspaces.mockResolvedValue([{ id: 'ws-1', name: 'WS', slug: 'ws' }]);
     mockGetChannels.mockResolvedValue([{ id: 'ch-1', name: 'general', slug: 'general', channelType: 'public' }]);
-    mockGetWorkspaceMembers.mockResolvedValue([{ id: 'u-1', displayName: 'Alice', isAgent: false }]);
+    mockGetMembers.mockResolvedValue([{ id: 'u-1', displayName: 'Alice', isAgent: false }]);
     mockGetMessages.mockResolvedValue([
       { id: 'm-1', userId: 'u-1', content: 'Test msg', createdAt: '2026-01-01T12:00:00Z', channelId: 'ch-1', reactions: [
         { id: 'r-1', userId: 'u-1', emoji: '👍', createdAt: '2026-01-01T12:00:01Z' }

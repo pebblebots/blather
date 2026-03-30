@@ -21,9 +21,8 @@ export function markTyping(channelId: string, userId: string): void {
   }, TYPING_TIMEOUT_MS));
 }
 
-// --- Channel cache (id -> { workspaceId, channelType }) ---
+// --- Channel cache (id -> { channelType }) ---
 interface CachedChannel {
-  workspaceId: string;
   channelType: string;
 }
 const channelCache = new Map<string, CachedChannel>();

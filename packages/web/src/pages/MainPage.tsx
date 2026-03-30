@@ -5,7 +5,6 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { MessageList } from '../components/MessageList';
 import { MessageInput } from '../components/MessageInput';
-import { CreateWorkspaceModal } from '../components/CreateWorkspaceModal';
 import { CreateChannelModal } from '../components/CreateChannelModal';
 import { ChannelContextMenu } from '../components/ChannelContextMenu';
 import { InviteMemberModal } from '../components/InviteMemberModal';
@@ -54,8 +53,6 @@ export function MainPage() {
     window.addEventListener('mouseup', onMouseUp);
   }, [sidebarWidth]);
   
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [selectedWs, setSelectedWs] = useState<string | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
   const [selectedCh, _setSelectedCh] = useState<string | null>(null);
   const setSelectedCh = (valOrFn: string | null | ((prev: string | null) => string | null)) => {
@@ -71,11 +68,10 @@ export function MainPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasMoreOlder, setHasMoreOlder] = useState(true);
   const [usersMap, setUsersMap] = useState<Map<string, { displayName: string; isAgent: boolean }>>(new Map());
-  const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
+  const [allMembers, setAllMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState<Map<string, { timestamp: number; channelId: string }>>(new Map());
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const [showCreateWs, setShowCreateWs] = useState(false);
   const [showCreateCh, setShowCreateCh] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -99,21 +95,7 @@ export function MainPage() {
   // Mobile tab handlers
 
   useEffect(() => {
-    api.getWorkspaces().then((ws) => {
-      setWorkspaces(ws);
-      if (ws.length > 0 && !selectedWs) setSelectedWs(ws[0].id);
-      // Auto-show create workspace if user has none
-      if (ws.length === 0) setShowCreateWs(true);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedWs) { 
-      setChannels([]);
-      setWorkspaceMembers([]);
-      return; 
-    }
-    api.getChannels(selectedWs).then((chs) => {
+    api.getChannels().then((chs) => {
       setChannels(chs);
       if (chs.length > 0) {
         const saved = localStorage.getItem('blather_last_channel');
@@ -122,16 +104,15 @@ export function MainPage() {
       } else setSelectedCh(null);
     }).catch(() => {});
 
-    api.getWorkspaceMembers(selectedWs).then((members) => {
-      setWorkspaceMembers(members);
-    }).catch(() => {});
-  }, [selectedWs]);
+    api.getMembers().then((members) => {
+      setAllMembers(members);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
-  // Fetch unread counts when workspace changes
+  // Fetch unread counts and presence on mount
   useEffect(() => {
-    if (!selectedWs) return;
-    unreadApi.getUnreadCounts(selectedWs).then(setUnreadCounts).catch(() => {});
-    presenceApi.getPresence(selectedWs).then((data) => {
+    unreadApi.getUnreadCounts().then(setUnreadCounts).catch(() => {});
+    presenceApi.getPresence().then((data) => {
       const map = new Map<string, string>();
       for (const p of data) map.set(p.userId, p.status);
       setPresence(map);
@@ -141,15 +122,14 @@ export function MainPage() {
       for (const [userId, s] of Object.entries(data)) map.set(userId, s as any);
       setAgentStatuses(map);
     }).catch(() => {});
-  }, [selectedWs]);
+  }, []);
 
   // Fetch active huddles
   useEffect(() => {
-    if (!selectedWs) return;
-    api.getActiveHuddles(selectedWs)
+    api.getActiveHuddles()
       .then(huddles => { if (huddles.length > 0) setActiveHuddle(huddles[0]); else setActiveHuddle(null); })
       .catch(() => {});
-  }, [selectedWs]);
+  }, []);
 
   // Mark channel as read when selecting it, and clear local badge
   useEffect(() => {
@@ -229,10 +209,10 @@ export function MainPage() {
 
 
   useEffect(() => {
-    for (const member of workspaceMembers) {
+    for (const member of allMembers) {
       addUserInfo(member.id, member.displayName, member.isAgent);
     }
-  }, [workspaceMembers, addUserInfo]);
+  }, [allMembers, addUserInfo]);
   // Use refs for values needed in WS callback to avoid reconnecting on every selection change
   const selectedChRef = useRef(selectedCh);
   selectedChRef.current = selectedCh;
@@ -365,7 +345,7 @@ export function MainPage() {
     }
     if (event.type === 'member.joined' && event.data) {
       const m = event.data;
-      setWorkspaceMembers((prev) => {
+      setAllMembers((prev) => {
         const exists = prev.some((u: any) => u.id === m.id);
         return exists ? prev : [...prev, m];
       });
@@ -381,7 +361,7 @@ export function MainPage() {
     }
   }, []);
 
-  const wsConnected = useWebSocket(selectedWs, onWsEvent, selectedCh);
+  const wsConnected = useWebSocket(onWsEvent, selectedCh);
 
   const handleOpenThread = (msg: any) => {
     setThreadMessage(msg);
@@ -438,9 +418,8 @@ export function MainPage() {
   const logout = () => { clearToken(); setUser(null); };
 
   const handleUserClick = async (targetUserId: string) => {
-    if (!selectedWs) return;
     try {
-      const dmChannel = await api.getOrCreateDM(selectedWs, targetUserId);
+      const dmChannel = await api.getOrCreateDM(targetUserId);
       // Add to channels list if not already there
       setChannels((prev) => {
         const exists = prev.some((c) => c.id === dmChannel.id);
@@ -492,7 +471,6 @@ export function MainPage() {
   }, []);
 
   const selectedChannel = channels.find((c) => c.id === selectedCh);
-  const selectedWorkspace = workspaces.find((w) => w.id === selectedWs);
 
   if (loading) {
     return (
@@ -551,12 +529,12 @@ export function MainPage() {
               if (selectedChannel.channelType === 'dm') {
                 const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; 
                 const otherUserId = uuids.find((id: string) => id !== user?.id);
-                const otherUser = workspaceMembers.find(member => member.id === otherUserId);
+                const otherUser = allMembers.find(member => member.id === otherUserId);
                 return `💬 ${otherUser?.displayName || 'Unknown User'}`;
               } else {
                 return `# ${selectedChannel.name}`;
               }
-            })() : selectedWorkspace?.name || 'Blather'}
+            })() : 'Blather'}
           </div>
           
           <button
@@ -577,8 +555,8 @@ export function MainPage() {
 
         {/* Mobile content area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
-          {showTasks && selectedWs ? (
-            <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
+          {showTasks ? (
+            <TaskPanel members={allMembers} />
           ) : selectedCh ? (
             <>
               <MessageList
@@ -587,38 +565,38 @@ export function MainPage() {
                 currentUserId={user?.id}
                 channelId={selectedCh ?? undefined}
                 onLoadOlder={loadOlderMessages}
-                isLoadingOlder={isLoadingOlder} 
-                hasMoreOlder={hasMoreOlder} 
-                onEditMessage={handleEditMessage} 
-                onDeleteMessage={handleDeleteMessage} 
-                onOpenThread={handleOpenThread} 
-                highlightMessageId={highlightMessageId} 
-                onToggleReaction={handleToggleReaction} 
+                isLoadingOlder={isLoadingOlder}
+                hasMoreOlder={hasMoreOlder}
+                onEditMessage={handleEditMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onOpenThread={handleOpenThread}
+                highlightMessageId={highlightMessageId}
+                onToggleReaction={handleToggleReaction}
               />
-              <TypingIndicator 
-                typingUsers={typingUsers} 
-                usersMap={usersMap} 
-                currentUserId={user?.id} 
-                selectedChannelId={selectedCh} 
+              <TypingIndicator
+                typingUsers={typingUsers}
+                usersMap={usersMap}
+                currentUserId={user?.id}
+                selectedChannelId={selectedCh}
               />
-              <MessageInput 
-                onSend={handleSend} 
-                onTyping={handleTyping} 
-                disabled={!selectedCh} 
+              <MessageInput
+                onSend={handleSend}
+                onTyping={handleTyping}
+                disabled={!selectedCh}
               />
             </>
           ) : (
-            <div style={{ 
-              flex: 1, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontSize: '16px', 
-              color: '#999999', 
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px',
+              color: '#999999',
               padding: '16px',
               textAlign: 'center',
             }}>
-              {selectedWs ? 'Select a channel from the menu' : 'Select a workspace from the menu'}
+              Select a channel from the menu
             </div>
           )}
         </div>
@@ -680,48 +658,6 @@ export function MainPage() {
 
               {/* Mobile sidebar content */}
               <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-                {/* Workspaces */}
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Workspaces</span>
-                    <button
-                      style={{ 
-                        background: '#3366CC', 
-                        color: 'white', 
-                        border: 'none', 
-                        borderRadius: '4px', 
-                        padding: '4px 8px', 
-                        fontSize: '14px',
-                        minHeight: '32px',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => setShowCreateWs(true)}
-                    >
-                      + New
-                    </button>
-                  </div>
-                  {workspaces.map((ws) => (
-                    <div
-                      key={ws.id}
-                      onClick={() => setSelectedWs(ws.id)}
-                      style={{
-                        padding: '12px',
-                        fontSize: '16px',
-                        cursor: 'pointer',
-                        background: ws.id === selectedWs ? '#3366CC' : 'transparent',
-                        color: ws.id === selectedWs ? '#FFFFFF' : '#000000',
-                        borderRadius: '8px',
-                        marginBottom: '4px',
-                        minHeight: '44px',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                    >
-                      📁 {ws.name}
-                    </div>
-                  ))}
-                </div>
-
                 {/* Huddle Banner */}
                 {activeHuddle && (
                   <div style={{
@@ -749,8 +685,7 @@ export function MainPage() {
 
                 <div style={{ borderTop: "1px solid #DDDDDD", margin: "8px 0" }} />
                 {/* Channels */}
-                {selectedWs && (
-                  <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Channels</span>
                       <button
@@ -812,12 +747,10 @@ export function MainPage() {
                       </div>
                     ))}
                   </div>
-                )}
 
                 <div style={{ borderTop: "1px solid #DDDDDD", margin: "8px 0" }} />
                 {/* Tasks */}
-                {selectedWs && (
-                  <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '16px' }}>
                     <div
                       onClick={() => { setShowTasks(true); setSelectedCh(null); setIsSidebarOpen(false); }}
                       style={{
@@ -836,16 +769,15 @@ export function MainPage() {
                       📋 Tasks
                     </div>
                   </div>
-                )}
 
                 <div style={{ borderTop: "1px solid #DDDDDD", margin: "8px 0" }} />
                 {/* Users */}
-                {selectedWs && workspaceMembers.length > 0 && (
+                {allMembers.length > 0 && (
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ marginBottom: '8px' }}>
                       <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Users</span>
                     </div>
-                    {workspaceMembers.filter(member => member.id !== user?.id).sort((a, b) => {
+                    {allMembers.filter(member => member.id !== user?.id).sort((a, b) => {
                       const order: Record<string, number> = { online: 0, idle: 1, offline: 2 };
                       const sa = order[presence.get(a.id) || 'offline'] ?? 2;
                       const sb = order[presence.get(b.id) || 'offline'] ?? 2;
@@ -959,12 +891,6 @@ export function MainPage() {
         )}
 
         {/* Modals - same as desktop */}
-        {showCreateWs && (
-          <CreateWorkspaceModal
-            onClose={() => setShowCreateWs(false)}
-            onCreated={(ws) => { setWorkspaces((prev) => [...prev, ws]); setSelectedWs(ws.id); }}
-          />
-        )}
         {contextMenu && (
           <ChannelContextMenu
             x={contextMenu.x}
@@ -979,13 +905,12 @@ export function MainPage() {
         {inviteChannelId && (
           <InviteMemberModal
             channelId={inviteChannelId}
-            workspaceMembers={workspaceMembers}
+            members={allMembers}
             onClose={() => setInviteChannelId(null)}
           />
         )}
-        {showSearch && selectedWs && (
+        {showSearch && (
           <SearchPanel
-            workspaceId={selectedWs}
             onClose={() => setShowSearch(false)}
             onNavigate={(channelId, messageId) => {
               setShowTasks(false);
@@ -1014,17 +939,15 @@ export function MainPage() {
             }}
           />
         )}
-        {showCreateCh && selectedWs && (
+        {showCreateCh && (
           <CreateChannelModal
-            workspaceId={selectedWs}
             onClose={() => setShowCreateCh(false)}
             onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); setIsSidebarOpen(false); }}
           />
         )}
-        {showNewHuddle && selectedWs && (
+        {showNewHuddle && (
           <NewHuddleModal
-            workspaceId={selectedWs}
-            workspaceMembers={workspaceMembers}
+            members={allMembers}
             onClose={() => setShowNewHuddle(false)}
             onCreated={(huddle) => {
               setActiveHuddle(huddle);
@@ -1070,7 +993,7 @@ export function MainPage() {
         <div className="mac-titlebar" style={{ display: isMobile ? 'none' : 'flex' }}>
           <div className="mac-close-box" style={{ display: isMobile ? 'none' : 'block' }} />
           <div style={{ flex: 1, textAlign: 'center' }}>
-            Blather — {selectedWorkspace?.name || 'No Workspace'}
+            Blather
           </div>
         </div>
 
@@ -1084,43 +1007,6 @@ export function MainPage() {
             </div>
 
             <div style={{ flex: 1, overflow: 'auto', padding: 4 }}>
-              {/* Workspaces */}
-              <div style={{ marginBottom: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
-                  <span style={{ fontSize: 11, fontWeight: 'bold' }}>Workspaces</span>
-                  <button
-                    className="mac-btn"
-                    style={{ minWidth: 0, padding: '0 4px', fontSize: 10, borderRadius: 3 }}
-                    onClick={() => setShowCreateWs(true)}
-                    title="Create workspace"
-                  >+</button>
-                </div>
-                {workspaces.map((ws) => (
-                  <div
-                    key={ws.id}
-                    onClick={() => setSelectedWs(ws.id)}
-                    style={{
-                      padding: '2px 6px',
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      background: ws.id === selectedWs ? '#3366CC' : 'transparent',
-                      color: ws.id === selectedWs ? '#FFFFFF' : '#000000',
-                      borderRadius: 2,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    📁 {ws.name}
-                  </div>
-                ))}
-                {workspaces.length === 0 && (
-                  <div style={{ padding: '2px 6px', fontSize: 11, color: '#999999' }}>No workspaces</div>
-                )}
-              </div>
-
-              <hr className="mac-separator" />
-
               {/* Huddle Banner */}
               {activeHuddle && (
                 <div style={{
@@ -1139,8 +1025,7 @@ export function MainPage() {
               )}
 
               {/* Channels */}
-              {selectedWs && (
-                <div>
+              <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
                     <span style={{ fontSize: 11, fontWeight: "bold" }}>Channels</span>
                     <button
@@ -1196,11 +1081,9 @@ export function MainPage() {
                     <div style={{ padding: '2px 6px', fontSize: 11, color: '#999999' }}>No channels</div>
                   )}
                 </div>
-              )}
 
               {/* Tasks */}
-              {selectedWs && (
-                <div style={{ marginTop: 4, marginBottom: 4 }}>
+              <div style={{ marginTop: 4, marginBottom: 4 }}>
                   <hr className="mac-separator" />
                   <div
                     onClick={() => { setShowTasks(true); setSelectedCh(null); setIsSidebarOpen(false); }}
@@ -1217,16 +1100,15 @@ export function MainPage() {
                     📋 Tasks
                   </div>
                 </div>
-              )}
 
               {/* Users */}
-              {selectedWs && workspaceMembers.length > 0 && (
+              {allMembers.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <hr className="mac-separator" />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
                     <span style={{ fontSize: 11, fontWeight: 'bold' }}>Users</span>
                   </div>
-                  {workspaceMembers.filter(member => member.id !== user?.id).sort((a, b) => {
+                  {allMembers.filter(member => member.id !== user?.id).sort((a, b) => {
                     const order: Record<string, number> = { online: 0, idle: 1, offline: 2 };
                     const sa = order[presence.get(a.id) || 'offline'] ?? 2;
                     const sb = order[presence.get(b.id) || 'offline'] ?? 2;
@@ -1322,7 +1204,7 @@ export function MainPage() {
                   if (selectedChannel.channelType === 'dm') {
                     // For DMs, show the other user's display name
                     const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; const otherUserId = uuids.find((id: string) => id !== user?.id);
-                    const otherUser = workspaceMembers.find(member => member.id === otherUserId);
+                    const otherUser = allMembers.find(member => member.id === otherUserId);
                     return `💬 ${otherUser?.displayName || 'Unknown User'}`;
                   } else {
                     // For regular channels, show channel name and topic
@@ -1332,8 +1214,8 @@ export function MainPage() {
               </div>
             </div>
 
-            {showTasks && selectedWs ? (
-              <TaskPanel workspaceId={selectedWs} members={workspaceMembers} />
+            {showTasks ? (
+              <TaskPanel members={allMembers} />
             ) : selectedCh ? (
               <>
                 <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
@@ -1342,7 +1224,7 @@ export function MainPage() {
               </>
             ) : (
               <div className="mac-inset" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#999999', margin: 4 }}>
-                {selectedWs ? 'Select or create a channel' : 'Select or create a workspace'}
+                Select or create a channel
               </div>
             )}
           </div>
@@ -1381,12 +1263,6 @@ export function MainPage() {
       </div>
 
       {/* Modals */}
-      {showCreateWs && (
-        <CreateWorkspaceModal
-          onClose={() => setShowCreateWs(false)}
-          onCreated={(ws) => { setWorkspaces((prev) => [...prev, ws]); setSelectedWs(ws.id); }}
-        />
-      )}
       {contextMenu && (
         <ChannelContextMenu
           x={contextMenu.x}
@@ -1401,13 +1277,12 @@ export function MainPage() {
       {inviteChannelId && (
         <InviteMemberModal
           channelId={inviteChannelId}
-          workspaceMembers={workspaceMembers}
+          members={allMembers}
           onClose={() => setInviteChannelId(null)}
         />
       )}
-      {showSearch && selectedWs && (
+      {showSearch && (
         <SearchPanel
-          workspaceId={selectedWs}
           onClose={() => setShowSearch(false)}
           onNavigate={(channelId, messageId) => {
             setShowTasks(false);
@@ -1438,17 +1313,15 @@ export function MainPage() {
           }}
         />
       )}
-      {showCreateCh && selectedWs && (
+      {showCreateCh && (
         <CreateChannelModal
-          workspaceId={selectedWs}
           onClose={() => setShowCreateCh(false)}
           onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); }}
         />
       )}
-      {showNewHuddle && selectedWs && (
+      {showNewHuddle && (
         <NewHuddleModal
-          workspaceId={selectedWs}
-          workspaceMembers={workspaceMembers}
+          members={allMembers}
           onClose={() => setShowNewHuddle(false)}
           onCreated={(huddle) => {
             setActiveHuddle(huddle);

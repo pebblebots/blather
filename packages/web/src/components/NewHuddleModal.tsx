@@ -3,19 +3,18 @@ import { Modal } from './Modal';
 import { api } from '../lib/api';
 
 interface NewHuddleModalProps {
-  workspaceId: string;
-  workspaceMembers: any[];
+  members: any[];
   onClose: () => void;
   onCreated: (huddle: any) => void;
 }
 
-export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreated }: NewHuddleModalProps) {
+export function NewHuddleModal({ members, onClose, onCreated }: NewHuddleModalProps) {
   const [topic, setTopic] = useState('');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const agents = workspaceMembers.filter(m => m.isAgent);
+  const agents = members.filter(m => m.isAgent);
 
   const toggleAgent = (agentId: string) => {
     setSelectedAgents(prev => {
@@ -32,7 +31,7 @@ export function NewHuddleModal({ workspaceId, workspaceMembers, onClose, onCreat
     setLoading(true);
     setError('');
     try {
-      const huddle = await api.createHuddle({ workspaceId, topic: trimmed, agentIds: selectedAgents });
+      const huddle = await api.createHuddle({ topic: trimmed, agentIds: selectedAgents });
       onCreated(huddle);
       onClose();
     } catch (err: any) {

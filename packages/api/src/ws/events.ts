@@ -6,18 +6,16 @@ import { publishEvent } from './manager.js';
 export async function emitEvent(
   db: Db,
   params: {
-    workspaceId: string;
     channelId?: string | null;
     userId: string;
     type: EventType;
     payload: Record<string, unknown>;
   }
 ) {
-  const { workspaceId, channelId, userId, type, payload } = params;
+  const { channelId, userId, type, payload } = params;
   const normalizedChannelId = channelId ?? null;
 
   const [eventRecord] = await db.insert(events).values({
-    workspaceId,
     channelId: normalizedChannelId,
     userId,
     type,
@@ -27,13 +25,12 @@ export async function emitEvent(
   const publishedEvent = {
     id: eventRecord.id,
     type,
-    workspace_id: workspaceId,
     channel_id: normalizedChannelId,
     data: payload,
     timestamp: eventRecord.createdAt.toISOString(),
   };
 
-  await publishEvent(workspaceId, publishedEvent);
+  await publishEvent(publishedEvent);
 
   return eventRecord;
 }

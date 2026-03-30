@@ -38,18 +38,18 @@ describe('TaskPanel', () => {
 
   it('shows loading then tasks', async () => {
     mockList.mockResolvedValue([sampleTasks[0]]);
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
     expect(await screen.findByText('Fix bug')).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', async () => {
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
     expect(await screen.findByText(/no tasks yet/i)).toBeInTheDocument();
   });
 
   it('groups tasks by status with section headers', async () => {
     mockList.mockResolvedValue(sampleTasks);
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     expect(await screen.findByText('Fix bug')).toBeInTheDocument();
     expect(screen.getByText('Deploy')).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe('TaskPanel', () => {
     mockList.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
     const user = userEvent.setup();
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     await screen.findByText(/no tasks yet/i);
     await user.click(screen.getByText('+ New Task'));
@@ -71,7 +71,6 @@ describe('TaskPanel', () => {
     await user.type(titleInput, 'New task{Enter}');
 
     expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
-      workspaceId: 'ws-1',
       title: 'New task',
     }));
   });
@@ -81,7 +80,7 @@ describe('TaskPanel', () => {
     mockUpdate.mockResolvedValue({});
 
     const user = userEvent.setup();
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     const startBtn = await screen.findByTitle('Start');
     await user.click(startBtn);
@@ -94,7 +93,7 @@ describe('TaskPanel', () => {
     mockUpdate.mockResolvedValue({});
 
     const user = userEvent.setup();
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     const doneBtn = await screen.findByTitle('Done');
     await user.click(doneBtn);
@@ -108,7 +107,7 @@ describe('TaskPanel', () => {
     mockUpdate.mockResolvedValue({});
 
     const user = userEvent.setup();
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     // Need to switch filter to "Done" to see done tasks (default is "All Active" which hides done)
     const filterSelect = screen.getByDisplayValue('All Active');
@@ -126,7 +125,7 @@ describe('TaskPanel', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     const user = userEvent.setup();
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     const deleteBtn = await screen.findByTitle('Delete');
     await user.click(deleteBtn);
@@ -142,7 +141,7 @@ describe('TaskPanel', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     const user = userEvent.setup();
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     const deleteBtn = await screen.findByTitle('Delete');
     await user.click(deleteBtn);
@@ -156,20 +155,20 @@ describe('TaskPanel', () => {
     mockList.mockResolvedValue([]);
 
     const user = userEvent.setup();
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     await screen.findByText(/no tasks yet/i);
-    expect(mockList).toHaveBeenCalledWith('ws-1', undefined);
+    expect(mockList).toHaveBeenCalledWith(undefined);
 
     const filterSelect = screen.getByDisplayValue('All Active');
     await user.selectOptions(filterSelect, 'in_progress');
 
-    expect(mockList).toHaveBeenCalledWith('ws-1', { status: 'in_progress' });
+    expect(mockList).toHaveBeenCalledWith({ status: 'in_progress' });
   });
 
   it('displays member names for creator and assignee', async () => {
     mockList.mockResolvedValue([sampleTasks[1]]);
-    render(<TaskPanel workspaceId="ws-1" members={members} />);
+    render(<TaskPanel members={members} />);
 
     expect(await screen.findByText(/by Alice/)).toBeInTheDocument();
     expect(screen.getByText(/assigned: Bot/)).toBeInTheDocument();

@@ -17,62 +17,47 @@ const MAX_CONNECTIONS_PER_USER = 3;
 interface AuthedClient {
   ws: WebSocket;
   userId: string;
-  workspaceId: string;
   alive: boolean;
   lastActivity: number;
 }
 
-// workspaceId -> set of clients
-const workspaceClients = new Map<string, Set<AuthedClient>>();
+const allClients = new Set<AuthedClient>();
 
 function addClient(client: AuthedClient) {
-  let set = workspaceClients.get(client.workspaceId);
-  if (!set) {
-    set = new Set();
-    workspaceClients.set(client.workspaceId, set);
-  }
   // Limit connections per user — close oldest if over limit
-  const userConns = [...set].filter(c => c.userId === client.userId);
+  const userConns = [...allClients].filter(c => c.userId === client.userId);
   while (userConns.length >= MAX_CONNECTIONS_PER_USER) {
     const oldest = userConns.shift()!;
     oldest.ws.close(4008, 'Too many connections');
-    set.delete(oldest);
+    allClients.delete(oldest);
   }
-  set.add(client);
-  broadcastPresence(client.workspaceId, client.userId, 'online');
+  allClients.add(client);
+  broadcastPresence(client.userId, 'online');
 }
 
 function removeClient(client: AuthedClient) {
-  const set = workspaceClients.get(client.workspaceId);
-  if (set) {
-    set.delete(client);
-    if (set.size === 0) workspaceClients.delete(client.workspaceId);
-    // Check if user still has other connections in this workspace
-    const stillConnected = set ? [...set].some(c => c.userId === client.userId) : false;
-    if (!stillConnected) {
-      broadcastPresence(client.workspaceId, client.userId, 'offline');
-    }
+  allClients.delete(client);
+  // Check if user still has other connections
+  const stillConnected = [...allClients].some(c => c.userId === client.userId);
+  if (!stillConnected) {
+    broadcastPresence(client.userId, 'offline');
   }
 }
 
-/** Broadcast presence change to all clients in a workspace (no DB write) */
-function broadcastPresence(workspaceId: string, userId: string, status: string) {
-  const set = workspaceClients.get(workspaceId);
-  if (!set) return;
+/** Broadcast presence change to all clients (no DB write) */
+function broadcastPresence(userId: string, status: string) {
   const data = JSON.stringify({ type: 'presence.changed', data: { userId, status } });
-  for (const client of set) {
+  for (const client of allClients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
     client.ws.send(data);
   }
 }
 
-/** Get presence status for all members of a workspace */
-export function getPresenceForWorkspace(workspaceId: string): { userId: string; status: 'online' | 'idle' | 'offline' }[] {
-  const set = workspaceClients.get(workspaceId);
-  if (!set) return [];
+/** Get presence status for all connected users */
+export function getPresence(): { userId: string; status: 'online' | 'idle' | 'offline' }[] {
   const now = Date.now();
   const userStatus = new Map<string, 'online' | 'idle'>();
-  for (const client of set) {
+  for (const client of allClients) {
     const elapsed = now - client.lastActivity;
     const status = elapsed < IDLE_THRESHOLD ? 'online' : 'idle';
     const existing = userStatus.get(client.userId);
@@ -84,30 +69,22 @@ export function getPresenceForWorkspace(workspaceId: string): { userId: string; 
   return [...userStatus.entries()].map(([userId, status]) => ({ userId, status }));
 }
 
-/** Broadcast a status change for a user to all workspaces they're connected to. */
+/** Broadcast a status change for a user to all connected clients. */
 export function broadcastStatusForUser(userId: string, status: { text: string; progress?: number; eta?: string } | null) {
   const data = JSON.stringify({ type: 'status.changed', data: { userId, status } });
-  for (const [, clients] of workspaceClients) {
-    // Only broadcast to workspaces where this user has a connection
-    const userInWorkspace = [...clients].some(c => c.userId === userId);
-    if (!userInWorkspace) continue;
-    for (const client of clients) {
-      if (client.ws.readyState !== WebSocket.OPEN) continue;
-      client.ws.send(data);
-    }
+  for (const client of allClients) {
+    if (client.ws.readyState !== WebSocket.OPEN) continue;
+    client.ws.send(data);
   }
 }
 
-/** Broadcast an event to all WS clients in a workspace, respecting channel privacy */
-export async function publishEvent(workspaceId: string, event: Record<string, unknown> & { channel_id?: string | null }) {
-  const set = workspaceClients.get(workspaceId);
-  if (!set) return;
-
+/** Broadcast an event to all WS clients, respecting channel privacy */
+export async function publishEvent(event: Record<string, unknown> & { channel_id?: string | null }) {
   let allowedUserIds: Set<string> | null = null;
 
   // If event is for a specific channel, check if it's private/dm
   if (event.channel_id) {
-    
+
     const [ch] = await db.select({ channelType: channels.channelType })
       .from(channels)
       .where(eq(channels.id, event.channel_id))
@@ -122,7 +99,7 @@ export async function publishEvent(workspaceId: string, event: Record<string, un
   }
 
   const data = JSON.stringify(event);
-  for (const client of set) {
+  for (const client of allClients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
     // If channel is private/dm, only send to members
     if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
@@ -131,12 +108,9 @@ export async function publishEvent(workspaceId: string, event: Record<string, un
 }
 
 /** Broadcast an ephemeral event (no DB write). */
-export async function publishEphemeralEvent(workspaceId: string, event: Record<string, unknown>) {
-  const set = workspaceClients.get(workspaceId);
-  if (!set) return;
-
+export async function publishEphemeralEvent(event: Record<string, unknown>) {
   const data = JSON.stringify(event);
-  for (const client of set) {
+  for (const client of allClients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
     client.ws.send(data);
   }
@@ -163,45 +137,40 @@ export function attachWebSocket(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
 
   // Track previous idle states to detect transitions
-  const prevIdleUsers = new Map<string, Set<string>>();
+  const prevIdleUsers = new Set<string>();
 
   // Heartbeat interval
   const interval = setInterval(() => {
     const now = Date.now();
-    for (const [wsId, clients] of workspaceClients) {
-      for (const client of clients) {
-        if (!client.alive) {
-          client.ws.terminate();
-          removeClient(client);
-          continue;
-        }
-        client.alive = false;
-        client.ws.ping();
+    for (const client of allClients) {
+      if (!client.alive) {
+        client.ws.terminate();
+        removeClient(client);
+        continue;
       }
-
-      // Check for idle transitions
-      const prevIdle = prevIdleUsers.get(wsId) || new Set<string>();
-      const currentIdle = new Set<string>();
-      const currentClients = workspaceClients.get(wsId);
-      if (currentClients) {
-        for (const client of currentClients) {
-          if (now - client.lastActivity >= IDLE_THRESHOLD) {
-            currentIdle.add(client.userId);
-            if (!prevIdle.has(client.userId)) {
-              broadcastPresence(wsId, client.userId, 'idle');
-            }
-          }
-        }
-        // Check for users who became active again
-        for (const userId of prevIdle) {
-          if (!currentIdle.has(userId)) {
-            const still = [...currentClients].some(c => c.userId === userId);
-            if (still) broadcastPresence(wsId, userId, 'online');
-          }
-        }
-      }
-      prevIdleUsers.set(wsId, currentIdle);
+      client.alive = false;
+      client.ws.ping();
     }
+
+    // Check for idle transitions
+    const currentIdle = new Set<string>();
+    for (const client of allClients) {
+      if (now - client.lastActivity >= IDLE_THRESHOLD) {
+        currentIdle.add(client.userId);
+        if (!prevIdleUsers.has(client.userId)) {
+          broadcastPresence(client.userId, 'idle');
+        }
+      }
+    }
+    // Check for users who became active again
+    for (const userId of prevIdleUsers) {
+      if (!currentIdle.has(userId)) {
+        const still = [...allClients].some(c => c.userId === userId);
+        if (still) broadcastPresence(userId, 'online');
+      }
+    }
+    prevIdleUsers.clear();
+    for (const u of currentIdle) prevIdleUsers.add(u);
   }, HEARTBEAT_INTERVAL);
 
   wss.on('close', () => clearInterval(interval));
@@ -216,9 +185,8 @@ export function attachWebSocket(server: Server) {
     // Try auth from query param
     const token = url.searchParams.get('token');
     const apiKeyParam = url.searchParams.get('api_key');
-    const workspaceId = url.searchParams.get('workspace_id');
 
-    if (workspaceId && (token || apiKeyParam)) {
+    if (token || apiKeyParam) {
       // JWT auth
       if (token) {
         const userId = verifyToken(token);
@@ -228,7 +196,7 @@ export function attachWebSocket(server: Server) {
           return;
         }
         wss.handleUpgrade(req, socket, head, (ws) => {
-          setupAuthedClient(ws, userId, workspaceId);
+          setupAuthedClient(ws, userId);
         });
         return;
       }
@@ -241,7 +209,7 @@ export function attachWebSocket(server: Server) {
             return;
           }
           wss.handleUpgrade(req, socket, head, (ws) => {
-            setupAuthedClient(ws, foundUserId, workspaceId);
+            setupAuthedClient(ws, foundUserId);
           });
         }).catch(() => {
           socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
@@ -258,11 +226,11 @@ export function attachWebSocket(server: Server) {
   });
 }
 
-function setupAuthedClient(ws: WebSocket, userId: string, workspaceId: string) {
-  const client: AuthedClient = { ws, userId, workspaceId, alive: true, lastActivity: Date.now() };
+function setupAuthedClient(ws: WebSocket, userId: string) {
+  const client: AuthedClient = { ws, userId, alive: true, lastActivity: Date.now() };
   addClient(client);
 
-  ws.send(JSON.stringify({ type: 'connected', userId, workspaceId }));
+  ws.send(JSON.stringify({ type: 'connected', userId }));
 
   ws.on('pong', () => { client.alive = true; });
   ws.on('close', () => removeClient(client));
@@ -288,7 +256,7 @@ function setupPendingClient(ws: WebSocket) {
     clearTimeout(timeout);
     try {
       const msg = JSON.parse(raw.toString());
-      if (msg.type !== 'auth' || !msg.token || !msg.workspaceId) {
+      if (msg.type !== 'auth' || !msg.token) {
         ws.close(4002, 'Invalid auth message');
         return;
       }
@@ -297,7 +265,7 @@ function setupPendingClient(ws: WebSocket) {
         ws.close(4003, 'Invalid token');
         return;
       }
-      setupAuthedClient(ws, userId, msg.workspaceId);
+      setupAuthedClient(ws, userId);
     } catch {
       ws.close(4002, 'Invalid message');
     }
@@ -306,7 +274,7 @@ function setupPendingClient(ws: WebSocket) {
 
 export const __testing = {
   resetState() {
-    workspaceClients.clear();
+    allClients.clear();
   },
   setupAuthedClient,
   setupPendingClient,

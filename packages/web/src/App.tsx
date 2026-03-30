@@ -12,7 +12,7 @@ export default function App() {
     const token = localStorage.getItem('blather_token');
     if (!token) { setChecking(false); return; }
 
-    api.getWorkspaces()
+    api.getChannels()
       .then(() => {
         const stored = localStorage.getItem('blather_user');
         if (stored) setUser(JSON.parse(stored));

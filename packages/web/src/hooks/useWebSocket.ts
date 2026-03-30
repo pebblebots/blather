@@ -18,7 +18,6 @@ function getEventCreatedAt(event: any): string | null {
 }
 
 export function useWebSocket(
-  workspaceId: string | null,
   onEvent: (event: any) => void,
   activeChannelId?: string | null,
 ) {
@@ -29,11 +28,9 @@ export function useWebSocket(
   const lastEventTimeRef = useRef<string | null>(null);
   const activeChannelRef = useRef(activeChannelId);
   const onEventRef = useRef(onEvent);
-  const workspaceIdRef = useRef(workspaceId);
 
   activeChannelRef.current = activeChannelId ?? null;
   onEventRef.current = onEvent;
-  workspaceIdRef.current = workspaceId;
 
   const fetchMissedMessages = useCallback(async () => {
     const chId = activeChannelRef.current;
@@ -52,8 +49,6 @@ export function useWebSocket(
   }, []);
 
   const connect = useCallback(() => {
-    const wId = workspaceIdRef.current;
-    if (!wId) { log('no workspaceId, waiting...'); return; }
     const token = localStorage.getItem('blather_token');
     if (!token) { log('no token, bailing'); return; }
 
@@ -62,7 +57,7 @@ export function useWebSocket(
       wsRef.current.close();
     }
     clearTimeout(reconnectTimer.current);
-    const url = `${wsUrl('/ws/events')}?token=${encodeURIComponent(token)}&workspace_id=${encodeURIComponent(wId)}`;
+    const url = `${wsUrl('/ws/events')}?token=${encodeURIComponent(token)}`;
 
     log('connecting to', url.replace(/token=[^&]*/, 'token=***'));
     const ws = new WebSocket(url);
@@ -105,7 +100,7 @@ export function useWebSocket(
     reconnectTimer.current = setTimeout(connect, delay);
   }, [connect]);
 
-  // Main connection lifecycle — re-run when workspaceId changes
+  // Main connection lifecycle
   useEffect(() => {
     connect();
     return () => {
@@ -115,7 +110,7 @@ export function useWebSocket(
         wsRef.current.close();
       }
     };
-  }, [connect, workspaceId]);
+  }, [connect]);
 
   // Fast-reconnect on browser wake / tab focus
   useEffect(() => {

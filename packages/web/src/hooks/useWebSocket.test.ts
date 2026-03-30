@@ -74,26 +74,20 @@ describe('useWebSocket', () => {
     localStorage.clear();
   });
 
-  it('connects with token and workspace_id', () => {
-    renderHook(() => useWebSocket('ws-1', vi.fn()));
+  it('connects with token', () => {
+    renderHook(() => useWebSocket(vi.fn()));
     expect(MockWebSocket.instances).toHaveLength(1);
     expect(MockWebSocket.instances[0].url).toContain('token=test-jwt');
-    expect(MockWebSocket.instances[0].url).toContain('workspace_id=ws-1');
   });
 
   it('does not connect without a token', () => {
     localStorage.clear();
-    renderHook(() => useWebSocket('ws-1', vi.fn()));
-    expect(MockWebSocket.instances).toHaveLength(0);
-  });
-
-  it('does not connect without a workspaceId', () => {
-    renderHook(() => useWebSocket(null, vi.fn()));
+    renderHook(() => useWebSocket(vi.fn()));
     expect(MockWebSocket.instances).toHaveLength(0);
   });
 
   it('returns connected=true after open', () => {
-    const { result } = renderHook(() => useWebSocket('ws-1', vi.fn()));
+    const { result } = renderHook(() => useWebSocket(vi.fn()));
     expect(result.current).toBe(false);
 
     act(() => MockWebSocket.instances[0].simulateOpen());
@@ -101,7 +95,7 @@ describe('useWebSocket', () => {
   });
 
   it('returns connected=false after close', () => {
-    const { result } = renderHook(() => useWebSocket('ws-1', vi.fn()));
+    const { result } = renderHook(() => useWebSocket(vi.fn()));
     act(() => MockWebSocket.instances[0].simulateOpen());
     expect(result.current).toBe(true);
 
@@ -111,7 +105,7 @@ describe('useWebSocket', () => {
 
   it('calls onEvent when message is received', () => {
     const onEvent = vi.fn();
-    renderHook(() => useWebSocket('ws-1', onEvent));
+    renderHook(() => useWebSocket(onEvent));
     act(() => MockWebSocket.instances[0].simulateOpen());
 
     const event = { type: 'message.created', payload: { id: 'm-1', content: 'hi' } };
@@ -121,7 +115,7 @@ describe('useWebSocket', () => {
   });
 
   it('schedules reconnect with exponential backoff on close', () => {
-    renderHook(() => useWebSocket('ws-1', vi.fn()));
+    renderHook(() => useWebSocket(vi.fn()));
     const ws0 = MockWebSocket.instances[0];
     act(() => ws0.simulateOpen());
 
@@ -136,7 +130,7 @@ describe('useWebSocket', () => {
   });
 
   it('reconnects on tab visibility change when disconnected', () => {
-    renderHook(() => useWebSocket('ws-1', vi.fn()));
+    renderHook(() => useWebSocket(vi.fn()));
     const ws0 = MockWebSocket.instances[0];
     act(() => ws0.simulateOpen());
     // Simulate a stale WS that silently died (no close event fired)
@@ -153,7 +147,7 @@ describe('useWebSocket', () => {
   });
 
   it('cleans up WebSocket on unmount', () => {
-    const { unmount } = renderHook(() => useWebSocket('ws-1', vi.fn()));
+    const { unmount } = renderHook(() => useWebSocket(vi.fn()));
     const ws = MockWebSocket.instances[0];
     act(() => ws.simulateOpen());
 
@@ -168,7 +162,7 @@ describe('useWebSocket', () => {
     ] as any[]);
 
     const onEvent = vi.fn();
-    renderHook(() => useWebSocket('ws-1', onEvent, 'ch-1'));
+    renderHook(() => useWebSocket(onEvent, 'ch-1'));
 
     // Deliver a message first to seed lastEventTime, then open triggers fetchMissedMessages
     act(() => {

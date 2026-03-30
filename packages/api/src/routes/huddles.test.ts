@@ -42,19 +42,18 @@ describe('huddle routes', () => {
     const human = await harness.factories.createUser({ email: 'human@example.com', displayName: 'Human', isAgent: false });
     const agent1 = await harness.factories.createUser({ email: 'agent1@system.blather', displayName: 'Agent1', isAgent: true });
     const agent2 = await harness.factories.createUser({ email: 'agent2@system.blather', displayName: 'Agent2', isAgent: true });
-    const workspace = await harness.factories.createWorkspace({ ownerId: human.id });
-    return { human, agent1, agent2, workspace };
+    return { human, agent1, agent2 };
   }
 
   // ── Create huddle ──
 
   it('POST /huddles creates a huddle', async () => {
-    const { human, agent1, workspace } = await createFixture();
+    const { human, agent1 } = await createFixture();
 
     const res = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
       json: {
-        workspaceId: workspace.id,
+
         topic: 'Sprint planning',
         agentIds: [agent1.id],
       },
@@ -72,14 +71,14 @@ describe('huddle routes', () => {
 
     const res = await harness.request.post('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: 'x' },
+      json: {},
     });
 
     expect(res.status).toBe(400);
   });
 
   it('POST /huddles returns 400 when agentIds exceeds 3', async () => {
-    const { human, workspace } = await createFixture();
+    const { human } = await createFixture();
 
     const extraAgents = await Promise.all([
       harness.factories.createUser({ email: 'a3@system.blather', displayName: 'A3', isAgent: true }),
@@ -91,7 +90,7 @@ describe('huddle routes', () => {
     const res = await harness.request.post('/huddles', {
       headers: harness.headers.forUser(human.id),
       json: {
-        workspaceId: workspace.id,
+
         topic: 'Too many agents',
         agentIds: extraAgents.map(a => a.id),
       },
@@ -102,12 +101,12 @@ describe('huddle routes', () => {
   });
 
   it('POST /huddles returns 403 when creator is an agent', async () => {
-    const { agent1, agent2, workspace } = await createFixture();
+    const { agent1, agent2 } = await createFixture();
 
     const res = await harness.request.post('/huddles', {
       headers: harness.headers.forUser(agent1.id),
       json: {
-        workspaceId: workspace.id,
+
         topic: 'Agent tries to create',
         agentIds: [agent2.id],
       },
@@ -117,13 +116,13 @@ describe('huddle routes', () => {
   });
 
   it('POST /huddles returns 400 when agentId is not an agent', async () => {
-    const { human, workspace } = await createFixture();
+    const { human } = await createFixture();
     const nonAgent = await harness.factories.createUser({ email: 'notbot@example.com', displayName: 'NotBot', isAgent: false });
 
     const res = await harness.request.post('/huddles', {
       headers: harness.headers.forUser(human.id),
       json: {
-        workspaceId: workspace.id,
+
         topic: 'Bad agent',
         agentIds: [nonAgent.id],
       },
@@ -135,27 +134,16 @@ describe('huddle routes', () => {
 
   // ── List huddles ──
 
-  it('GET /huddles returns 400 without workspaceId', async () => {
-    const { human } = await createFixture();
-
-    const res = await harness.request.get('/huddles', {
-      headers: harness.headers.forUser(human.id),
-    });
-
-    expect(res.status).toBe(400);
-  });
-
-  it('GET /huddles lists active huddles for a workspace', async () => {
-    const { human, agent1, workspace } = await createFixture();
+  it('GET /huddles lists active huddles', async () => {
+    const { human, agent1 } = await createFixture();
 
     await harness.request.post('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: workspace.id, topic: 'Huddle 1', agentIds: [agent1.id] },
+      json: { topic: 'Huddle 1', agentIds: [agent1.id] },
     });
 
     const res = await harness.request.get<any[]>('/huddles', {
       headers: harness.headers.forUser(human.id),
-      query: { workspaceId: workspace.id },
     });
 
     expect(res.status).toBe(200);
@@ -166,11 +154,11 @@ describe('huddle routes', () => {
   // ── Get single huddle ──
 
   it('GET /huddles/:id returns huddle with participants and channel', async () => {
-    const { human, agent1, workspace } = await createFixture();
+    const { human, agent1 } = await createFixture();
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: workspace.id, topic: 'Detail test', agentIds: [agent1.id] },
+      json: { topic: 'Detail test', agentIds: [agent1.id] },
     });
 
     const res = await harness.request.get<any>(`/huddles/${createRes.body.id}`, {
@@ -196,12 +184,12 @@ describe('huddle routes', () => {
   // ── Join huddle ──
 
   it('POST /huddles/:id/join adds a new listener', async () => {
-    const { human, agent1, workspace } = await createFixture();
+    const { human, agent1 } = await createFixture();
     const joiner = await harness.factories.createUser({ email: 'joiner@example.com', displayName: 'Joiner', isAgent: false });
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: workspace.id, topic: 'Join test', agentIds: [agent1.id] },
+      json: { topic: 'Join test', agentIds: [agent1.id] },
     });
 
     const res = await harness.request.post(`/huddles/${createRes.body.id}/join`, {
@@ -228,11 +216,11 @@ describe('huddle routes', () => {
   });
 
   it('POST /huddles/:id/join returns 409 when already a participant', async () => {
-    const { human, agent1, workspace } = await createFixture();
+    const { human, agent1 } = await createFixture();
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: workspace.id, topic: 'Dup join', agentIds: [agent1.id] },
+      json: { topic: 'Dup join', agentIds: [agent1.id] },
     });
 
     // Creator is already a participant
@@ -246,11 +234,11 @@ describe('huddle routes', () => {
   // ── Speak in huddle ──
 
   it('POST /huddles/:id/speak posts a message and returns messageId', async () => {
-    const { human, agent1, workspace } = await createFixture();
+    const { human, agent1 } = await createFixture();
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: workspace.id, topic: 'Speak test', agentIds: [agent1.id] },
+      json: { topic: 'Speak test', agentIds: [agent1.id] },
     });
 
     const res = await harness.request.post<any>(`/huddles/${createRes.body.id}/speak`, {
@@ -277,11 +265,11 @@ describe('huddle routes', () => {
   // ── End huddle ──
 
   it('DELETE /huddles/:id ends an active huddle', async () => {
-    const { human, agent1, workspace } = await createFixture();
+    const { human, agent1 } = await createFixture();
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: workspace.id, topic: 'End test', agentIds: [agent1.id] },
+      json: { topic: 'End test', agentIds: [agent1.id] },
     });
 
     const res = await harness.request.delete(`/huddles/${createRes.body.id}`, {
@@ -302,12 +290,12 @@ describe('huddle routes', () => {
   });
 
   it('DELETE /huddles/:id returns 403 when non-creator tries to end', async () => {
-    const { human, agent1, workspace } = await createFixture();
+    const { human, agent1 } = await createFixture();
     const other = await harness.factories.createUser({ email: 'other@example.com', displayName: 'Other', isAgent: false });
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
-      json: { workspaceId: workspace.id, topic: 'Auth test', agentIds: [agent1.id] },
+      json: { topic: 'Auth test', agentIds: [agent1.id] },
     });
 
     const res = await harness.request.delete(`/huddles/${createRes.body.id}`, {

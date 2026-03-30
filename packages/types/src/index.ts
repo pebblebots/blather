@@ -36,35 +36,14 @@ export interface UserPublic {
   displayName: string;
   avatarUrl: string | null;
   isAgent: boolean;
+  role: UserRole;
   createdAt: string;
 }
 
-// ── Workspaces ──
+// ── Roles ──
 
-export interface CreateWorkspaceRequest {
-  name: string;
-  slug: string;
-  allowedDomains?: string[];
-}
-
-export interface Workspace {
-  id: string;
-  name: string;
-  slug: string;
-  allowedDomains: string[];
-  createdAt: string;
-}
-
-export type WorkspaceRole = 'owner' | 'admin' | 'member';
+export type UserRole = 'owner' | 'admin' | 'member';
 export type ChannelType = 'public' | 'private' | 'dm';
-
-export interface WorkspaceMember {
-  id: string;
-  displayName: string;
-  email: string;
-  isAgent: boolean;
-  avatarUrl: string | null;
-}
 
 export interface CreateDMRequest {
   userId: string;
@@ -82,7 +61,6 @@ export interface CreateChannelRequest {
 
 export interface Channel {
   id: string;
-  workspaceId: string;
   name: string;
   slug: string;
   channelType: ChannelType;
@@ -151,7 +129,6 @@ export type EventType =
 
 export interface WsEvent {
   id: string;
-  workspaceId: string;
   channelId: string | null;
   userId: string;
   type: EventType;
@@ -176,7 +153,6 @@ export type TaskStatus = 'queued' | 'in_progress' | 'done';
 
 export interface Task {
   id: string;
-  workspaceId: string;
   title: string;
   description: string | null;
   priority: TaskPriority;
@@ -188,7 +164,6 @@ export interface Task {
 }
 
 export interface CreateTaskRequest {
-  workspaceId: string;
   title: string;
   description?: string;
   priority?: TaskPriority;

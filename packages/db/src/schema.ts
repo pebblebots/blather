@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique, integer, date, decimal, index } from 'drizzle-orm/pg-core';
 
-export const workspaceRoleEnum = pgEnum('workspace_role', ['owner', 'admin', 'member']);
+export const userRoleEnum = pgEnum('user_role', ['owner', 'admin', 'member']);
 export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm']);
 
 // ── Users ──
@@ -12,6 +12,7 @@ export const users = pgTable('users', {
   displayName: varchar('display_name', { length: 255 }).notNull(),
   avatarUrl: text('avatar_url'),
   isAgent: boolean('is_agent').notNull().default(false),
+  role: userRoleEnum('role').notNull().default('member'),
   voice: varchar('voice', { length: 255 }),
   bio: text('bio'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -42,32 +43,12 @@ export const apiKeys = pgTable('api_keys', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
 });
 
-// ── Workspaces ──
-
-export const workspaces = pgTable('workspaces', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 255 }).notNull(),
-  slug: varchar('slug', { length: 255 }).notNull().unique(),
-  allowedDomains: jsonb('allowed_domains').$type<string[]>().notNull().default([]),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
-// ── Workspace Members ──
-
-export const workspaceMembers = pgTable('workspace_members', {
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  role: workspaceRoleEnum('role').notNull().default('member'),
-  joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
 // ── Channels ──
 
 export const channels = pgTable('channels', {
   id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
-  slug: varchar('slug', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
   channelType: channelTypeEnum('channel_type').notNull().default('public'),
   isDefault: boolean('is_default').notNull().default(false),
   topic: text('topic'),
@@ -112,7 +93,6 @@ export const reactions = pgTable('reactions', {
 
 export const events = pgTable('events', {
   id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   channelId: uuid('channel_id').references(() => channels.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   type: varchar('type', { length: 64 }).notNull(),
@@ -139,7 +119,6 @@ export const taskStatusEnum = pgEnum("task_status", ["queued", "in_progress", "d
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").defaultRandom().primaryKey(),
-  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
   priority: taskPriorityEnum("priority").notNull().default("normal"),
@@ -161,7 +140,6 @@ export const incidentStatusEnum = pgEnum("incident_status", ["open", "acked", "r
 
 export const incidents = pgTable("incidents", {
   id: uuid("id").defaultRandom().primaryKey(),
-  workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   severity: incidentSeverityEnum("severity").notNull().default("warning"),
   status: incidentStatusEnum("status").notNull().default("open"),
@@ -182,7 +160,6 @@ export const huddleStatusEnum = pgEnum('huddle_status', ['active', 'ended']);
 
 export const huddles = pgTable('huddles', {
   id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   topic: text('topic').notNull(),
   status: huddleStatusEnum('status').notNull().default('active'),
   channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
@@ -245,7 +222,6 @@ export const taskComments = pgTable('task_comments', {
 
 export const agentActivityLog = pgTable('agent_activity_log', {
   id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').notNull(),
   agentUserId: uuid('agent_user_id').notNull(),
   sessionKey: text('session_key').notNull().default(''),
   action: text('action').notNull(),

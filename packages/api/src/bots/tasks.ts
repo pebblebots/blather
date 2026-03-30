@@ -1,9 +1,8 @@
 import { eq, and, sql, ne } from 'drizzle-orm';
-import { tasks, users, messages, channels, channelMembers, workspaceMembers } from '@blather/db';
+import { tasks, users, messages, channels, channelMembers } from '@blather/db';
 import type { Db } from '@blather/db';
 import { emitEvent } from '../ws/events.js';
 
-const WORKSPACE_ID = 'bad75ecc-7531-4802-9928-df4e14ae8442';
 const BOT_EMAIL = 'tasks@system.blather';
 
 let botUserId: string | null = null;
@@ -25,14 +24,6 @@ async function ensureBotUser(db: Db): Promise<string> {
     } as any).returning();
     botUserId = created.id;
     console.log('[TaskBot] Created bot user:', botUserId);
-  }
-
-  const [wsMember] = await db.select().from(workspaceMembers)
-    .where(and(eq(workspaceMembers.workspaceId, WORKSPACE_ID), eq(workspaceMembers.userId, botUserId)))
-    .limit(1);
-  if (!wsMember) {
-    await db.insert(workspaceMembers).values({ workspaceId: WORKSPACE_ID, userId: botUserId, role: 'member' } as any);
-    console.log('[TaskBot] Added to workspace');
   }
 
   return botUserId;
@@ -62,7 +53,6 @@ async function postBotMessage(db: Db, channelId: string, content: string, thread
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (channel) {
     await emitEvent(db, {
-      workspaceId: channel.workspaceId,
       channelId,
       userId: uid,
       type: 'message.created',
@@ -87,12 +77,12 @@ async function resolveTask(db: Db, token: string) {
   if (shortMatch) {
     const n = parseInt(shortMatch[1], 10);
     const found = await db.select().from(tasks)
-      .where(and(eq(tasks.workspaceId, WORKSPACE_ID), sql`${tasks.shortId} = ${n}`))
+      .where(sql`${tasks.shortId} = ${n}`)
       .limit(1);
     if (found.length > 0) return found[0];
   }
   const found = await db.select().from(tasks)
-    .where(and(eq(tasks.workspaceId, WORKSPACE_ID), sql`${tasks.id}::text LIKE ${token + '%'}`))
+    .where(sql`${tasks.id}::text LIKE ${token + '%'}`)
     .limit(1);
   if (found.length > 0) return found[0];
   return null;
@@ -134,7 +124,7 @@ async function cmdList(db: Db, channelId: string, threadId?: string | null) {
     SELECT t.*, COALESCE(c.cnt, 0) AS comments_count
     FROM tasks t
     LEFT JOIN (SELECT task_id, count(*) AS cnt FROM task_comments GROUP BY task_id) c ON c.task_id = t.id
-    WHERE t.workspace_id = ${WORKSPACE_ID} AND t.status != 'done'
+    WHERE t.status != 'done'
     ORDER BY CASE WHEN t.priority = 'urgent' THEN 0 WHEN t.priority = 'normal' THEN 1 ELSE 2 END, t.created_at DESC
   `);
 
@@ -177,7 +167,6 @@ async function cmdAdd(db: Db, channelId: string, args: string[], threadId?: stri
 
   const uid = await ensureBotUser(db);
   const [task] = await db.insert(tasks).values({
-    workspaceId: WORKSPACE_ID,
     title,
     priority,
     creatorId: uid,
@@ -200,7 +189,6 @@ async function cmdDone(db: Db, channelId: string, query: string, threadId?: stri
   if (!task) {
     const found = await db.select().from(tasks)
       .where(and(
-        eq(tasks.workspaceId, WORKSPACE_ID),
         ne(tasks.status, 'done'),
         sql`lower(${tasks.title}) LIKE ${'%' + query.toLowerCase() + '%'}`
       ))
@@ -233,7 +221,7 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
   let task = await resolveTask(db, query.trim());
   if (!task) {
     const found = await db.select().from(tasks)
-      .where(and(eq(tasks.workspaceId, WORKSPACE_ID), eq(tasks.status, 'queued'),
+      .where(and(eq(tasks.status, 'queued'),
         sql`lower(${tasks.title}) LIKE ${'%' + query.toLowerCase() + '%'}`))
       .limit(1);
     if (found.length > 0) task = found[0];

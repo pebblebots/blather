@@ -58,9 +58,8 @@ describe('tts routes', () => {
 
   async function createFixture() {
     const user = await harness.factories.createUser({ email: 'tts@test.com', displayName: 'TTS Tester' });
-    const workspace = await harness.factories.createWorkspace({ ownerId: user.id });
-    const channel = await harness.factories.createChannel({ workspaceId: workspace.id, name: 'general', createdBy: user.id });
-    return { user, workspace, channel };
+    const channel = await harness.factories.createChannel({ name: 'general', createdBy: user.id });
+    return { user, channel };
   }
 
   async function createMessage(fixture: Awaited<ReturnType<typeof createFixture>>, content = 'Hello world') {

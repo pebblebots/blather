@@ -47,7 +47,7 @@ describe('API client', () => {
     setToken('test-jwt');
     mockFetch.mockReturnValue(jsonResponse([]));
 
-    await api.getWorkspaces();
+    await api.getChannels();
 
     const headers = fetchedOpts().headers as Record<string, string>;
     expect(headers['Authorization']).toBe('Bearer test-jwt');
@@ -57,7 +57,7 @@ describe('API client', () => {
     clearToken();
     mockFetch.mockReturnValue(jsonResponse([]));
 
-    await api.getWorkspaces();
+    await api.getChannels();
 
     const headers = fetchedOpts().headers as Record<string, string>;
     expect(headers['Authorization']).toBeUndefined();
@@ -67,14 +67,14 @@ describe('API client', () => {
 
   it('throws with error message from response body', async () => {
     mockFetch.mockReturnValue(errorResponse('Not found', 404));
-    await expect(api.getWorkspaces()).rejects.toThrow('Not found');
+    await expect(api.getChannels()).rejects.toThrow('Not found');
   });
 
   it('throws with HTTP status when body has no error field', async () => {
     mockFetch.mockReturnValue(
       Promise.resolve(new Response('not json', { status: 500 }))
     );
-    await expect(api.getWorkspaces()).rejects.toThrow('HTTP 500');
+    await expect(api.getChannels()).rejects.toThrow('HTTP 500');
   });
 
   // ── Auth endpoints ──
@@ -101,46 +101,33 @@ describe('API client', () => {
     expect(fetchedBody()).toEqual({ email: 'a@b.com', password: 'pw' });
   });
 
-  // ── Workspace endpoints ──
+  // ── Channel endpoints ──
 
-  it('getWorkspaces sends GET', async () => {
+  it('getChannels sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
-    await api.getWorkspaces();
-    expect(fetchedPath()).toBe('/api/workspaces');
+    await api.getChannels();
+    expect(fetchedPath()).toBe('/api/channels');
     expect(fetchedOpts().method).toBeUndefined(); // default GET
-  });
-
-  it('createWorkspace sends POST with data', async () => {
-    mockFetch.mockReturnValue(jsonResponse({}));
-    await api.createWorkspace({ name: 'Test', slug: 'test' });
-    expect(fetchedPath()).toBe('/api/workspaces');
-    expect(fetchedOpts().method).toBe('POST');
-    expect(fetchedBody()).toEqual({ name: 'Test', slug: 'test' });
-  });
-
-  it('getChannels sends GET with workspaceId', async () => {
-    mockFetch.mockReturnValue(jsonResponse([]));
-    await api.getChannels('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/channels');
   });
 
   it('createChannel sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
-    await api.createChannel('ws-1', { name: 'general', slug: 'general' });
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/channels');
+    await api.createChannel({ name: 'general', slug: 'general' });
+    expect(fetchedPath()).toBe('/api/channels');
     expect(fetchedOpts().method).toBe('POST');
+    expect(fetchedBody()).toEqual({ name: 'general', slug: 'general' });
   });
 
-  it('getWorkspaceMembers sends GET', async () => {
+  it('getMembers sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
-    await api.getWorkspaceMembers('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/members');
+    await api.getMembers();
+    expect(fetchedPath()).toBe('/api/members');
   });
 
   it('getOrCreateDM sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
-    await api.getOrCreateDM('ws-1', 'u-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/dm');
+    await api.getOrCreateDM('u-1');
+    expect(fetchedPath()).toBe('/api/channels/dm');
     expect(fetchedBody()).toEqual({ userId: 'u-1' });
   });
 
@@ -263,11 +250,10 @@ describe('API client', () => {
 
   it('searchMessages sends GET with query params', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
-    await api.searchMessages({ q: 'hello', workspaceId: 'ws-1', channelId: 'ch-1', limit: 10 });
+    await api.searchMessages({ q: 'hello', channelId: 'ch-1', limit: 10 });
     const path = fetchedPath();
     expect(path).toContain('/api/messages/search');
     expect(path).toContain('q=hello');
-    expect(path).toContain('workspaceId=ws-1');
     expect(path).toContain('channelId=ch-1');
     expect(path).toContain('limit=10');
   });
@@ -283,36 +269,35 @@ describe('API client', () => {
 
   it('getUnreadCounts sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
-    await unreadApi.getUnreadCounts('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/unread');
+    await unreadApi.getUnreadCounts();
+    expect(fetchedPath()).toBe('/api/channels/unread');
   });
 
   // ── Presence API ──
 
   it('getPresence sends GET', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
-    await presenceApi.getPresence('ws-1');
-    expect(fetchedPath()).toBe('/api/workspaces/ws-1/presence');
+    await presenceApi.getPresence();
+    expect(fetchedPath()).toBe('/api/channels/presence');
   });
 
   // ── Task API ──
 
   it('taskApi.list sends GET with filters', async () => {
     mockFetch.mockReturnValue(jsonResponse([]));
-    await taskApi.list('ws-1', { status: 'done', priority: 'urgent' });
+    await taskApi.list({ status: 'done', priority: 'urgent' });
     const path = fetchedPath();
     expect(path).toContain('/api/tasks');
-    expect(path).toContain('workspaceId=ws-1');
     expect(path).toContain('status=done');
     expect(path).toContain('priority=urgent');
   });
 
   it('taskApi.create sends POST', async () => {
     mockFetch.mockReturnValue(jsonResponse({}));
-    await taskApi.create({ workspaceId: 'ws-1', title: 'Fix bug' });
+    await taskApi.create({ title: 'Fix bug' });
     expect(fetchedPath()).toBe('/api/tasks');
     expect(fetchedOpts().method).toBe('POST');
-    expect(fetchedBody()).toEqual({ workspaceId: 'ws-1', title: 'Fix bug' });
+    expect(fetchedBody()).toEqual({ title: 'Fix bug' });
   });
 
   it('taskApi.update sends PATCH', async () => {

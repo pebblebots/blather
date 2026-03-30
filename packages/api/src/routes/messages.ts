@@ -13,9 +13,8 @@ messageRoutes.get("/search", async (c) => {
   const userId = c.get("userId");
 
   const q = c.req.query("q");
-  const workspaceId = c.req.query("workspaceId");
-  if (!q || !workspaceId) {
-    return c.json({ error: "q and workspaceId are required" }, 400);
+  if (!q) {
+    return c.json({ error: "q is required" }, 400);
   }
 
   const channelId = c.req.query("channelId");
@@ -24,14 +23,13 @@ messageRoutes.get("/search", async (c) => {
   const after = c.req.query("after");
   const limit = Math.min(parseInt(c.req.query("limit") || "20", 10), 50);
 
-  // Get channels in this workspace the user can access:
+  // Get channels the user can access:
   // All public channels + private/dm channels the user is a member of
-  const allWorkspaceChannels = await db
+  const allChannels = await db
     .select({ id: channels.id, channelType: channels.channelType })
-    .from(channels)
-    .where(eq(channels.workspaceId, workspaceId));
+    .from(channels);
 
-  const publicChannelIds = allWorkspaceChannels
+  const publicChannelIds = allChannels
     .filter((ch) => ch.channelType === "public")
     .map((ch) => ch.id);
 
@@ -42,7 +40,7 @@ messageRoutes.get("/search", async (c) => {
 
   const privateMemberChannelIds = privateMemberships.map((m) => m.channelId);
 
-  const privateWorkspaceChannelIds = allWorkspaceChannels
+  const privateAccessibleIds = allChannels
     .filter(
       (ch) =>
         (ch.channelType === "private" || ch.channelType === "dm") &&
@@ -50,7 +48,7 @@ messageRoutes.get("/search", async (c) => {
     )
     .map((ch) => ch.id);
 
-  const accessibleChannelIds = [...publicChannelIds, ...privateWorkspaceChannelIds];
+  const accessibleChannelIds = [...publicChannelIds, ...privateAccessibleIds];
 
   if (accessibleChannelIds.length === 0) {
     return c.json([]);

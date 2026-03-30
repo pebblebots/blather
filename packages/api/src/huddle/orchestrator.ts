@@ -21,7 +21,6 @@ interface AgentState {
 interface ActiveOrchestrator {
   huddleId: string;
   channelId: string;
-  workspaceId: string;
   topic: string;
   starter: string | null;
   nudgeTimer: ReturnType<typeof setTimeout> | null;
@@ -225,7 +224,6 @@ thoughts? (keep it to 1-2 sentences)`;
     const [channel] = await db.select().from(channels).where(eq(channels.id, orch.channelId)).limit(1);
     if (channel) {
       await emitEvent(db, {
-        workspaceId: orch.workspaceId,
         channelId: orch.channelId,
         userId: orch.createdBy,
         type: "message.created",
@@ -261,7 +259,7 @@ async function handleHuddleMessage(orch: ActiveOrchestrator, msg: {
     const { audioUrl, duration } = await generateTTS(msg.content, voice, msg.id);
     console.log(`[Huddle] TTS generated: audioUrl=${audioUrl} duration=${duration} msgId=${msg.id}`);
 
-    await publishEvent(orch.workspaceId, {
+    await publishEvent({
       type: "huddle.audio",
       data: {
         huddleId: orch.huddleId,
@@ -292,7 +290,6 @@ function resetNudgeTimer(orch: ActiveOrchestrator) {
 export async function startOrchestrator(params: {
   huddleId: string;
   channelId: string;
-  workspaceId: string;
   topic: string;
   agentNames: string[];
   maxDurationMs: number;
@@ -311,7 +308,6 @@ export async function startOrchestrator(params: {
   const orch: ActiveOrchestrator = {
     huddleId: params.huddleId,
     channelId: params.channelId,
-    workspaceId: params.workspaceId,
     topic: params.topic,
     starter: params.starter || null,
     nudgeTimer: null,
@@ -350,7 +346,6 @@ export async function startOrchestrator(params: {
   }).returning();
 
   await emitEvent(db, {
-    workspaceId: params.workspaceId,
     channelId: params.channelId,
     userId: params.createdBy,
     type: "message.created",
@@ -380,7 +375,6 @@ export async function startOrchestrator(params: {
     }).returning();
 
     await emitEvent(db, {
-      workspaceId: params.workspaceId,
       channelId: params.channelId,
       userId: params.createdBy,
       type: "message.created",
@@ -405,7 +399,7 @@ export async function startOrchestrator(params: {
     await endHuddle(params.huddleId, params.createdBy);
   }, params.maxDurationMs);
 
-  await publishEvent(params.workspaceId, {
+  await publishEvent({
     type: "huddle.created",
     data: {
       huddleId: params.huddleId,
@@ -433,7 +427,6 @@ export async function endHuddle(huddleId: string, endedBy: string) {
     }).returning();
 
     await emitEvent(db, {
-      workspaceId: orch.workspaceId,
       channelId: orch.channelId,
       userId: endedBy,
       type: "message.created",
@@ -456,7 +449,7 @@ export async function endHuddle(huddleId: string, endedBy: string) {
 
   const [huddle] = await db.select().from(huddles).where(eq(huddles.id, huddleId)).limit(1);
   if (huddle) {
-    await publishEvent(huddle.workspaceId, {
+    await publishEvent({
       type: "huddle.ended",
       data: { huddleId },
     });

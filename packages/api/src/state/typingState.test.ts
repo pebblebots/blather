@@ -45,14 +45,14 @@ describe('channel cache', () => {
 
   it('stores and retrieves a channel entry', async () => {
     const { getCachedChannel, setCachedChannel } = await loadModule();
-    const data = { workspaceId: 'ws1', channelType: 'public' };
+    const data = { channelType: 'public' };
     setCachedChannel('ch1', data);
     expect(getCachedChannel('ch1')).toEqual(data);
   });
 
   it('expires entries after the TTL (60 s)', async () => {
     const { getCachedChannel, setCachedChannel } = await loadModule();
-    setCachedChannel('ch1', { workspaceId: 'ws1', channelType: 'dm' });
+    setCachedChannel('ch1', { channelType: 'dm' });
 
     vi.advanceTimersByTime(59_999);
     expect(getCachedChannel('ch1')).toBeDefined();

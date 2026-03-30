@@ -5,7 +5,6 @@ import { Modal } from './Modal';
 import { api } from '../lib/api';
 
 interface CreateChannelModalProps {
-  workspaceId: string;
   onClose: () => void;
   onCreated: (channel: Channel) => void;
 }
@@ -22,7 +21,7 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Failed to create channel';
 }
 
-export function CreateChannelModal({ workspaceId, onClose, onCreated }: CreateChannelModalProps) {
+export function CreateChannelModal({ onClose, onCreated }: CreateChannelModalProps) {
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
@@ -57,7 +56,7 @@ export function CreateChannelModal({ workspaceId, onClose, onCreated }: CreateCh
     setLoading(true);
 
     try {
-      const channel = await api.createChannel(workspaceId, payload);
+      const channel = await api.createChannel(payload);
       onCreated(channel);
       onClose();
     } catch (error: unknown) {

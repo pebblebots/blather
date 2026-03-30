@@ -11,12 +11,11 @@ interface SearchResult {
 }
 
 interface SearchPanelProps {
-  workspaceId: string;
   onNavigate: (channelId: string, messageId: string) => void;
   onClose: () => void;
 }
 
-export function SearchPanel({ workspaceId, onNavigate, onClose }: SearchPanelProps) {
+export function SearchPanel({ onNavigate, onClose }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,12 +40,12 @@ export function SearchPanel({ workspaceId, onNavigate, onClose }: SearchPanelPro
       setLoading(true);
       setSearched(true);
       api
-        .searchMessages({ q: q.trim(), workspaceId, limit: 30 })
+        .searchMessages({ q: q.trim(), limit: 30 })
         .then(setResults)
         .catch(() => setResults([]))
         .finally(() => setLoading(false));
     },
-    [workspaceId]
+    []
   );
 
   const handleChange = (val: string) => {
