@@ -70,6 +70,9 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
     chunker: (text, limit) => getRuntime().channel.text.chunkMarkdownText(text, limit),
     chunkerMode: "markdown",
     textChunkLimit: 4000,
+    // TODO: Canvas support — BlatherClient.sendMessage accepts an optional `canvas`
+    // parameter, but the plugin SDK's sendText callback only provides { to, text, accountId }.
+    // Once the SDK exposes extra fields/metadata (e.g. canvas), pass them through here.
     sendText: async ({ to, text, accountId }) => {
       const cfg = await getRuntime().config.loadConfig();
       const acct = resolveAccount(cfg, accountId);

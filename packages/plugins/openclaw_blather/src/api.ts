@@ -23,6 +23,7 @@ export interface BlatherMessage {
   channelId: string;
   userId: string;
   content: string;
+  canvas?: string | null;
   threadId?: string | null;
   createdAt: string;
 }
@@ -61,10 +62,10 @@ export class BlatherClient {
     return (await this.request("/channels")).json();
   }
 
-  async sendMessage(channelId: string, content: string): Promise<BlatherMessage> {
+  async sendMessage(channelId: string, content: string, canvas?: string): Promise<BlatherMessage> {
     const res = await this.request(`/channels/${channelId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, ...(canvas ? { canvas } : {}) }),
     });
     return res.json();
   }
