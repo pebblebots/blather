@@ -167,32 +167,28 @@ channelRoutes.get('/:id/messages', async (c) => {
 });
 
 // Detect raw API error messages that should never be broadcast
-// This pattern is designed to catch actual API error responses, not discussion about errors
 
-const API_ERROR_PATTERN = /^(?:Error:?\s+)?(?:HTTP\s+(?:4\d\d|5\d\d):\s+)?(?:rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error|authentication_error|permission_error|invalid_request_error|not_found_error)(?:\s|$)|^\s*\{\s*"?type"?\s*:\s*"error"|^(?:Error|Rate limit exceeded|Quota exceeded|AI service is temporarily overloaded|Please try again in a moment)(?:\s|$)|request_id:\s*req_[a-f0-9-]+\b|This request would exceed.*quota.*Try again/i;
+const API_ERROR_PATTERN = /\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error|authentication_error|permission_error|invalid_request_error|not_found_error|api_error)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+(reached|exceeded)\b|\bAI service is temporarily overloaded\b|\bPlease try again in a moment\b|\brequest_id:\s*req_[a-zA-Z0-9_-]+\b|\{type:\s*"error"|\{"type"\s*:\s*"error"|\bThis request would exceed.*\b(quota|limit)\b|\bLLM error\b|\bInternal server error\b/i;
+
 function looksLikeApiError(content: string): boolean {
-  // Only reject if it looks like a complete API error message, not just mentions of errors
   const trimmed = content.trim();
   
-  // Must be short-ish (actual errors are usually brief)
+  // Don't reject very long messages (likely conversation, not raw errors)
   if (trimmed.length > 500) return false;
   
-  // Reject if it matches the error pattern and looks like a complete error message
-  if (API_ERROR_PATTERN.test(trimmed)) {
-    // Additional heuristics: must be a standalone error, not discussion
-    const words = trimmed.split(/\s+/);
-    
-    // If it's a long sentence with many words, likely discussion not an error
-    if (words.length > 30) return false;
-    
-    // If it contains phrases indicating discussion, allow it
-    const discussionIndicators = /\b(?:we|let's|should|could|might|discussion|talk|debug|troubleshoot|investigate|fix|issue|problem|help|question|about|regarding)\b/i;
-    if (discussionIndicators.test(trimmed)) return false;
-    
-    return true;
-  }
+  // Check if it matches the error pattern
+  if (!API_ERROR_PATTERN.test(trimmed)) return false;
   
-  return false;
+  // Additional heuristics to avoid blocking legitimate discussion:
+  // Allow messages that contain discussion indicators
+  const discussionIndicators = /\b(let's|we should|can you help|how to|debug|troubleshoot|investigate|discuss|talk about|question about|help with|working on|looking at|trying to)\b/i;
+  if (discussionIndicators.test(trimmed)) return false;
+  
+  // Allow messages that are clearly conversational (contain personal pronouns in context)
+  const conversational = /\b(I('m|'ve)?\s+(getting|seeing|found|encountered)|you('re|'ve)?\s+(getting|seeing))\b/i;
+  if (conversational.test(trimmed)) return false;
+  
+  return true;
 }
 
 // Post message to channel

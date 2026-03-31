@@ -54,12 +54,12 @@ export class BlatherClient {
     return (await this.request("/auth/me")).json();
   }
 
-  async getMembers(workspaceId: string): Promise<BlatherUser[]> {
-    return (await this.request(`/workspaces/${workspaceId}/members`)).json();
+  async getMembers(_workspaceId?: string): Promise<BlatherUser[]> {
+    return (await this.request("/members")).json();
   }
 
-  async getChannels(workspaceId: string): Promise<BlatherChannel[]> {
-    return (await this.request(`/workspaces/${workspaceId}/channels`)).json();
+  async getChannels(_workspaceId?: string): Promise<BlatherChannel[]> {
+    return (await this.request("/channels")).json();
   }
 
   async sendMessage(channelId: string, content: string): Promise<BlatherMessage> {
