@@ -1,0 +1,16 @@
+[Unit]
+Description=Attio Portfolio Sync Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=code
+WorkingDirectory=/home/code/blather
+Environment=NODE_ENV=production
+EnvironmentFile=-/home/code/blather/.env
+ExecStart=/usr/bin/npm run attio-sync
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
