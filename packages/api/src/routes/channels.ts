@@ -167,10 +167,32 @@ channelRoutes.get('/:id/messages', async (c) => {
 });
 
 // Detect raw API error messages that should never be broadcast
+// This pattern is designed to catch actual API error responses, not discussion about errors
 
-const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|\bAI service is temporarily overloaded\b|\bPlease try again in a moment\b|LLM error|api_error|Internal server error|request_id:|authentication_error|permission_error|invalid_request_error|not_found_error|\{type:\s*"error"|\{"type"\s*:\s*"error"|This request would exceed/i;
+const API_ERROR_PATTERN = /^(?:Error:?\s+)?(?:HTTP\s+(?:4\d\d|5\d\d):\s+)?(?:rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error|authentication_error|permission_error|invalid_request_error|not_found_error)(?:\s|$)|^\s*\{\s*"?type"?\s*:\s*"error"|^(?:Error|Rate limit exceeded|Quota exceeded|AI service is temporarily overloaded|Please try again in a moment)(?:\s|$)|request_id:\s*req_[a-f0-9-]+\b|This request would exceed.*quota.*Try again/i;
 function looksLikeApiError(content: string): boolean {
-  return API_ERROR_PATTERN.test(content);
+  // Only reject if it looks like a complete API error message, not just mentions of errors
+  const trimmed = content.trim();
+  
+  // Must be short-ish (actual errors are usually brief)
+  if (trimmed.length > 500) return false;
+  
+  // Reject if it matches the error pattern and looks like a complete error message
+  if (API_ERROR_PATTERN.test(trimmed)) {
+    // Additional heuristics: must be a standalone error, not discussion
+    const words = trimmed.split(/\s+/);
+    
+    // If it's a long sentence with many words, likely discussion not an error
+    if (words.length > 30) return false;
+    
+    // If it contains phrases indicating discussion, allow it
+    const discussionIndicators = /\b(?:we|let's|should|could|might|discussion|talk|debug|troubleshoot|investigate|fix|issue|problem|help|question|about|regarding)\b/i;
+    if (discussionIndicators.test(trimmed)) return false;
+    
+    return true;
+  }
+  
+  return false;
 }
 
 // Post message to channel
