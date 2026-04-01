@@ -111,107 +111,6 @@ metricRoutes.get('/', async (c) => {
   return c.json(metrics);
 });
 
-metricRoutes.get('/:id', async (c) => {
-  const db = c.get('db');
-  const id = c.req.param('id');
-
-  const [metric] = await db.select().from(portfolioMetrics).where(eq(portfolioMetrics.id, id));
-
-  if (!metric) {
-    return c.json({ error: 'Metric not found' }, 404);
-  }
-
-  return c.json(metric);
-});
-
-metricRoutes.post('/', async (c) => {
-  const db = c.get('db');
-  const body = await c.req.json<MetricBody>();
-
-  if (!hasRequiredFields(body)) {
-    return c.json({ error: 'companyName, fund, reportingDate, revenueArrUsd, and source are required' }, 400);
-  }
-
-  if (!isMetricSource(body.source)) {
-    return invalidSourceResponse(c);
-  }
-
-  const [metric] = await db.insert(portfolioMetrics).values(metricValues(body)).returning();
-  return c.json(metric, 201);
-});
-
-metricRoutes.patch('/:id', async (c) => {
-  const db = c.get('db');
-  const id = c.req.param('id');
-  const body = await c.req.json<MetricBody>();
-  const updates: Record<string, unknown> = { updatedAt: new Date() };
-  const allowedFields = [
-    'companyName',
-    'fund',
-    'reportingDate',
-    'revenueArrUsd',
-    'revenueAsOfDate',
-    'headcount',
-    'runwayMonths',
-    'yoyGrowthPct',
-    'lastRoundSizeUsd',
-    'lastRoundValuationUsd',
-    'lastRoundDate',
-    'lastRoundType',
-    'keyMilestoneText',
-    'nextFundraiseTiming',
-    'contactEmail',
-    'permissionToShare',
-    'source',
-    'confidence',
-  ] as const;
-
-  for (const field of allowedFields) {
-    if (body[field] !== undefined) {
-      updates[field] = body[field];
-    }
-  }
-
-  if (updates.source !== undefined && !isMetricSource(updates.source)) {
-    return invalidSourceResponse(c);
-  }
-
-  const [metric] = await db.update(portfolioMetrics).set(updates).where(eq(portfolioMetrics.id, id)).returning();
-
-  if (!metric) {
-    return c.json({ error: 'Metric not found' }, 404);
-  }
-
-  return c.json(metric);
-});
-
-metricRoutes.post('/upsert', async (c) => {
-  const db = c.get('db');
-  const body = await c.req.json<MetricBody>();
-
-  if (!hasRequiredFields(body)) {
-    return c.json({ error: 'companyName, fund, reportingDate, revenueArrUsd, and source are required' }, 400);
-  }
-
-  if (!isMetricSource(body.source)) {
-    return invalidSourceResponse(c);
-  }
-
-  const values = metricValues(body);
-
-  const [metric] = await db
-    .insert(portfolioMetrics)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [portfolioMetrics.companyName, portfolioMetrics.fund, portfolioMetrics.reportingDate],
-      set: { ...values, updatedAt: new Date() },
-    })
-    .returning();
-
-  const wasInserted = metric.createdAt.getTime() === metric.updatedAt.getTime();
-
-  return c.json({ ...metric, wasInserted }, wasInserted ? 201 : 200);
-});
 
 metricRoutes.get('/export', async (c) => {
   const db = c.get('db');
@@ -337,6 +236,109 @@ metricRoutes.get('/export', async (c) => {
 
   return c.json({ summary, companies: rows });
 });
+
+metricRoutes.get('/:id', async (c) => {
+  const db = c.get('db');
+  const id = c.req.param('id');
+
+  const [metric] = await db.select().from(portfolioMetrics).where(eq(portfolioMetrics.id, id));
+
+  if (!metric) {
+    return c.json({ error: 'Metric not found' }, 404);
+  }
+
+  return c.json(metric);
+});
+
+metricRoutes.post('/', async (c) => {
+  const db = c.get('db');
+  const body = await c.req.json<MetricBody>();
+
+  if (!hasRequiredFields(body)) {
+    return c.json({ error: 'companyName, fund, reportingDate, revenueArrUsd, and source are required' }, 400);
+  }
+
+  if (!isMetricSource(body.source)) {
+    return invalidSourceResponse(c);
+  }
+
+  const [metric] = await db.insert(portfolioMetrics).values(metricValues(body)).returning();
+  return c.json(metric, 201);
+});
+
+metricRoutes.patch('/:id', async (c) => {
+  const db = c.get('db');
+  const id = c.req.param('id');
+  const body = await c.req.json<MetricBody>();
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const allowedFields = [
+    'companyName',
+    'fund',
+    'reportingDate',
+    'revenueArrUsd',
+    'revenueAsOfDate',
+    'headcount',
+    'runwayMonths',
+    'yoyGrowthPct',
+    'lastRoundSizeUsd',
+    'lastRoundValuationUsd',
+    'lastRoundDate',
+    'lastRoundType',
+    'keyMilestoneText',
+    'nextFundraiseTiming',
+    'contactEmail',
+    'permissionToShare',
+    'source',
+    'confidence',
+  ] as const;
+
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) {
+      updates[field] = body[field];
+    }
+  }
+
+  if (updates.source !== undefined && !isMetricSource(updates.source)) {
+    return invalidSourceResponse(c);
+  }
+
+  const [metric] = await db.update(portfolioMetrics).set(updates).where(eq(portfolioMetrics.id, id)).returning();
+
+  if (!metric) {
+    return c.json({ error: 'Metric not found' }, 404);
+  }
+
+  return c.json(metric);
+});
+
+metricRoutes.post('/upsert', async (c) => {
+  const db = c.get('db');
+  const body = await c.req.json<MetricBody>();
+
+  if (!hasRequiredFields(body)) {
+    return c.json({ error: 'companyName, fund, reportingDate, revenueArrUsd, and source are required' }, 400);
+  }
+
+  if (!isMetricSource(body.source)) {
+    return invalidSourceResponse(c);
+  }
+
+  const values = metricValues(body);
+
+  const [metric] = await db
+    .insert(portfolioMetrics)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [portfolioMetrics.companyName, portfolioMetrics.fund, portfolioMetrics.reportingDate],
+      set: { ...values, updatedAt: new Date() },
+    })
+    .returning();
+
+  const wasInserted = metric.createdAt.getTime() === metric.updatedAt.getTime();
+
+  return c.json({ ...metric, wasInserted }, wasInserted ? 201 : 200);
+});
+
 
 metricRoutes.delete('/:id', async (c) => {
   const db = c.get('db');
