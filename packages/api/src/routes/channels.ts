@@ -370,10 +370,46 @@ channelRoutes.get('/:id/messages', async (c) => {
 });
 
 // Detect raw API error messages that should never be broadcast
+//
+// Two-tier approach:
+// 1. EXACT_ERROR_PATTERNS: known error prefixes — always reject regardless of length
+// 2. API_ERROR_PATTERN + length check: short messages (< 300 chars) matching generic
+//    error patterns are raw errors; longer messages are likely *discussing* errors
+//
+// This prevents the feedback loop where agents post provider errors into channels,
+// while still allowing legitimate technical discussion about debugging.
 
-const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|\bAI service is temporarily overloaded\b|\bPlease try again in a moment\b|LLM error|api_error|Internal server error|request_id:|authentication_error|permission_error|invalid_request_error|not_found_error|\{type:\s*"error"|\{"type"\s*:\s*"error"|This request would exceed/i;
+const EXACT_ERROR_PATTERNS = [
+  /^LLM request failed:/i,
+  /^LLM error/i,
+  /^API error/i,
+  /^Internal server error\.?$/i,
+  /^\{?"?type"?\s*:\s*"?error/i,
+  /^rate.?limit.?(error|exceeded)/i,
+  /^quota.?exceeded/i,
+  /^network connection error\.?$/i,
+  /^AI service is temporarily overloaded/i,
+  /^Please try again in a moment/i,
+  /^This request would exceed/i,
+];
+
+const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|LLM (request failed|error)|api_error|request_id:|authentication_error|permission_error|invalid_request_error|not_found_error|network connection error/i;
+
 function looksLikeApiError(content: string): boolean {
-  return API_ERROR_PATTERN.test(content);
+  const trimmed = content.trim();
+
+  // Exact-match patterns: always reject regardless of length
+  for (const pat of EXACT_ERROR_PATTERNS) {
+    if (pat.test(trimmed)) return true;
+  }
+
+  // Short messages (< 300 chars) that match error patterns are raw errors
+  // Longer messages are likely *discussing* errors — let them through
+  if (trimmed.length < 300 && API_ERROR_PATTERN.test(trimmed)) {
+    return true;
+  }
+
+  return false;
 }
 
 // Post message to channel
