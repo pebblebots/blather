@@ -14,6 +14,7 @@ import { huddleRoutes } from './routes/huddles.js';
 import { activityRoutes } from './routes/activity.js';
 import { metricRoutes } from './routes/metrics.js';
 import { statusRoutes } from './routes/status.js';
+import { signalRoutes } from './routes/signals.js';
 import { generalApiLimiter, messageSendLimiter, uploadLimiter, type RateLimitStore } from './middleware/rate-limit.js';
 
 export type Env = {
@@ -46,7 +47,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
 
   // Per-user general rate limit on authenticated routes (applied before route handlers)
   const generalLimiter = generalApiLimiter(rateLimitStore);
-  for (const prefix of ['/workspaces', '/channels', '/tasks', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status']) {
+  for (const prefix of ['/workspaces', '/channels', '/tasks', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status', '/signals']) {
     app.use(`${prefix}/*`, generalLimiter);
   }
 
@@ -66,6 +67,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
   app.route('/metrics', metricRoutes);
   app.route('/activity', activityRoutes);
   app.route('/status', statusRoutes);
+  app.route('/signals', signalRoutes);
 
   return app;
 }

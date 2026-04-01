@@ -10,4 +10,5 @@ export function createDb(url?: string) {
 }
 
 export * from './schema.js';
+export * from './signals-schema.js';
 export type Db = PgDatabase<any, typeof schema>;
