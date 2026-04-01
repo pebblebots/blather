@@ -27,10 +27,18 @@ export function TaskPanel({ workspaceId, members }: TaskPanelProps) {
 
   const load = useCallback(() => {
     const filters = filter === 'all' ? undefined : { status: filter };
-    taskApi.list(workspaceId, filters).then((t) => { setTasks(t); setLoading(false); }).catch(() => setLoading(false));
+    return taskApi.list(workspaceId, filters).then((t) => { setTasks(t); setLoading(false); }).catch(() => setLoading(false));
   }, [workspaceId, filter]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let stale = false;
+    setLoading(true);
+    const filters = filter === 'all' ? undefined : { status: filter };
+    taskApi.list(workspaceId, filters).then((t) => {
+      if (!stale) { setTasks(t); setLoading(false); }
+    }).catch(() => { if (!stale) setLoading(false); });
+    return () => { stale = true; };
+  }, [workspaceId, filter]);
 
   const updateStatus = async (id: string, status: string) => {
     await taskApi.update(id, { status });
