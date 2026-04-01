@@ -206,11 +206,11 @@ describe('WebSocket manager', () => {
     });
   });
 
-  it('enforces max 3 connections per user (closes oldest)', async () => {
+  it('enforces max 5 connections per user (closes oldest)', async () => {
     const userId = 'user-max';
     const wsId = uniqueWorkspaceId();
 
-    const conns = [createAuthedClient(userId, wsId), createAuthedClient(userId, wsId), createAuthedClient(userId, wsId)];
+    const conns = Array.from({ length: 5 }, () => createAuthedClient(userId, wsId));
     const closePromise = waitForClose(conns[0]);
     createAuthedClient(userId, wsId);
 

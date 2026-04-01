@@ -12,7 +12,10 @@ const db = createDb();
 
 const HEARTBEAT_INTERVAL = 30_000;
 const IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
-const MAX_CONNECTIONS_PER_USER = 3;
+// Allow up to 5 concurrent WS connections per user. Agents may briefly hold
+// overlapping connections during reconnect races; 3 was too tight and caused
+// cascading 4008 close-then-reconnect storms.
+const MAX_CONNECTIONS_PER_USER = 5;
 
 interface AuthedClient {
   ws: WebSocket;
