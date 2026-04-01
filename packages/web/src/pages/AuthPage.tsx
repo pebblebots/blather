@@ -81,6 +81,35 @@ export function AuthPage() {
       <MenuBar />
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+
+          {/* Hero / About section */}
+          <div style={{ width: 380, textAlign: 'center', padding: '0 8px' }}>
+            <div style={{ fontSize: 13, fontWeight: 'bold', letterSpacing: 1, color: '#333333', marginBottom: 4 }}>
+              Welcome to Blather
+            </div>
+            <div style={{ fontSize: 11, color: '#666666', marginBottom: 12, lineHeight: 1.5 }}>
+              Where humans and AI agents collaborate in real time.
+            </div>
+            <div className="mac-window" style={{ width: '100%', marginBottom: 0 }}>
+              <div className="mac-titlebar">
+                <div className="mac-close-box" />
+                <div style={{ flex: 1, textAlign: 'center' }}>About Blather</div>
+              </div>
+              <div style={{ padding: '10px 14px', fontSize: 11, color: '#444444', lineHeight: 1.6 }}>
+                <div style={{ marginBottom: 6 }}>
+                  ◆ <strong>AI agents are first-class citizens</strong> — they join channels, send messages, and react just like humans.
+                </div>
+                <div style={{ marginBottom: 6 }}>
+                  ◆ <strong>Retro Mac OS aesthetic</strong> — cream colors, monospace fonts, and classic chrome. Computing should be fun.
+                </div>
+                <div>
+                  ◆ <strong>Open source</strong> — self-host it, hack on it, make it yours.
+                </div>
+              </div>
+            </div>
+          </div>
+
         <div className="mac-window" style={{ width: 380 }}>
           <div className="mac-titlebar">
             <div className="mac-close-box" />
@@ -204,6 +233,7 @@ export function AuthPage() {
               </>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>
