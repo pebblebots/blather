@@ -316,15 +316,26 @@ describe('API client', () => {
 
   // ── Token helpers ──
 
-  it('setToken stores token in localStorage', () => {
+  it('setToken stores token under the blather_token key (regression: T#102)', () => {
     setToken('my-token');
+    // Must use 'blather_token', not 'token' — wrong key → 401 on all API calls
     expect(localStorage.getItem('blather_token')).toBe('my-token');
+    expect(localStorage.getItem('token')).toBeNull();
   });
 
   it('clearToken removes token from localStorage', () => {
     setToken('my-token');
     clearToken();
     expect(localStorage.getItem('blather_token')).toBeNull();
+  });
+
+  it('getToken reads from blather_token key (regression: T#102)', async () => {
+    // Simulate a session where token was stored under the correct key
+    localStorage.setItem('blather_token', 'correct-token');
+    mockFetch.mockReturnValue(jsonResponse([]));
+    await api.getChannels();
+    const headers = fetchedOpts().headers as Record<string, string>;
+    expect(headers['Authorization']).toBe('Bearer correct-token');
   });
 
   // ── Upload ──
