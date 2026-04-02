@@ -847,6 +847,22 @@ export function MainPage() {
                               );
                             })()}
                           </span>
+                          {(() => {
+                            const sortedIds = [user?.id, member.id].sort();
+                            const dmSlug = `dm-${sortedIds[0]}-${sortedIds[1]}`;
+                            const dmCh = channels.find(c => c.channelType === 'dm' && c.slug === dmSlug);
+                            const count = dmCh ? (unreadCounts[dmCh.id] || 0) : 0;
+                            return count > 0 ? (
+                              <span style={{
+                                minWidth: "20px", height: "20px", borderRadius: "10px",
+                                background: "#CC3333", color: "#FFFFFF", fontSize: "11px",
+                                fontWeight: "bold", display: "flex", alignItems: "center",
+                                justifyContent: "center", padding: "0 6px", flexShrink: 0,
+                              }}>
+                                {count > 99 ? "99+" : count}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
                       );
                     })}
@@ -1184,6 +1200,22 @@ export function MainPage() {
                           );
                         })()}
                       </span>
+                      {(() => {
+                        const sortedIds = [user?.id, member.id].sort();
+                        const dmSlug = `dm-${sortedIds[0]}-${sortedIds[1]}`;
+                        const dmCh = channels.find(c => c.channelType === 'dm' && c.slug === dmSlug);
+                        const count = dmCh ? (unreadCounts[dmCh.id] || 0) : 0;
+                        return count > 0 ? (
+                          <span style={{
+                            minWidth: "20px", height: "20px", borderRadius: "10px",
+                            background: "#CC3333", color: "#FFFFFF", fontSize: "11px",
+                            fontWeight: "bold", display: "flex", alignItems: "center",
+                            justifyContent: "center", padding: "0 6px", flexShrink: 0,
+                          }}>
+                            {count > 99 ? "99+" : count}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                     );
                   })}
