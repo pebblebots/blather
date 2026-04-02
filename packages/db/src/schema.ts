@@ -16,6 +16,7 @@ export const users = pgTable('users', {
   voice: varchar('voice', { length: 255 }),
   bio: text('bio'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
