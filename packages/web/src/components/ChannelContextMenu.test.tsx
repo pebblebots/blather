@@ -11,6 +11,7 @@ function renderMenu(channelOverrides?: Partial<Parameters<typeof ChannelContextM
   const onArchive = vi.fn();
   const onDelete = vi.fn();
   const onInvite = vi.fn();
+  const onToggleMute = vi.fn();
 
   render(
     <ChannelContextMenu
@@ -26,10 +27,11 @@ function renderMenu(channelOverrides?: Partial<Parameters<typeof ChannelContextM
       onArchive={onArchive}
       onDelete={onDelete}
       onInvite={onInvite}
+      onToggleMute={onToggleMute}
     />
   );
 
-  return { onClose, onArchive, onDelete, onInvite };
+  return { onClose, onArchive, onDelete, onInvite, onToggleMute };
 }
 
 describe('ChannelContextMenu', () => {

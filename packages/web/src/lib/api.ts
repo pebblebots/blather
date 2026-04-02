@@ -75,6 +75,12 @@ export const api = {
   archiveChannel: (channelId: string) =>
     request<any>(`/channels/${channelId}/archive`, { method: 'PATCH' }),
 
+  muteChannel: (channelId: string) =>
+    request<{ ok: boolean; muted: boolean }>(`/channels/${channelId}/mute`, { method: 'PATCH' }),
+
+  unmuteChannel: (channelId: string) =>
+    request<{ ok: boolean; muted: boolean }>(`/channels/${channelId}/unmute`, { method: 'PATCH' }),
+
   sendTyping: (channelId: string) =>
     request<{ ok: boolean }>(`/channels/${channelId}/typing`, { method: 'POST' }),
 

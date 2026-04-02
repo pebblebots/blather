@@ -39,14 +39,40 @@ channelRoutes.get('/', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
 
-  // Get public non-archived channels
-  const publicChannels = await db.select().from(channels).where(
-    and(eq(channels.channelType, 'public'), eq(channels.archived, false))
-  );
+  // Get public non-archived channels with muted status
+  const publicChannels = await db
+    .select({
+      id: channels.id,
+      name: channels.name,
+      slug: channels.slug,
+      channelType: channels.channelType,
+      isDefault: channels.isDefault,
+      topic: channels.topic,
+      createdBy: channels.createdBy,
+      createdAt: channels.createdAt,
+      archived: channels.archived,
+      muted: channelMembers.muted,
+    })
+    .from(channels)
+    .leftJoin(channelMembers, and(eq(channelMembers.channelId, channels.id), eq(channelMembers.userId, userId)))
+    .where(
+      and(eq(channels.channelType, 'public'), eq(channels.archived, false))
+    );
 
   // Get private channels the user is a member of (non-archived)
   const privateChannelRows = await db
-    .select({ channel: channels })
+    .select({
+      id: channels.id,
+      name: channels.name,
+      slug: channels.slug,
+      channelType: channels.channelType,
+      isDefault: channels.isDefault,
+      topic: channels.topic,
+      createdBy: channels.createdBy,
+      createdAt: channels.createdAt,
+      archived: channels.archived,
+      muted: channelMembers.muted,
+    })
     .from(channelMembers)
     .innerJoin(channels, eq(channels.id, channelMembers.channelId))
     .where(
@@ -59,7 +85,18 @@ channelRoutes.get('/', async (c) => {
 
   // Get DM channels the user is a member of
   const dmChannelRows = await db
-    .select({ channel: channels })
+    .select({
+      id: channels.id,
+      name: channels.name,
+      slug: channels.slug,
+      channelType: channels.channelType,
+      isDefault: channels.isDefault,
+      topic: channels.topic,
+      createdBy: channels.createdBy,
+      createdAt: channels.createdAt,
+      archived: channels.archived,
+      muted: channelMembers.muted,
+    })
     .from(channelMembers)
     .innerJoin(channels, eq(channels.id, channelMembers.channelId))
     .where(
@@ -69,7 +106,11 @@ channelRoutes.get('/', async (c) => {
       )
     );
 
-  const result = [...publicChannels, ...privateChannelRows.map(r => r.channel), ...dmChannelRows.map(r => r.channel)];
+  const result = [
+    ...publicChannels.map(r => ({ ...r, muted: r.muted ?? false })),
+    ...privateChannelRows.map(r => ({ ...r, muted: r.muted ?? false })),
+    ...dmChannelRows.map(r => ({ ...r, muted: r.muted ?? false })),
+  ];
   return c.json(result);
 });
 
@@ -221,6 +262,7 @@ channelRoutes.get('/unread', async (c) => {
             end`
       )
     )
+    .where(eq(channelMembers.muted, false))
     .groupBy(channels.id)
     .having(sql`count(${messages.id}) > 0`);
 
@@ -793,6 +835,36 @@ channelRoutes.patch('/:id/archive', async (c) => {
   });
 
   return c.json(updated);
+});
+
+// Mute channel
+channelRoutes.patch('/:id/mute', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = await resolveChannel(db, c.req.param('id'));
+  if (!channelId) return c.json({ error: 'Channel not found' }, 404);
+
+  await db.insert(channelMembers).values({ channelId, userId, muted: true })
+    .onConflictDoNothing();
+  await db.update(channelMembers)
+    .set({ muted: true })
+    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)));
+
+  return c.json({ ok: true, muted: true });
+});
+
+// Unmute channel
+channelRoutes.patch('/:id/unmute', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = await resolveChannel(db, c.req.param('id'));
+  if (!channelId) return c.json({ error: 'Channel not found' }, 404);
+
+  await db.update(channelMembers)
+    .set({ muted: false })
+    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)));
+
+  return c.json({ ok: true, muted: false });
 });
 
 // Get channel members

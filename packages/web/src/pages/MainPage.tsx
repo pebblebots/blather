@@ -458,6 +458,17 @@ export function MainPage() {
     setContextMenu({ x: e.clientX, y: e.clientY, channel: ch });
   };
 
+  const handleToggleMute = async (channelId: string, mute: boolean) => {
+    try {
+      if (mute) {
+        await api.muteChannel(channelId);
+      } else {
+        await api.unmuteChannel(channelId);
+      }
+      setChannels((prev) => prev.map((ch) => ch.id === channelId ? { ...ch, muted: mute } : ch));
+    } catch (e: any) { alert(e.message || 'Failed to toggle mute'); }
+  };
+
   // Keyboard shortcut: Cmd+K or Ctrl+K to open search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -707,9 +718,9 @@ export function MainPage() {
                     {channels.filter(ch => ch.channelType !== 'dm').map((ch) => (
                       <div
                         key={ch.id}
-                        onClick={() => { 
-                          setSelectedCh(ch.id); 
-                          setShowTasks(false); 
+                        onClick={() => {
+                          setSelectedCh(ch.id);
+                          setShowTasks(false);
                           setIsSidebarOpen(false);
                         }}
                         onContextMenu={(e) => handleChannelContextMenu(e, ch)}
@@ -718,7 +729,7 @@ export function MainPage() {
                           fontSize: '16px',
                           cursor: 'pointer',
                           background: ch.id === selectedCh ? '#3366CC' : 'transparent',
-                          color: ch.id === selectedCh ? '#FFFFFF' : '#000000',
+                          color: ch.id === selectedCh ? '#FFFFFF' : (ch.muted ? '#999999' : '#000000'),
                           borderRadius: '8px',
                           marginBottom: '4px',
                           minHeight: '44px',
@@ -727,8 +738,8 @@ export function MainPage() {
                           justifyContent: 'space-between',
                         }}
                       >
-                        <span>💬 # {ch.name} {ch.channelType === 'private' && '🔒'}</span>
-                        {unreadCounts[ch.id] > 0 && (
+                        <span>💬 # {ch.name} {ch.channelType === 'private' && '🔒'}{ch.muted && ' 🔇'}</span>
+                        {!ch.muted && unreadCounts[ch.id] > 0 && (
                           <span style={{
                             minWidth: '20px',
                             height: '20px',
@@ -900,6 +911,7 @@ export function MainPage() {
             onArchive={handleArchiveChannel}
             onDelete={handleDeleteChannel}
             onInvite={(id) => setInviteChannelId(id)}
+            onToggleMute={handleToggleMute}
           />
         )}
         {inviteChannelId && (
@@ -1051,15 +1063,15 @@ export function MainPage() {
                         fontSize: 12,
                         cursor: 'pointer',
                         background: ch.id === selectedCh ? '#3366CC' : 'transparent',
-                        color: ch.id === selectedCh ? '#FFFFFF' : '#000000',
+                        color: ch.id === selectedCh ? '#FFFFFF' : (ch.muted ? '#999999' : '#000000'),
                         borderRadius: 2,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                       }}
                     >
-                      💬 # {ch.name} {ch.channelType === 'private' && '🔒'}
-                      {unreadCounts[ch.id] > 0 && (
+                      💬 # {ch.name} {ch.channelType === 'private' && '🔒'}{ch.muted && ' 🔇'}
+                      {!ch.muted && unreadCounts[ch.id] > 0 && (
                         <span style={{
                           display: 'inline-block',
                           marginLeft: 4,
@@ -1272,6 +1284,7 @@ export function MainPage() {
           onArchive={handleArchiveChannel}
           onDelete={handleDeleteChannel}
           onInvite={(id) => setInviteChannelId(id)}
+          onToggleMute={handleToggleMute}
         />
       )}
       {inviteChannelId && (

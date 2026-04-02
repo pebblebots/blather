@@ -1,0 +1,1 @@
+ALTER TABLE channel_members ADD COLUMN muted BOOLEAN NOT NULL DEFAULT false;

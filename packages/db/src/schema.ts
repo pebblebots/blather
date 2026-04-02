@@ -64,6 +64,7 @@ export const channelMembers = pgTable('channel_members', {
   channelId: uuid('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+  muted: boolean('muted').notNull().default(false),
 });
 
 // ── Messages ──

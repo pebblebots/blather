@@ -2,6 +2,7 @@ interface Channel {
   id: string;
   channelType: string;
   isDefault?: boolean;
+  muted?: boolean;
 }
 
 interface ChannelContextMenuProps {
@@ -12,6 +13,7 @@ interface ChannelContextMenuProps {
   onArchive: (channelId: string) => void;
   onDelete: (channelId: string) => void;
   onInvite: (channelId: string) => void;
+  onToggleMute: (channelId: string, muted: boolean) => void;
 }
 
 const menuStyle: React.CSSProperties = {
@@ -66,7 +68,7 @@ function ChannelMenuItem({
   );
 }
 
-export function ChannelContextMenu({ x, y, channel, onClose, onArchive, onDelete, onInvite }: ChannelContextMenuProps) {
+export function ChannelContextMenu({ x, y, channel, onClose, onArchive, onDelete, onInvite, onToggleMute }: ChannelContextMenuProps) {
   const isPrivateChannel = channel.channelType === 'private';
 
   return (
@@ -82,6 +84,14 @@ export function ChannelContextMenu({ x, y, channel, onClose, onArchive, onDelete
         }}
       />
       <div role="menu" aria-label={`Actions for channel ${channel.id}`} style={{ ...menuStyle, left: x, top: y }}>
+        <ChannelMenuItem
+          label={channel.muted ? '🔔 Unmute Channel' : '🔇 Mute Channel'}
+          onSelect={() => {
+            onToggleMute(channel.id, !channel.muted);
+            onClose();
+          }}
+        />
+        <hr style={{ margin: '2px 0', border: 'none', borderTop: '1px solid #CCCCCC' }} />
         <ChannelMenuItem
           label="📦 Archive Channel"
           disabled={Boolean(channel.isDefault)}
