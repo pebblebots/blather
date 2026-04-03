@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
 
+console.log("[storage] SUPABASE_URL:", SUPABASE_URL ? "set" : "NOT SET");
+console.log("[storage] SUPABASE_SERVICE_KEY:", SUPABASE_SERVICE_KEY ? "set" : "NOT SET");
+
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.warn("[WARN] SUPABASE_URL and SUPABASE_SERVICE_KEY not set — file uploads will use local filesystem");
 }
