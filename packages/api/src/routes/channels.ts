@@ -870,8 +870,20 @@ channelRoutes.patch('/:id/unmute', async (c) => {
 // Get channel members
 channelRoutes.get('/:id/members', async (c) => {
   const db = c.get('db');
+  const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
+
+  // For private/dm channels, only members can see the member list
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
+  if (channel.channelType === 'dm' || channel.channelType === 'private') {
+    const [membership] = await db.select().from(channelMembers)
+      .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+      .limit(1);
+    if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
+  }
 
   const members = await db
     .select({ id: users.id, displayName: users.displayName, email: users.email })
