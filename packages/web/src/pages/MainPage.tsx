@@ -855,7 +855,7 @@ export function MainPage() {
                             return count > 0 ? (
                               <span style={{
                                 minWidth: "20px", height: "20px", borderRadius: "10px",
-                                background: "#CC3333", color: "#FFFFFF", fontSize: "11px",
+                                background: status === "offline" ? "#AAAAAA" : "#CC3333", color: "#FFFFFF", fontSize: "11px",
                                 fontWeight: "bold", display: "flex", alignItems: "center",
                                 justifyContent: "center", padding: "0 6px", flexShrink: 0,
                               }}>
@@ -1208,7 +1208,7 @@ export function MainPage() {
                         return count > 0 ? (
                           <span style={{
                             minWidth: "20px", height: "20px", borderRadius: "10px",
-                            background: "#CC3333", color: "#FFFFFF", fontSize: "11px",
+                            background: status === 'offline' ? "#AAAAAA" : "#CC3333", color: "#FFFFFF", fontSize: "11px",
                             fontWeight: "bold", display: "flex", alignItems: "center",
                             justifyContent: "center", padding: "0 6px", flexShrink: 0,
                           }}>
