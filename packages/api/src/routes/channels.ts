@@ -430,7 +430,7 @@ const EXACT_ERROR_PATTERNS = [
   /^rate.?limit.?(error|exceeded)/i,
   /^quota.?exceeded/i,
   /^network connection error\.?$/i,
-  /^AI service is temporarily overloaded/i,
+  /^(The )?AI service is temporarily overloaded/i,
   /^Please try again in a moment/i,
   /^This request would exceed/i,
   /^\d{3}\s+\S+.*is not a valid model/i,
