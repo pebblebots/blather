@@ -6,12 +6,14 @@ import { randomUUID } from "crypto";
 import { ReadableStream } from "stream/web";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { supabase, ATTACHMENT_BUCKET } from "../storage.js";
 
 const UPLOAD_DIR = process.env.BLATHER_UPLOAD_DIR || join(process.env.HOME || "/home/code", "blather", "uploads");
 const TTS_DIR = process.env.BLATHER_TTS_DIR || join(UPLOAD_DIR, "tts");
-const MAX_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB — tightened from 25MB
 const ALLOWED_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp",
+  "video/mp4", "video/webm",
   "application/pdf", "text/plain",
 ]);
 const MIME_TYPES: Record<string, string> = {
@@ -20,6 +22,8 @@ const MIME_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".gif": "image/gif",
   ".webp": "image/webp",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
   ".pdf": "application/pdf",
   ".txt": "text/plain",
 };
@@ -60,10 +64,9 @@ uploadRoutes.post("/", authMiddleware, async (c) => {
     return c.json({ error: "No file uploaded" }, 400);
   }
 
-  // file is a File object
   const f = file as File;
   if (f.size > MAX_SIZE) {
-    return c.json({ error: "File too large (max 25MB)" }, 400);
+    return c.json({ error: `File too large (max ${Math.round(MAX_SIZE / 1024 / 1024)}MB)` }, 400);
   }
   if (!ALLOWED_TYPES.has(f.type)) {
     return c.json({ error: `Content type not allowed: ${f.type}` }, 400);
@@ -71,10 +74,40 @@ uploadRoutes.post("/", authMiddleware, async (c) => {
 
   const ext = extname(f.name) || "";
   const uniqueName = `${randomUUID()}${ext}`;
+
+  // Try Supabase Storage first, fall back to filesystem
+  if (supabase) {
+    const arrayBuffer = await f.arrayBuffer();
+    const { data, error } = await supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .upload(uniqueName, arrayBuffer, {
+        contentType: f.type,
+        cacheControl: "31536000",
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("[upload] Supabase upload error:", error.message);
+      return c.json({ error: "Upload failed" }, 500);
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .getPublicUrl(uniqueName);
+
+    return c.json({
+      url: urlData.publicUrl,
+      filename: f.name,
+      contentType: f.type,
+      size: f.size,
+    }, 201);
+  }
+
+  // Fallback: filesystem storage
   const filePath = join(UPLOAD_DIR, uniqueName);
   const buffer = Buffer.from(await f.arrayBuffer());
   await writeFile(filePath, buffer);
-
   const url = `/uploads/${uniqueName}`;
   return c.json({ url, filename: f.name, contentType: f.type, size: f.size }, 201);
 });
