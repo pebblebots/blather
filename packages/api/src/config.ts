@@ -1,18 +1,33 @@
 import { randomBytes } from 'node:crypto';
+import { loadSecrets, type AppConfig } from './secrets.js';
 
-const DEFAULT_JWT_SECRET = 'blather-dev-secret-change-in-production';
-const isProduction = process.env.NODE_ENV === 'production';
+// Global config loaded once at startup
+let appConfig: AppConfig | null = null;
 
-if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_JWT_SECRET)) {
-  console.error('[FATAL] JWT_SECRET must be set in production. Exiting.');
-  process.exit(1);
+/**
+ * Initialize configuration - call this once at application startup
+ */
+export async function initializeConfig(): Promise<AppConfig> {
+  if (appConfig) {
+    return appConfig;
+  }
+  
+  appConfig = await loadSecrets();
+  return appConfig;
 }
 
-export const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
-
-if (JWT_SECRET === DEFAULT_JWT_SECRET) {
-  console.warn('[WARN] Using default JWT_SECRET — set JWT_SECRET env var in production');
+/**
+ * Get the current configuration (must call initializeConfig first)
+ */
+export function getConfig(): AppConfig {
+  if (!appConfig) {
+    throw new Error('Configuration not initialized. Call initializeConfig() first.');
+  }
+  return appConfig;
 }
+
+// Backward compatibility - remove this once all code is updated
+export const JWT_SECRET = process.env.JWT_SECRET || 'blather-dev-secret-change-in-production';
 
 export function generateJwtSecret(): string {
   return randomBytes(32).toString('hex');

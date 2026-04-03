@@ -1,0 +1,5 @@
+# Ignore all service account keys and sensitive config
+*.json
+*.key
+*.pem
+!.gitignore

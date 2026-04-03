@@ -13,3 +13,8 @@ ecosystem.config.cjs
 
 # Uploaded files (TTS, attachments)
 uploads/
+
+# GCP service account keys and sensitive config
+config/*.json
+config/*.key
+config/*.pem
