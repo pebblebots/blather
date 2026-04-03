@@ -23,7 +23,8 @@
   "scripts": {
     "bla": "node packages/cli/dist/index.js",
     "test": "pnpm -r --if-present test",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build": "pnpm -r build"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
