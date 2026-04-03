@@ -422,7 +422,7 @@ channelRoutes.get('/:id/messages', async (c) => {
 // while still allowing legitimate technical discussion about debugging.
 
 const EXACT_ERROR_PATTERNS = [
-  /^LLM request failed:/i,
+  /^LLM request (failed|rejected|error)/i,
   /^LLM error/i,
   /^API error/i,
   /^Internal server error\.?$/i,
@@ -433,6 +433,8 @@ const EXACT_ERROR_PATTERNS = [
   /^AI service is temporarily overloaded/i,
   /^Please try again in a moment/i,
   /^This request would exceed/i,
+  /^\d{3}\s+\S+.*is not a valid model/i,
+  /^\d{3}\s+.*(error|failed|invalid|unauthorized|forbidden)/i,
 ];
 
 const API_ERROR_PATTERN = /\b(429|500|502|503)\b.*\b(rate[_ ]?limit|quota|error|exceeded|overloaded)\b|\b(rate[_ ]?limit[_ ]?error|rate[_ ]?limit[_ ]?exceeded|quota[_ ]?exceeded|over[_ ]?quota|internal[_ ]?server[_ ]?error|anthropic|openai)\b.*\b(429|500|502|503|error|exceeded)\b|\bHTTP\s*(4\d\d|5\d\d)\b|\b(rate_limit_error|quota_exceeded|insufficient_quota|server_error|overloaded_error)\b|\bAPI\s+rate\s+limit\b|\brate\s+limit\s+reached\b|LLM (request failed|error)|api_error|request_id:|authentication_error|permission_error|invalid_request_error|not_found_error|network connection error/i;
