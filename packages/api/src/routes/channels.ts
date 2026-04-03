@@ -784,6 +784,9 @@ channelRoutes.post('/:id/members', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
+  // DM channels are strictly 2-person — no invites allowed
+  if (channel.channelType === 'dm') return c.json({ error: 'Cannot add members to DM channels' }, 403);
+
   // Only members can invite
   const [membership] = await db.select().from(channelMembers)
     .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
