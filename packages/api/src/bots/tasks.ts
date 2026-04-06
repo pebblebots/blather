@@ -1,7 +1,15 @@
-import { eq, and, sql, ne } from 'drizzle-orm';
-import { tasks, users, messages, channels, channelMembers } from '@blather/db';
+import { eq, and } from 'drizzle-orm';
+import { users, messages, channels, channelMembers } from '@blather/db';
 import type { Db } from '@blather/db';
 import { emitEvent } from '../ws/events.js';
+import {
+  createTask,
+  updateTask,
+  resolveTask,
+  findTaskByTitle,
+  listOpenTasksWithCommentCount,
+  addComment,
+} from '../tasks/queries.js';
 
 const BOT_EMAIL = 'tasks@system.blather';
 
@@ -72,23 +80,7 @@ async function postBotMessage(db: Db, channelId: string, content: string, thread
   return msg;
 }
 
-async function resolveTask(db: Db, token: string) {
-  const shortMatch = token.match(/^T#?(\d+)$/i) || token.match(/^(\d+)$/);
-  if (shortMatch) {
-    const n = parseInt(shortMatch[1], 10);
-    const found = await db.select().from(tasks)
-      .where(sql`${tasks.shortId} = ${n}`)
-      .limit(1);
-    if (found.length > 0) return found[0];
-  }
-  const found = await db.select().from(tasks)
-    .where(sql`${tasks.id}::text LIKE ${token + '%'}`)
-    .limit(1);
-  if (found.length > 0) return found[0];
-  return null;
-}
-
-function formatTaskId(task: any): string {
+function formatTaskId(task: { shortId: number | null; id: string }): string {
   return task.shortId ? `T#${task.shortId}` : task.id.slice(0, 8);
 }
 
@@ -120,15 +112,7 @@ export async function handleTasksCommand(db: Db, channelId: string, content: str
 }
 
 async function cmdList(db: Db, channelId: string, threadId?: string | null) {
-  const result = await db.execute(sql`
-    SELECT t.*, COALESCE(c.cnt, 0) AS comments_count
-    FROM tasks t
-    LEFT JOIN (SELECT task_id, count(*) AS cnt FROM task_comments GROUP BY task_id) c ON c.task_id = t.id
-    WHERE t.status != 'done'
-    ORDER BY CASE WHEN t.priority = 'urgent' THEN 0 WHEN t.priority = 'normal' THEN 1 ELSE 2 END, t.created_at DESC
-  `);
-
-  const rows: any[] = (result as any).rows || result as any;
+  const rows = listOpenTasksWithCommentCount();
 
   if (rows.length === 0) {
     await postBotMessage(db, channelId, '✅ No open tasks! All clear.', threadId);
@@ -138,9 +122,9 @@ async function cmdList(db: Db, channelId: string, threadId?: string | null) {
   const priorityEmoji: Record<string, string> = { urgent: '🔴', normal: '🟡', low: '🟢' };
   const statusEmoji: Record<string, string> = { queued: '📋', in_progress: '🔄', done: '✅' };
 
-  const lines = rows.map((t: any, i: number) => {
-    const sid = t.short_id ? `T#${t.short_id}` : t.id.slice(0, 8);
-    const comments = parseInt(t.comments_count) > 0 ? ` 💬${t.comments_count}` : '';
+  const lines = rows.map((t, i) => {
+    const sid = t.shortId ? `T#${t.shortId}` : t.id.slice(0, 8);
+    const comments = t.commentsCount > 0 ? ` 💬${t.commentsCount}` : '';
     return `${i + 1}. ${priorityEmoji[t.priority] || '⚪'} ${statusEmoji[t.status] || '❓'} **${t.title}** \`${sid}\`${comments}`;
   });
 
@@ -166,14 +150,14 @@ async function cmdAdd(db: Db, channelId: string, args: string[], threadId?: stri
   }
 
   const uid = await ensureBotUser(db);
-  const [task] = await db.insert(tasks).values({
+  const task = createTask({
     title,
     priority,
     creatorId: uid,
     sourceChannelId: channelId,
-  } as any).returning();
+  });
 
-  const sid = (task as any).shortId ? `T#${(task as any).shortId}` : task.id.slice(0, 8);
+  const sid = formatTaskId(task);
   const emoji = priority === 'urgent' ? '🔴' : priority === 'low' ? '🟢' : '🟡';
   await postBotMessage(db, channelId, `${emoji} Task created: **${title}** \`${sid}\``, threadId);
 }
@@ -184,16 +168,10 @@ async function cmdDone(db: Db, channelId: string, query: string, threadId?: stri
     return;
   }
 
-  let task = await resolveTask(db, query.trim());
+  let task = resolveTask(query.trim());
 
   if (!task) {
-    const found = await db.select().from(tasks)
-      .where(and(
-        ne(tasks.status, 'done'),
-        sql`lower(${tasks.title}) LIKE ${'%' + query.toLowerCase() + '%'}`
-      ))
-      .limit(1);
-    if (found.length > 0) task = found[0];
+    task = findTaskByTitle(query, { excludeStatus: 'done' });
   }
 
   if (!task) {
@@ -202,10 +180,8 @@ async function cmdDone(db: Db, channelId: string, query: string, threadId?: stri
   }
 
   const prevStatus = task.status;
-  const [updated] = await db.update(tasks)
-    .set({ status: 'done', updatedAt: new Date() })
-    .where(eq(tasks.id, task.id))
-    .returning();
+  const updated = updateTask(task.id, { status: 'done' });
+  if (!updated) return;
 
   const sid = formatTaskId(updated);
   await postBotMessage(db, channelId, `✅ Done: **${updated.title}** \`${sid}\``, threadId);
@@ -218,13 +194,9 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
     return;
   }
 
-  let task = await resolveTask(db, query.trim());
+  let task = resolveTask(query.trim());
   if (!task) {
-    const found = await db.select().from(tasks)
-      .where(and(eq(tasks.status, 'queued'),
-        sql`lower(${tasks.title}) LIKE ${'%' + query.toLowerCase() + '%'}`))
-      .limit(1);
-    if (found.length > 0) task = found[0];
+    task = findTaskByTitle(query, { requiredStatus: 'queued' });
   }
 
   if (!task) {
@@ -233,10 +205,8 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
   }
 
   const prevStatus = task.status;
-  const [updated] = await db.update(tasks)
-    .set({ status: 'in_progress' as any, updatedAt: new Date(), assigneeId: userId || null })
-    .where(eq(tasks.id, task.id))
-    .returning();
+  const updated = updateTask(task.id, { status: 'in_progress', assigneeId: userId ?? null });
+  if (!updated) return;
 
   const sid = formatTaskId(updated);
   await postBotMessage(db, channelId, `🔄 Started: **${updated.title}** \`${sid}\``, threadId);
@@ -249,7 +219,7 @@ async function cmdComment(db: Db, channelId: string, args: string[], threadId?: 
     return;
   }
 
-  const task = await resolveTask(db, args[0]);
+  const task = resolveTask(args[0]);
   if (!task) {
     await postBotMessage(db, channelId, `❌ No task found matching "${args[0]}"`, threadId);
     return;
@@ -261,8 +231,8 @@ async function cmdComment(db: Db, channelId: string, args: string[], threadId?: 
     return;
   }
 
-  const commentUserId = userId || await ensureBotUser(db);
-  await db.execute(sql`INSERT INTO task_comments (task_id, user_id, content) VALUES (${task.id}, ${commentUserId}, ${commentText})`);
+  const commentUserId = userId ?? await ensureBotUser(db);
+  addComment(task.id, commentUserId, commentText);
 
   const sid = formatTaskId(task);
   await postBotMessage(db, channelId, `💬 Comment added to **${task.title}** \`${sid}\``, threadId);

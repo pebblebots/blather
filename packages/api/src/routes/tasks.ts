@@ -1,14 +1,25 @@
 import { logAgentActivity, isAgentUser } from "./activity.js";
 import { Hono } from 'hono';
-import { eq, and, desc } from 'drizzle-orm';
-import { tasks, taskComments, users } from '@blather/db';
+import { inArray } from 'drizzle-orm';
+import { users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
+import {
+  listTasks,
+  createTask,
+  getTask,
+  updateTask,
+  deleteTask,
+  listComments,
+  addComment,
+  getComment,
+  deleteComment,
+} from '../tasks/queries.js';
+import type { TaskStatus, TaskPriority } from '../tasks/queries.js';
 
 export const taskRoutes = new Hono<Env>();
 taskRoutes.use('*', authMiddleware);
 
-type TaskStatus = 'queued' | 'in_progress' | 'done';
 const VALID_STATUSES: TaskStatus[] = ['queued', 'in_progress', 'done'];
 
 function normalizeStatus(s: string): TaskStatus {
@@ -19,19 +30,15 @@ function normalizeStatus(s: string): TaskStatus {
 
 // List tasks
 taskRoutes.get('/', async (c) => {
-  const db = c.get('db');
-
-  const conditions: any[] = [];
   const status = c.req.query('status');
-  if (status) conditions.push(eq(tasks.status, normalizeStatus(status)));
   const priority = c.req.query('priority');
-  if (priority) conditions.push(eq(tasks.priority, priority as any));
   const assignee = c.req.query('assigneeId');
-  if (assignee) conditions.push(eq(tasks.assigneeId, assignee));
 
-  const result = await db.select().from(tasks)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(tasks.createdAt));
+  const result = listTasks({
+    status: status ? normalizeStatus(status) : undefined,
+    priority: priority as TaskPriority | undefined,
+    assigneeId: assignee,
+  });
 
   return c.json(result);
 });
@@ -43,7 +50,7 @@ taskRoutes.post('/', async (c) => {
   const body = await c.req.json<{
     title: string;
     description?: string;
-    priority?: 'urgent' | 'normal' | 'low';
+    priority?: TaskPriority;
     assigneeId?: string;
     sourceChannelId?: string;
   }>();
@@ -52,14 +59,14 @@ taskRoutes.post('/', async (c) => {
     return c.json({ error: 'title required' }, 400);
   }
 
-  const [task] = await db.insert(tasks).values({
+  const task = createTask({
     title: body.title,
     description: body.description ?? null,
     priority: body.priority ?? 'normal',
     assigneeId: body.assigneeId ?? null,
     creatorId: userId,
     sourceChannelId: body.sourceChannelId ?? null,
-  } as any).returning();
+  });
 
   // Auto-log agent task creation (fire-and-forget)
   isAgentUser(db, userId).then(isAgent => {
@@ -68,6 +75,7 @@ taskRoutes.post('/', async (c) => {
       metadata: { taskId: task.id, title: task.title, shortId: task.shortId },
     });
   }).catch(() => {});
+
   return c.json(task, 201);
 });
 
@@ -79,28 +87,34 @@ taskRoutes.patch('/:id', async (c) => {
   const body = await c.req.json<{
     title?: string;
     description?: string | null;
-    priority?: 'urgent' | 'normal' | 'low';
-    status?: 'queued' | 'in_progress' | 'done';
+    priority?: TaskPriority;
+    status?: string;
     assigneeId?: string | null;
   }>();
 
   // Fetch current task for status comparison
-  const [existing] = await db.select().from(tasks).where(eq(tasks.id, id));
+  const existing = getTask(id);
   if (!existing) return c.json({ error: 'Task not found' }, 404);
 
-  const updates: any = { updatedAt: new Date() };
+  const updates: {
+    title?: string;
+    description?: string | null;
+    priority?: TaskPriority;
+    status?: TaskStatus;
+    assigneeId?: string | null;
+  } = {};
   if (body.title !== undefined) updates.title = body.title;
   if (body.description !== undefined) updates.description = body.description;
   if (body.priority !== undefined) updates.priority = body.priority;
   if (body.status !== undefined) updates.status = normalizeStatus(body.status);
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
 
-  const [task] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
+  const task = updateTask(id, updates);
+  if (!task) return c.json({ error: 'Task not found' }, 404);
 
   // Status change notification
   if (body.status !== undefined && normalizeStatus(body.status) !== existing.status) {
-    const sourceChannelId = existing.sourceChannelId;
-    if (sourceChannelId) {
+    if (existing.sourceChannelId) {
       try {
         const { notifyStatusChange } = await import('../bots/tasks.js');
         await notifyStatusChange(db, task, existing.status, normalizeStatus(body.status), userId);
@@ -119,17 +133,15 @@ taskRoutes.patch('/:id', async (c) => {
       metadata: { taskId: task.id, title: task.title, shortId: task.shortId, status: body.status },
     });
   }).catch(() => {});
+
   return c.json(task);
 });
 
 // Delete task
 taskRoutes.delete('/:id', async (c) => {
-  const db = c.get('db');
   const id = c.req.param('id');
-
-  const [task] = await db.delete(tasks).where(eq(tasks.id, id)).returning();
-  if (!task) return c.json({ error: 'Task not found' }, 404);
-
+  const deleted = deleteTask(id);
+  if (!deleted) return c.json({ error: 'Task not found' }, 404);
   return c.json({ ok: true });
 });
 
@@ -140,25 +152,31 @@ taskRoutes.get('/:taskId/comments', async (c) => {
   const db = c.get('db');
   const taskId = c.req.param('taskId');
 
-  const result = await db.select({
-    id: taskComments.id,
-    taskId: taskComments.taskId,
-    userId: taskComments.userId,
-    content: taskComments.content,
-    createdAt: taskComments.createdAt,
-    userDisplayName: users.displayName,
-  })
-    .from(taskComments)
-    .leftJoin(users, eq(taskComments.userId, users.id))
-    .where(eq(taskComments.taskId, taskId))
-    .orderBy(taskComments.createdAt);
+  const comments = listComments(taskId);
+
+  // Look up user display names from Postgres
+  const userIds = [...new Set(comments.map(cm => cm.userId))];
+  const userMap = new Map<string, string>();
+  if (userIds.length > 0) {
+    const userRows = await db
+      .select({ id: users.id, displayName: users.displayName })
+      .from(users)
+      .where(inArray(users.id, userIds));
+    for (const u of userRows) {
+      userMap.set(u.id, u.displayName);
+    }
+  }
+
+  const result = comments.map(comment => ({
+    ...comment,
+    userDisplayName: userMap.get(comment.userId) ?? null,
+  }));
 
   return c.json(result);
 });
 
 // Add comment
 taskRoutes.post('/:taskId/comments', async (c) => {
-  const db = c.get('db');
   const userId = c.get('userId');
   const taskId = c.req.param('taskId');
   const body = await c.req.json<{ content: string }>();
@@ -168,28 +186,22 @@ taskRoutes.post('/:taskId/comments', async (c) => {
   }
 
   // Verify task exists
-  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+  const task = getTask(taskId);
   if (!task) return c.json({ error: 'Task not found' }, 404);
 
-  const [comment] = await db.insert(taskComments).values({
-    taskId,
-    userId,
-    content: body.content.trim(),
-  }).returning();
-
+  const comment = addComment(taskId, userId, body.content.trim());
   return c.json(comment, 201);
 });
 
 // Delete comment (only by author)
 taskRoutes.delete('/:taskId/comments/:commentId', async (c) => {
-  const db = c.get('db');
   const userId = c.get('userId');
   const commentId = c.req.param('commentId');
 
-  const [comment] = await db.select().from(taskComments).where(eq(taskComments.id, commentId));
+  const comment = getComment(commentId);
   if (!comment) return c.json({ error: 'Comment not found' }, 404);
   if (comment.userId !== userId) return c.json({ error: 'Not authorized' }, 403);
 
-  await db.delete(taskComments).where(eq(taskComments.id, commentId));
+  deleteComment(commentId);
   return c.json({ ok: true });
 });
