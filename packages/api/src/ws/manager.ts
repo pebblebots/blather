@@ -232,7 +232,7 @@ function setupAuthedClient(ws: WebSocket, userId: string) {
 
   ws.send(JSON.stringify({ type: 'connected', userId }));
 
-  ws.on('pong', () => { client.alive = true; });
+  ws.on('pong', () => { client.alive = true; client.lastActivity = Date.now(); });
   ws.on('close', () => removeClient(client));
   ws.on('error', () => removeClient(client));
 
