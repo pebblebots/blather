@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
-import { getNickColor, formatTime } from '../lib/chatUtils';
+import { getNickColor, formatTimestamp } from '../lib/chatUtils';
 import { MarkdownText } from './MarkdownText';
 
 /** Minimal message shape used by ThreadPanel. */
@@ -79,7 +79,7 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
         borderBottom: isParent ? '1px solid #CCCCCC' : 'none',
         marginBottom: isParent ? 4 : 0,
       }}>
-        <span style={{ color: '#999999', fontSize: 11 }}>[{formatTime(msg.createdAt)}]</span>
+        <span style={{ color: '#999999', fontSize: 11 }}>[{formatTimestamp(msg.createdAt)}]</span>
         {' '}
         <span style={{ fontWeight: 'bold', color: nickColor, fontSize: 12 }}>&lt;{user.displayName}&gt;</span>
         {' '}

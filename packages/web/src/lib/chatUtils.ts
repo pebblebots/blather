@@ -19,3 +19,41 @@ export function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+
+/** Format an ISO timestamp with smart date context: "Today HH:MM", "Yesterday HH:MM", or "Mon DD HH:MM". */
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.floor((today.getTime() - msgDay.getTime()) / 86400000);
+
+  if (diffDays === 0) return time;
+  if (diffDays === 1) return `Yesterday ${time}`;
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: "short" }) + " " + time;
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + time;
+  return d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" }) + " " + time;
+}
+
+/** Get a date key string (YYYY-MM-DD) for grouping messages by day. */
+export function getDateKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Format a date key into a human-readable label: "Today", "Yesterday", or a full date. */
+export function formatDateLabel(dateKey: string): string {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const yesterday = new Date(now.getTime() - 86400000);
+  const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+
+  if (dateKey === today) return "Today";
+  if (dateKey === yesterdayKey) return "Yesterday";
+
+  const d = new Date(dateKey + "T00:00:00");
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  return d.toLocaleDateString([], { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+}

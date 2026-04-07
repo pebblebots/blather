@@ -2,6 +2,7 @@ import { MarkdownText } from "./MarkdownText";
 import { MessageReactions, EmojiPicker } from "./MessageReactions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "../lib/urls";
+import { formatTimestamp, getDateKey, formatDateLabel } from "../lib/chatUtils";
 
 interface Msg {
   id: string;
@@ -26,12 +27,6 @@ function getNickColor(userId: string): string {
   const num = parseInt(hex, 16) >>> 0;
   return NICK_COLORS[num % NICK_COLORS.length];
 }
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
 
 function isImageType(ct: string): boolean {
   return ct.startsWith("image/");
@@ -332,21 +327,29 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
           — beginning of conversation —
         </div>
       )}
-      {messages.map((msg) => {
+      {messages.map((msg, idx) => {
         const user = usersMap.get(msg.userId) || { displayName: msg.userId.slice(0, 8), isAgent: false };
         const nickColor = getNickColor(msg.userId);
         const isOwn = msg.userId === currentUserId;
         const isHovered = hoveredMsg === msg.id;
+        const currentDateKey = getDateKey(msg.createdAt);
+        const prevDateKey = idx > 0 ? getDateKey(messages[idx - 1].createdAt) : null;
+        const showDateDivider = idx === 0 || currentDateKey !== prevDateKey;
 
         return (
+          <div key={msg.id}>
+            {showDateDivider && (
+              <div style={{ textAlign: "center", padding: "8px 0 4px", color: "#999999", fontSize: 10, fontWeight: "bold", letterSpacing: 0.5 }}>
+                <span style={{ background: "#FFFFFF", padding: "0 8px" }}>— {formatDateLabel(currentDateKey)} —</span>
+              </div>
+            )}
           <div
-            key={msg.id}
             id={`msg-${msg.id}`}
             style={{ padding: "1px 2px", lineHeight: 1.6, position: "relative", background: highlightId === msg.id ? "#FFFFAA" : isHovered ? "#F0F0F0" : "transparent", transition: "background 0.5s" }}
             onMouseEnter={() => setHoveredMsg(msg.id)}
             onMouseLeave={() => setHoveredMsg(null)}
           >
-            <span style={{ color: "#999999" }}>[{formatTime(msg.createdAt)}]</span>
+            <span style={{ color: "#999999" }}>[{formatTimestamp(msg.createdAt)}]</span>
             {" "}
             <span style={{ fontWeight: "bold", color: nickColor }}>&lt;{user.displayName}&gt;</span>
             {" "}
@@ -487,6 +490,7 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
                 >Cancel</button>
               </div>
             )}
+          </div>
           </div>
         );
       })}
