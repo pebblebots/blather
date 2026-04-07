@@ -321,12 +321,13 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
   }
 
   return (
+    <div style={{ flex: 1, position: "relative", margin: 4, minHeight: 0 }}>
     <div
       ref={containerRef}
       onScroll={handleScroll}
       className="mac-inset"
       data-testid="message-list"
-      style={{ flex: 1, overflowY: "auto", padding: 6, fontSize: 12, fontFamily: "Monaco, IBM Plex Mono, monospace", margin: 4, position: "relative" }}
+      style={{ height: "100%", overflowY: "auto", padding: 6, fontSize: 12, fontFamily: "Monaco, IBM Plex Mono, monospace" }}
     >
       {isLoadingOlder && (
         <div style={{ textAlign: "center", padding: "4px 0", color: "#999999", fontSize: 11 }}>
@@ -506,36 +507,37 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
         );
       })}
       <div ref={endRefCallback} />
-      {showJumpToLatest && (
-        <button
-          onClick={jumpToLatest}
-          aria-label="Jump to latest message"
-          title="Jump to latest message"
-          data-testid="jump-to-latest"
-          style={{
-            position: "absolute",
-            bottom: 12,
-            right: 16,
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            background: "#000000",
-            color: "#FFFFFF",
-            border: "2px solid #333333",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 16,
-            lineHeight: 1,
-            boxShadow: "2px 2px 0 rgba(0,0,0,0.3)",
-            zIndex: 20,
-            transition: "opacity 0.2s",
-          }}
-        >
-          ↓
-        </button>
-      )}
+    </div>
+    {showJumpToLatest && (
+      <button
+        onClick={jumpToLatest}
+        aria-label="Jump to latest message"
+        title="Jump to latest message"
+        data-testid="jump-to-latest"
+        style={{
+          position: "absolute",
+          bottom: 12,
+          right: 16,
+          width: 32,
+          height: 32,
+          borderRadius: "50%",
+          background: "#000000",
+          color: "#FFFFFF",
+          border: "2px solid #333333",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 16,
+          lineHeight: 1,
+          boxShadow: "2px 2px 0 rgba(0,0,0,0.3)",
+          zIndex: 20,
+          transition: "opacity 0.2s",
+        }}
+      >
+        ↓
+      </button>
+    )}
     </div>
   );
 }
