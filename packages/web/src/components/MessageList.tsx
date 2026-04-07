@@ -178,6 +178,7 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [emojiPickerMsgId, setEmojiPickerMsgId] = useState<string | null>(null);
   const skipAutoScrollRef = useRef(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   // Channel changed → scroll to bottom on next render
   if (channelId !== prevChannelIdRef.current) {
@@ -271,13 +272,23 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
-    if (!el || isLoadingOlder || !hasMoreOlder || !onLoadOlder) return;
-    if (el.scrollTop < 50) {
+    if (!el) return;
+    // Show "jump to latest" when scrolled up more than one viewport
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowJumpToLatest(distFromBottom > el.clientHeight);
+    if (!isLoadingOlder && hasMoreOlder && onLoadOlder && el.scrollTop < 50) {
       prevScrollHeightRef.current = el.scrollHeight;
       isRestoringScroll.current = true;
       onLoadOlder();
     }
   }, [isLoadingOlder, hasMoreOlder, onLoadOlder]);
+
+  const jumpToLatest = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setShowJumpToLatest(false);
+  }, []);
 
   const startEdit = (msg: Msg) => {
     setEditingMsg(msg.id);
@@ -495,6 +506,36 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
         );
       })}
       <div ref={endRefCallback} />
+      {showJumpToLatest && (
+        <button
+          onClick={jumpToLatest}
+          aria-label="Jump to latest message"
+          title="Jump to latest message"
+          data-testid="jump-to-latest"
+          style={{
+            position: "absolute",
+            bottom: 12,
+            right: 16,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            background: "#000000",
+            color: "#FFFFFF",
+            border: "2px solid #333333",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 16,
+            lineHeight: 1,
+            boxShadow: "2px 2px 0 rgba(0,0,0,0.3)",
+            zIndex: 20,
+            transition: "opacity 0.2s",
+          }}
+        >
+          ↓
+        </button>
+      )}
     </div>
   );
 }
