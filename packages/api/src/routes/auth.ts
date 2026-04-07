@@ -70,7 +70,7 @@ async function autoJoinDefaultChannels(db: Db, userId: string) {
       await db.insert(channelMembers).values({
         channelId: channel.id,
         userId,
-      });
+      }).onConflictDoNothing();
     }
   }
 

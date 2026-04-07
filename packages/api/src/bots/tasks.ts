@@ -42,7 +42,7 @@ async function ensureChannelMembership(db: Db, channelId: string, userId: string
     .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
     .limit(1);
   if (!m) {
-    await db.insert(channelMembers).values({ channelId, userId });
+    await db.insert(channelMembers).values({ channelId, userId }).onConflictDoNothing();
   }
 }
 

@@ -65,7 +65,9 @@ export const channelMembers = pgTable('channel_members', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
   muted: boolean('muted').notNull().default(false),
-});
+}, (t) => ([
+  unique('uq_channel_members_channel_user').on(t.channelId, t.userId),
+]));
 
 // ── Messages ──
 

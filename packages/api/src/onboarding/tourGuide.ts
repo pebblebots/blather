@@ -141,7 +141,7 @@ export async function sendTourGuideWelcome(
     await db.insert(channelMembers).values([
       { channelId: dmChannel.id, userId: tourGuide.id },
       { channelId: dmChannel.id, userId },
-    ]);
+    ]).onConflictDoNothing();
 
     // Emit channel.created
     await publishEvent({

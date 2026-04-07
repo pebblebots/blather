@@ -57,7 +57,7 @@ huddleRoutes.post("/", async (c) => {
     { channelId: channel.id, userId },
     ...agentIds.map(id => ({ channelId: channel.id, userId: id })),
   ];
-  await db.insert(channelMembers).values(memberValues);
+  await db.insert(channelMembers).values(memberValues).onConflictDoNothing();
 
   // Create huddle record
   const [huddle] = await db.insert(huddles).values({
@@ -154,7 +154,7 @@ huddleRoutes.post("/:id/join", async (c) => {
   // Add as listener
   await db.insert(huddleParticipants).values({ huddleId, userId, role: "listener" });
   // Ignore duplicate-key error if already a channel member
-  await db.insert(channelMembers).values({ channelId: huddle.channelId, userId }).catch(() => {});
+  await db.insert(channelMembers).values({ channelId: huddle.channelId, userId }).onConflictDoNothing();
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 

@@ -135,7 +135,7 @@ channelRoutes.post('/', async (c) => {
   const [ch] = result;
 
   // Auto-join creator
-  await db.insert(channelMembers).values({ channelId: ch.id, userId });
+  await db.insert(channelMembers).values({ channelId: ch.id, userId }).onConflictDoNothing();
 
   await emitEvent(db, {
     channelId: ch.id,
@@ -212,7 +212,7 @@ channelRoutes.post('/dm', async (c) => {
   await db.insert(channelMembers).values([
     { channelId: dmChannel.id, userId },
     { channelId: dmChannel.id, userId: body.userId },
-  ]);
+  ]).onConflictDoNothing();
 
   await emitEvent(db, {
     channelId: dmChannel.id,
@@ -801,7 +801,7 @@ channelRoutes.post('/:id/members', async (c) => {
     .limit(1);
   if (existing) return c.json({ error: 'User is already a member' }, 409);
 
-  await db.insert(channelMembers).values({ channelId, userId: body.userId });
+  await db.insert(channelMembers).values({ channelId, userId: body.userId }).onConflictDoNothing();
 
   await emitEvent(db, {
     channelId,
