@@ -8,6 +8,7 @@ Endpoints:
   POST /ingest  — ingest a message for an agent
   POST /query   — semantic search across agent memory
   GET  /health  — health check
+  GET  /stats   — memory stats per agent
 """
 import os
 import sys
@@ -69,24 +70,68 @@ CREATE INDEX IF NOT EXISTS idx_agent_memories_agent ON agent_memories(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agent_memories_ts ON agent_memories USING GIN(ts_content);
 """
 
+# Migration: add unique constraint to prevent duplicate ingestion
+MIGRATE_SQL = """
+DO $$
+BEGIN
+    -- Add unique constraint on (agent_id, message_id) if message_id is not null
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_agent_memories_agent_message'
+    ) THEN
+        -- First, deduplicate existing rows (keep lowest id per agent_id+message_id)
+        DELETE FROM agent_memories a
+        USING agent_memories b
+        WHERE a.agent_id = b.agent_id
+          AND a.message_id = b.message_id
+          AND a.message_id IS NOT NULL
+          AND a.id > b.id;
+        
+        -- Now add the constraint
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_memories_agent_message
+            ON agent_memories (agent_id, message_id)
+            WHERE message_id IS NOT NULL;
+    END IF;
+END $$;
+"""
+
 async def init_pg():
     global pool
     pool = await asyncpg.create_pool(DB_URL, min_size=1, max_size=5)
     async with pool.acquire() as conn:
         await conn.execute(INIT_SQL)
+        try:
+            await conn.execute(MIGRATE_SQL)
+            logger.info("Dedup migration applied")
+        except Exception as e:
+            logger.warning(f"Dedup migration skipped: {e}")
     logger.info("Postgres memory table ready")
 
 async def pg_ingest(agent_id: str, text: str, metadata: Metadata = None):
+    msg_id = metadata.messageId if metadata else None
     async with pool.acquire() as conn:
-        await conn.execute(
-            """INSERT INTO agent_memories (agent_id, content, channel_id, message_id, user_id)
-               VALUES ($1, $2, $3, $4, $5)""",
-            agent_id,
-            text,
-            metadata.channelId if metadata else None,
-            metadata.messageId if metadata else None,
-            metadata.userId if metadata else None,
-        )
+        if msg_id:
+            # Use ON CONFLICT to prevent duplicates when message_id is available
+            await conn.execute(
+                """INSERT INTO agent_memories (agent_id, content, channel_id, message_id, user_id)
+                   VALUES ($1, $2, $3, $4, $5)
+                   ON CONFLICT (agent_id, message_id) WHERE message_id IS NOT NULL
+                   DO NOTHING""",
+                agent_id,
+                text,
+                metadata.channelId if metadata else None,
+                msg_id,
+                metadata.userId if metadata else None,
+            )
+        else:
+            await conn.execute(
+                """INSERT INTO agent_memories (agent_id, content, channel_id, message_id, user_id)
+                   VALUES ($1, $2, $3, $4, $5)""",
+                agent_id,
+                text,
+                metadata.channelId if metadata else None,
+                None,
+                metadata.userId if metadata else None,
+            )
 
 async def pg_query(agent_id: str, query: str, limit: int = 5):
     async with pool.acquire() as conn:
@@ -184,6 +229,32 @@ app = FastAPI(title="Cognee Memory Service", lifespan=lifespan)
 @app.get("/health")
 async def health():
     return {"status": "ok", "backend": "cognee" if COGNEE_ENABLED else "postgres-fts"}
+
+@app.get("/stats")
+async def stats():
+    """Memory stats per agent — useful for monitoring."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT agent_id, count(*) as total,
+                      count(DISTINCT content) as unique_content,
+                      min(created_at) as oldest,
+                      max(created_at) as newest
+               FROM agent_memories
+               GROUP BY agent_id
+               ORDER BY total DESC"""
+        )
+        return {
+            "agents": [
+                {
+                    "agentId": r["agent_id"],
+                    "total": r["total"],
+                    "uniqueContent": r["unique_content"],
+                    "oldest": r["oldest"].isoformat() if r["oldest"] else None,
+                    "newest": r["newest"].isoformat() if r["newest"] else None,
+                }
+                for r in rows
+            ]
+        }
 
 @app.post("/ingest")
 async def ingest(req: IngestRequest):

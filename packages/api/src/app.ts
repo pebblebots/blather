@@ -6,6 +6,7 @@ import { createAuthRoutes } from './routes/auth.js';
 import { channelRoutes } from './routes/channels.js';
 import { memberRoutes } from './routes/members.js';
 import { taskRoutes } from './routes/tasks.js';
+import { dealRoutes } from './routes/deals.js';
 import { incidentRoutes } from './routes/incidents.js';
 import { messageRoutes } from './routes/messages.js';
 import { uploadRoutes } from './routes/uploads.js';
@@ -46,7 +47,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
 
   // Per-user general rate limit on authenticated routes (applied before route handlers)
   const generalLimiter = generalApiLimiter(rateLimitStore);
-  for (const prefix of ['/channels', '/members', '/tasks', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status', '/presence']) {
+  for (const prefix of ['/channels', '/members', '/tasks', '/deals', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status', '/presence']) {
     app.use(`${prefix}/*`, generalLimiter);
   }
 
@@ -58,6 +59,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
   app.route('/channels', channelRoutes);
   app.route('/members', memberRoutes);
   app.route('/tasks', taskRoutes);
+  app.route('/deals', dealRoutes);
   app.route('/incidents', incidentRoutes);
   app.route('/messages', messageRoutes);
   app.route('/uploads', uploadRoutes);
