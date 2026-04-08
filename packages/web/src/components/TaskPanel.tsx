@@ -86,6 +86,11 @@ export function TaskPanel({ members }: TaskPanelProps) {
       <div className="mac-inset" style={{ flex: 1, overflow: 'auto', margin: 4 }}>
         {loading ? (
           <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#999' }}>⏳ Loading tasks...</div>
+        ) : error ? (
+          <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#CC3333' }}>
+            ⚠️ {error}
+            <button className="mac-btn" style={{ fontSize: 10, marginLeft: 8, padding: '1px 8px' }} onClick={load}>Retry</button>
+          </div>
         ) : tasks.length === 0 ? (
           <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#999' }}>No tasks yet. Create one!</div>
         ) : (
