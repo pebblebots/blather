@@ -48,6 +48,12 @@ export function getTaskDb(): Database.Database {
     );
   `);
 
+  // Migration: add claimedById column if it doesn't exist
+  const cols = _db.pragma('table_info(tasks)') as { name: string }[];
+  if (!cols.some((c) => c.name === 'claimedById')) {
+    _db.exec('ALTER TABLE tasks ADD COLUMN claimedById TEXT');
+  }
+
   return _db;
 }
 

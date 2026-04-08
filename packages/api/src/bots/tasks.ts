@@ -9,6 +9,8 @@ import {
   findTaskByTitle,
   listOpenTasksWithCommentCount,
   addComment,
+  getTaskClaimConflict,
+  TaskClaimConflictError,
 } from '../tasks/queries.js';
 
 const BOT_EMAIL = 'tasks@system.blather';
@@ -180,7 +182,7 @@ async function cmdDone(db: Db, channelId: string, query: string, threadId?: stri
   }
 
   const prevStatus = task.status;
-  const updated = updateTask(task.id, { status: 'done' });
+  const updated = updateTask(task.id, { status: 'done' }, userId);
   if (!updated) return;
 
   const sid = formatTaskId(updated);
@@ -204,8 +206,33 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
     return;
   }
 
+  // Check for claim conflict before starting
+  if (userId) {
+    const conflict = getTaskClaimConflict(task.id, userId);
+    if (conflict) {
+      const sid = formatTaskId(task);
+      let claimerName = conflict.claimedById;
+      try {
+        const [u] = await db.select().from(users).where(eq(users.id, conflict.claimedById)).limit(1);
+        if (u) claimerName = u.displayName;
+      } catch {}
+      await postBotMessage(db, channelId, `❌ Task \`${sid}\` is already claimed by @${claimerName}`, threadId);
+      return;
+    }
+  }
+
   const prevStatus = task.status;
-  const updated = updateTask(task.id, { status: 'in_progress', assigneeId: userId ?? null });
+  let updated;
+  try {
+    updated = updateTask(task.id, { status: 'in_progress', assigneeId: userId ?? null }, userId);
+  } catch (e) {
+    if (e instanceof TaskClaimConflictError) {
+      const sid = formatTaskId(task);
+      await postBotMessage(db, channelId, `❌ Task \`${sid}\` is already claimed by another agent`, threadId);
+      return;
+    }
+    throw e;
+  }
   if (!updated) return;
 
   const sid = formatTaskId(updated);

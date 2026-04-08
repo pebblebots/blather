@@ -10,11 +10,19 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   assigneeId: string | null;
+  claimedById: string | null;
   creatorId: string | null;
   shortId: number | null;
   sourceChannelId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export class TaskClaimConflictError extends Error {
+  constructor(claimedById: string) {
+    super(`Task already claimed by ${claimedById}`);
+    this.name = 'TaskClaimConflictError';
+  }
 }
 
 export interface TaskComment {
@@ -123,9 +131,18 @@ export function updateTask(
     status?: TaskStatus;
     assigneeId?: string | null;
   },
+  userId?: string,
 ): Task | null {
   const db = getTaskDb();
   const now = new Date().toISOString();
+
+  // Claim enforcement on status transitions
+  if (data.status === 'in_progress' && userId) {
+    const existing = db.prepare('SELECT claimedById FROM tasks WHERE id = ?').get(id) as { claimedById: string | null } | undefined;
+    if (existing?.claimedById && existing.claimedById !== userId) {
+      throw new TaskClaimConflictError(existing.claimedById);
+    }
+  }
 
   const setClauses: string[] = ['updatedAt = @updatedAt'];
   const params: Record<string, unknown> = { id, updatedAt: now };
@@ -136,8 +153,26 @@ export function updateTask(
   if (data.status !== undefined) { setClauses.push('status = @status'); params.status = data.status; }
   if (data.assigneeId !== undefined) { setClauses.push('assigneeId = @assigneeId'); params.assigneeId = data.assigneeId; }
 
+  // Set claimedById when transitioning to in_progress, clear when going to queued or done
+  if (data.status === 'in_progress' && userId) {
+    setClauses.push('claimedById = @claimedById');
+    params.claimedById = userId;
+  } else if (data.status === 'queued' || data.status === 'done') {
+    setClauses.push('claimedById = @claimedById');
+    params.claimedById = null;
+  }
+
   db.prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = @id`).run(params);
   return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Task | null;
+}
+
+export function getTaskClaimConflict(id: string, requestingUserId: string): { claimedById: string } | null {
+  const task = getTask(id);
+  if (!task) return null;
+  if (task.status === 'in_progress' && task.claimedById && task.claimedById !== requestingUserId) {
+    return { claimedById: task.claimedById };
+  }
+  return null;
 }
 
 export function deleteTask(id: string): boolean {

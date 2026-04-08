@@ -286,6 +286,105 @@ describe('task routes', () => {
     expect(res.status).toBe(404);
   });
 
+  // -- Claim conflict --
+
+  it('PATCH /tasks/:id returns 409 when task already claimed by another user', async () => {
+    const { owner, member } = await createFixture();
+
+    // Create a task
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Contested task' },
+    });
+
+    // Owner claims it (sets to in_progress)
+    const claimRes = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'in_progress' },
+    });
+    expect(claimRes.status).toBe(200);
+    expect(claimRes.body.status).toBe('in_progress');
+    expect(claimRes.body.claimedById).toBe(owner.id);
+
+    // Member tries to claim it — should get 409
+    const conflictRes = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(member.id),
+      json: { status: 'in_progress' },
+    });
+    expect(conflictRes.status).toBe(409);
+    expect(conflictRes.body.error).toBe('Task already claimed');
+    expect(conflictRes.body.claimedById).toBe(owner.id);
+    expect(conflictRes.body.claimedByName).toBe('Owner');
+  });
+
+  it('PATCH /tasks/:id allows same user to re-claim their own task', async () => {
+    const { owner } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'My task' },
+    });
+
+    // Claim it
+    await harness.request.patch(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'in_progress' },
+    });
+
+    // Same user re-claims — should succeed
+    const res = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'in_progress' },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('PATCH /tasks/:id clears claimedById when status goes to done', async () => {
+    const { owner } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Finish me' },
+    });
+
+    // Claim it
+    await harness.request.patch(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'in_progress' },
+    });
+
+    // Mark done — claimedById should be cleared
+    const doneRes = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'done' },
+    });
+    expect(doneRes.status).toBe(200);
+    expect(doneRes.body.claimedById).toBeNull();
+  });
+
+  it('PATCH /tasks/:id clears claimedById when status goes back to queued', async () => {
+    const { owner } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Requeue me' },
+    });
+
+    // Claim it
+    await harness.request.patch(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'in_progress' },
+    });
+
+    // Back to queued — claimedById should be cleared, another user can claim
+    const requeueRes = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'queued' },
+    });
+    expect(requeueRes.status).toBe(200);
+    expect(requeueRes.body.claimedById).toBeNull();
+  });
+
   // -- Task Comments --
 
   it('POST /tasks/:taskId/comments creates a comment', async () => {

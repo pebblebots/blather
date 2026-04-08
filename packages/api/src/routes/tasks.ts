@@ -10,10 +10,12 @@ import {
   getTask,
   updateTask,
   deleteTask,
+  getTaskClaimConflict,
   listComments,
   addComment,
   getComment,
   deleteComment,
+  TaskClaimConflictError,
 } from '../tasks/queries.js';
 import type { TaskStatus, TaskPriority } from '../tasks/queries.js';
 
@@ -109,7 +111,35 @@ taskRoutes.patch('/:id', async (c) => {
   if (body.status !== undefined) updates.status = normalizeStatus(body.status);
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
 
-  const task = updateTask(id, updates);
+  // Check claim conflict before updating — return rich 409 with claimer info
+  if (updates.status === 'in_progress') {
+    const conflict = getTaskClaimConflict(id, userId);
+    if (conflict) {
+      let claimedByName: string | null = null;
+      try {
+        const [claimer] = await db
+          .select({ displayName: users.displayName })
+          .from(users)
+          .where(inArray(users.id, [conflict.claimedById]));
+        if (claimer) claimedByName = claimer.displayName;
+      } catch {}
+      return c.json({
+        error: 'Task already claimed',
+        claimedById: conflict.claimedById,
+        ...(claimedByName ? { claimedByName } : {}),
+      }, 409);
+    }
+  }
+
+  let task;
+  try {
+    task = updateTask(id, updates, userId);
+  } catch (e) {
+    if (e instanceof TaskClaimConflictError) {
+      return c.json({ error: 'Task already claimed', claimedById: (e as any).message }, 409);
+    }
+    throw e;
+  }
   if (!task) return c.json({ error: 'Task not found' }, 404);
 
   // Status change notification

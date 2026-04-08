@@ -154,6 +154,7 @@ export function TaskPanel({ members }: TaskPanelProps) {
                       )}
                       <div style={{ fontSize: 9, color: '#999', marginTop: 1 }}>
                         by {getMemberName(task.creatorId)} · assigned: {getMemberName(task.assigneeId)}
+                        {task.claimedById && <> · claimed by: {getMemberName(task.claimedById)}</>}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
