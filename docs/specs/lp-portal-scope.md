@@ -1,8 +1,9 @@
 # T#112: LP Portal / Reporting Layer — Scope
 
-**Status:** Scoping  
+**Status:** Scoping (annotations merged)  
 **Author:** Code Boffin  
 **Date:** 2026-04-08  
+**Contributors:** Irma (LP tiers, reporting cadence), Dilligence (briefing field mapping), Portia (visibility schema), Sourcy (data sources)
 
 ## Context
 
@@ -25,65 +26,87 @@ A reporting surface for Limited Partners (LPs) that surfaces portfolio data in a
 
 ---
 
-## 1. Data Fields
+## 1. Data Fields — Visibility Schema
 
-### Already Available (portfolio_metrics table)
-| Field | Type | LP-Relevant? |
-|-------|------|-------------|
-| companyName | text | ✅ Primary |
-| fund | text | ✅ Filter/group by |
-| reportingDate | date | ✅ Time-series |
-| revenueArrUsd | decimal | ✅ Core KPI |
-| revenueAsOfDate | date | ✅ Freshness indicator |
-| headcount | int | ✅ Growth signal |
-| runwayMonths | decimal | ⚠️ Sensitive — maybe restricted |
-| yoyGrowthPct | decimal | ✅ Core KPI |
-| lastRoundSizeUsd | decimal | ✅ Context |
-| lastRoundValuationUsd | decimal | ⚠️ Sensitive for some companies |
-| lastRoundDate | date | ✅ Context |
-| lastRoundType | text | ✅ Context |
-| keyMilestoneText | text | ✅ Narrative |
-| nextFundraiseTiming | text | ⚠️ Very sensitive — restricted |
-| contactEmail | text | ❌ Internal only |
-| permissionToShare | bool | ✅ Controls LP visibility |
-| source | text | ❌ Internal |
-| confidence | decimal | ❌ Internal |
+Two-dimensional access model (per Dilligence):
+- **Visibility tier**: `internal` / `lp-visible` / `founder-visible`
+- **Granularity**: `per-company` / `aggregate-only`
 
-### Missing Fields (LP-Facing)
-| Field | Why |
-|-------|-----|
-| `sector` / `vertical` | LPs want sector breakdowns (AI/infra, fintech, health, etc.) |
-| `geography` | HQ location for portfolio geo distribution |
-| `fund_ownership_pct` | What % of the company does the fund own |
-| `invested_amount_usd` | Total capital deployed into this company |
-| `current_valuation_usd` | Latest estimated fair value (for MOIC calc) |
-| `moic` | Multiple on Invested Capital — derived |
-| `irr_pct` | Internal Rate of Return — derived |
-| `board_seat` | Boolean — does the fund have a board seat |
-| `lead_investor` | Boolean — did the fund lead the round |
-| `co_investors` | Text — notable co-investors (social proof) |
-| `company_logo_url` | For polished PDF/canvas rendering |
-| `one_liner` | 1-sentence company description |
-| `status` | active / exited / written_off |
+Granularity is tier-dependent: a field marked `aggregate-only` for prospects may be `per-company` for committed LPs with additional gates.
+
+### Existing Fields (portfolio_metrics table)
+
+| Field | Visibility | Granularity | Gates / Notes |
+|-------|-----------|-------------|---------------|
+| `companyName` | lp-visible | per-company | |
+| `fund` | lp-visible | per-company | |
+| `reportingDate` | lp-visible | per-company | |
+| `revenueArrUsd` | lp-visible | aggregate-only (default) | Per-company: requires `permissionToShare=true` + committed LP tier |
+| `revenueAsOfDate` | lp-visible | per-company | Freshness indicator |
+| `headcount` | lp-visible | per-company | Low sensitivity |
+| `runwayMonths` | internal | aggregate-only | Never per-company in LP context. Internal health signal only. |
+| `yoyGrowthPct` | lp-visible | aggregate-only (default) | Per-company: same gate as revenue |
+| `lastRoundSizeUsd` | lp-visible | per-company | Public info in most cases |
+| `lastRoundValuationUsd` | lp-visible | per-company | Committed LP tier only |
+| `lastRoundDate` | lp-visible | per-company | |
+| `lastRoundType` | lp-visible | per-company | |
+| `keyMilestoneText` | lp-visible | per-company | GP-curated narrative only |
+| `nextFundraiseTiming` | internal | per-company | Hard internal — extremely sensitive |
+| `contactEmail` | internal | per-company | Hard internal |
+| `permissionToShare` | internal | per-company | Control field, never surfaced |
+| `source` | internal | per-company | Hard internal |
+| `confidence` | internal | per-company | Hard internal |
+
+### Missing Fields (to add)
+
+| Field | Type | Visibility | Granularity | Notes |
+|-------|------|-----------|-------------|-------|
+| `sector` | text | lp-visible | per-company | AI/infra, fintech, health, etc. LPs want sector breakdowns |
+| `geography` | text | lp-visible | per-company | HQ location for geo distribution |
+| `invested_amount_usd` | decimal | lp-visible | aggregate-only (default) | Per-company: only for that LP's own fund position |
+| `current_valuation_usd` | decimal | lp-visible | aggregate-only (default) | Per-company: committed LPs only, in authenticated portal sessions (not exports). Prospects get aggregate only. |
+| `fund_ownership_pct` | decimal | internal | per-company | Needed for MOIC calc, not surfaced directly |
+| `moic` | decimal (derived) | lp-visible | aggregate-only (default) | Per-company: only with explicit founder consent, in authenticated sessions |
+| `irr_pct` | decimal (derived) | lp-visible | aggregate-only | Fund-level only for now. Per-company IRR is Phase 2 |
+| `board_seat` | boolean | lp-visible | per-company | Discoverable from press releases |
+| `lead_investor` | boolean | lp-visible | per-company | Discoverable from press releases |
+| `co_investors` | text | lp-visible | per-company | Social proof |
+| `company_logo_url` | text | lp-visible | per-company | For polished PDF/canvas rendering |
+| `one_liner` | text | lp-visible | per-company | 1-sentence company description |
+| `status` | enum | lp-visible | per-company | active / exited / written_off |
 
 ### Derived/Computed (export-time)
 - **MOIC**: `current_valuation_usd * fund_ownership_pct / invested_amount_usd`
 - **Aggregate portfolio MOIC**: weighted sum
-- **DPI** (Distributions to Paid-In): requires exit/distribution tracking
+- **DPI** (Distributions to Paid-In): requires exit/distribution tracking — Phase 2
 - **TVPI** (Total Value to Paid-In): MOIC at portfolio level
-- **Fund-level IRR**: requires cashflow dates — probably Phase 2
+- **Fund-level IRR**: requires cashflow dates — Phase 2
+
+### Hard Internal (never in LP-facing output)
+- `runwayMonths` (per-company), `nextFundraiseTiming`, `contactEmail`, `source`, `confidence`
+- Founder dynamics notes
+- Task/ops metadata
+- `investors/profiles/` enrichment data (Irma's flag — opt-in only, separate data category)
 
 ---
 
 ## 2. Access Controls
 
 ### Tiers
+
 | Tier | Who | Sees |
 |------|-----|------|
 | **Admin** | Pam, Keith | Everything — all fields, all companies, internal notes |
-| **LP (Committed)** | Fund LPs | Portfolio data where `permissionToShare=true`, filtered by their fund |
+| **LP (Committed)** | Fund LPs | Portfolio data where `permissionToShare=true`, filtered by their fund. Per-company valuations and MOIC in authenticated sessions. |
 | **LP (Prospect)** | Potential LPs | Aggregate stats only — total companies, median ARR, sector distribution, no per-company data |
+| **LP (Elevated Prospect)** | High-conviction prospects in active diligence | Committed-LP-level visibility on select fields. Implemented as `elevated_prospect` flag on token, not a separate tier. (Irma) |
 | **Founder** | Portfolio founders | Their own company's data only |
+
+### `elevated_prospect` Flag (Irma)
+Rather than a 5th tier, add an optional boolean flag on the access token. When `true`, prospect tokens get committed-LP-level visibility on fields the GP explicitly selects. Scoped per-token, not per-field — the GP chooses what to reveal when generating the link.
+
+### `permissionToShare` Default: `false` (DECIDED)
+Opt-in. New company entries never surface in LP reports until explicitly approved. Protects founders, protects us. (Unanimous: Irma, Dilligence, Portia, Code)
 
 ### Implementation Options
 1. **Token-scoped exports** (simplest): Generate a signed, expiring URL per LP/fund. No login required. Link opens a read-only page or downloads a PDF.
@@ -102,7 +125,41 @@ A reporting surface for Limited Partners (LPs) that surfaces portfolio data in a
 
 ---
 
-## 3. Export Formats
+## 3. Reporting Cadence (Irma)
+
+### Standard LP Quarterly Letter Contents
+- Fund-level metrics (DPI, TVPI, IRR) — `lp-visible` + `aggregate-only`
+- Portfolio composition by stage/sector — `lp-visible` + `aggregate-only`
+- Company spotlight (1-2 per quarter, GP-curated) — `lp-visible` + `per-company`, explicitly selected
+- Capital calls / distributions — `lp-visible` + `per-company` (LP's own position only)
+
+### What Stays Out of LP Reports (Dilligence)
+- `runwayMonths` — internal health signal
+- `nextFundraiseTiming` — extremely sensitive
+- `confidence`, `source` — internal diligence metadata
+- Founder dynamics notes — always internal
+- Pipeline/deal data — creates awkward questions when deals fall through
+
+### Pipeline Data Decision: OUT of LP Reports (DECIDED)
+Raw deal stage data does not belong in LP reports. If pipeline visibility is ever surfaced, it should be a **curated "what we're seeing in the market" narrative** written by a GP, not a live data feed. (Dilligence, Irma concurred)
+
+---
+
+## 4. Data Sources & Canonical Store
+
+**Single source of truth:** `portfolio_metrics` table in Postgres (via Blather API endpoints).
+
+⚠️ **Known drift risk** (Sourcy): agents have been working from memory copies of `portfolio.json`. The LP portal MUST read from the canonical API, not from file copies. Any agent writing metrics should go through the upsert API endpoint.
+
+Additional data sources for enrichment (not primary):
+- `pbd-knowledge/portfolio/portfolio.json` — legacy source, should sync to DB
+- `memory/robo-state.json` — token/warrant positions (Sourcy)
+- `/api/deals` — deal flow pipeline (not LP-facing, internal only)
+- `investors/profiles/` — LP enrichment data (INTERNAL ONLY, separate from portfolio data)
+
+---
+
+## 5. Export Formats
 
 ### Already Built
 - **JSON** — raw data + summary stats
@@ -133,16 +190,16 @@ A reporting surface for Limited Partners (LPs) that surfaces portfolio data in a
 
 ---
 
-## 4. Architecture
+## 6. Architecture
 
 ```
-[Agents write data]
+[Agents write data via /api/metrics/upsert]
     ↓
-[portfolio_metrics table + deals table]
+[portfolio_metrics table (canonical) + deals table]
     ↓
 [LP Export API]  ──→  GET /api/lp/report?token=<signed>&fund=<name>&format=<pdf|html|json>
     ↓
-[Renderer]
+[Renderer]  ──→  Applies visibility × granularity filters based on token tier
     ├── HTML template (canvas-style)
     ├── PDF via Puppeteer
     └── JSON/CSV (existing)
@@ -158,31 +215,35 @@ A reporting surface for Limited Partners (LPs) that surfaces portfolio data in a
 ### Token Schema
 ```typescript
 {
-  fund: string;           // which fund's data
+  fund: string;                // which fund's data
   tier: 'lp' | 'prospect' | 'founder';
-  companyFilter?: string; // for founder tier - their company only
-  expiresAt: Date;        // 30 days default
-  createdBy: string;      // admin who generated it
-  accessLog: boolean;     // track views
+  elevatedProspect?: boolean;  // prospect gets committed-LP-level access on GP-selected fields
+  companyFilter?: string;      // for founder tier — their company only
+  expiresAt: Date;             // 30 days default
+  createdBy: string;           // admin who generated it
+  accessLog: boolean;          // track views
 }
 ```
 
 ---
 
-## 5. Phasing
+## 7. Phasing
 
-### Phase 1 (v1 — scope of this task)
-- [ ] Add missing schema fields (sector, geography, invested_amount, current_valuation, status, one_liner)
-- [ ] `POST /api/lp/tokens` — admin endpoint to generate scoped tokens
+### Phase 1 (v1)
+- [ ] Add missing schema fields (sector, geography, invested_amount, current_valuation, status, one_liner, board_seat, lead_investor, co_investors, company_logo_url)
+- [ ] Implement visibility × granularity filtering in export API
+- [ ] `POST /api/lp/tokens` — admin endpoint to generate scoped tokens with tier + elevated_prospect flag
 - [ ] `GET /api/lp/report?token=X&format=json` — token-authed JSON export
 - [ ] `GET /api/lp/report?token=X&format=markdown` — polished markdown (Irma's LP letter format)
 - [ ] Access logging (who viewed what, when)
+- [ ] `permissionToShare` defaults to `false` on all new entries
 
 ### Phase 2
 - [ ] PDF generation (HTML → PDF via Puppeteer)
 - [ ] Interactive canvas dashboard
 - [ ] MOIC/IRR derived calculations
 - [ ] Per-company deep-dive pages
+- [ ] DPI computation (requires exit/distribution tracking)
 
 ### Phase 3
 - [ ] Magic link auth for LP login
@@ -190,27 +251,27 @@ A reporting surface for Limited Partners (LPs) that surfaces portfolio data in a
 - [ ] Historical trend charts
 - [ ] Comparison views (QoQ, YoY)
 - [ ] PPTX export
+- [ ] `investor_contacts` table (Irma)
 
 ---
 
-## 6. Open Questions
+## 8. Open Questions (for Pam/Keith)
 
-1. **Who generates LP reports?** Irma manually triggers via @tasks? Automated quarterly? Pam approves before send?
-2. **Branding?** Pebble Fund branding or fund-specific? Need logo assets.
-3. **Frequency?** Quarterly standard, but some LPs want monthly updates.
-4. **Sensitivity defaults?** Should `permissionToShare` default to `false` (opt-in) or `true` (opt-out)?
-5. **Deals index integration?** Should LP reports include pipeline data (deal flow velocity) or just portfolio?
-6. **Canvas vs PDF preference?** Need LP feedback — some prefer static documents they can archive.
+> Irma is drafting a consolidated decision brief for these.
+
+1. **Prospect vs committed LP view**: What specifically should elevated prospects see? (Irma drafting options)
+2. **Founder data access**: Do founders get read access to their own company's data in the portal? Relationship implications either way.
+3. **Branding**: Pebble Fund branding or fund-specific? Need logo assets.
+4. ~~**Sensitivity defaults**~~ → DECIDED: `permissionToShare` defaults `false` (opt-in)
+5. ~~**Deals index in LP reports**~~ → DECIDED: No. Curated narrative only if ever.
+6. **Canvas vs PDF preference**: Need LP feedback — some prefer static documents they can archive.
+7. **Report generation workflow**: Irma triggers manually? Automated quarterly? Pam approves before send?
+8. **Reporting frequency**: Quarterly standard, but some LPs want monthly.
 
 ---
 
-## Irma's Input (from channel discussions)
-- LP format expectations: standard quarterly letter + portfolio summary appendix
-- Access tiers: prospects vs committed LPs see different data
-- Contact ownership tracking important (who's the LP relationship owner)
-- `investor_contacts` table may be needed alongside metrics
-
-## Dependencies
-- None blocking — portfolio_metrics already on main
+## 9. Dependencies
+- ✅ Portfolio metrics merged to main — no blockers
 - PDF rendering: need Puppeteer/Playwright installed on dev/prod
 - Branding assets: need from Pam/Keith
+- `investor_contacts` table: Phase 3, not blocking
