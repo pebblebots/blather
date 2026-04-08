@@ -425,6 +425,16 @@ channelRoutes.get('/:id/messages', async (c) => {
     }
   }
 
+  // Auto-mark-read for DM channels so API consumers (agents) implicitly clear unread counts
+  if (channel?.channelType === 'dm') {
+    db.execute(
+      sql`INSERT INTO channel_reads (channel_id, user_id, last_read_at)
+           VALUES (${channelId}, ${userId}, NOW())
+           ON CONFLICT (channel_id, user_id)
+           DO UPDATE SET last_read_at = NOW()`
+    ).catch(() => {});
+  }
+
   return c.json(result);
 });
 
