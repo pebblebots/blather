@@ -9,25 +9,34 @@ import {
   deleteDeal,
   resolveDeal,
 } from '../deals/queries.js';
-import type { DealStage } from '../deals/queries.js';
+import type { DealStage, DealStatus } from '../deals/queries.js';
 
 export const dealRoutes = new Hono<Env>();
 dealRoutes.use('*', authMiddleware);
 
 const VALID_STAGES: DealStage[] = ['sourcing', 'dd', 'pass', 'move', 'portfolio'];
+const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited'];
 
 // List deals
 dealRoutes.get('/', async (c) => {
   const stage = c.req.query('stage');
+  const status = c.req.query('status');
   const name = c.req.query('name');
+  const includeArchived = c.req.query('includeArchived') === 'true';
 
   if (stage && !VALID_STAGES.includes(stage as DealStage)) {
     return c.json({ error: 'Invalid stage: ' + stage }, 400);
   }
 
+  if (status && !VALID_STATUSES.includes(status as DealStatus)) {
+    return c.json({ error: 'Invalid status: ' + status }, 400);
+  }
+
   const result = listDeals({
     stage: stage as DealStage | undefined,
+    status: status as DealStatus | undefined,
     name: name || undefined,
+    includeArchived,
   });
 
   return c.json(result);
@@ -55,6 +64,12 @@ dealRoutes.post('/', async (c) => {
     amount?: string;
     lead_investor?: string;
     notes?: string;
+    external_id?: string;
+    external_source?: string;
+    updated_by_agent_id?: string;
+    status?: DealStatus;
+    next_meeting_at?: string;
+    archived?: boolean;
   }>();
 
   if (!body.name) {
@@ -63,6 +78,10 @@ dealRoutes.post('/', async (c) => {
 
   if (body.stage && !VALID_STAGES.includes(body.stage)) {
     return c.json({ error: 'Invalid stage: ' + body.stage }, 400);
+  }
+
+  if (body.status && !VALID_STATUSES.includes(body.status)) {
+    return c.json({ error: 'Invalid status: ' + body.status }, 400);
   }
 
   const deal = createDeal({
@@ -77,6 +96,12 @@ dealRoutes.post('/', async (c) => {
     amount: body.amount ?? null,
     lead_investor: body.lead_investor ?? null,
     notes: body.notes ?? null,
+    external_id: body.external_id ?? null,
+    external_source: body.external_source ?? null,
+    updated_by_agent_id: body.updated_by_agent_id ?? null,
+    status: body.status ?? 'active',
+    next_meeting_at: body.next_meeting_at ?? null,
+    archived: body.archived ?? false,
   });
 
   return c.json(deal, 201);
@@ -100,10 +125,20 @@ dealRoutes.patch('/:id', async (c) => {
     amount?: string | null;
     lead_investor?: string | null;
     notes?: string | null;
+    external_id?: string | null;
+    external_source?: string | null;
+    updated_by_agent_id?: string | null;
+    status?: DealStatus;
+    next_meeting_at?: string | null;
+    archived?: boolean;
   }>();
 
   if (body.stage && !VALID_STAGES.includes(body.stage)) {
     return c.json({ error: 'Invalid stage: ' + body.stage }, 400);
+  }
+
+  if (body.status && !VALID_STATUSES.includes(body.status)) {
+    return c.json({ error: 'Invalid status: ' + body.status }, 400);
   }
 
   const deal = updateDeal(existing.id, body);

@@ -1,6 +1,7 @@
 import { getDealDb } from './db.js';
 
 export type DealStage = 'sourcing' | 'dd' | 'pass' | 'move' | 'portfolio';
+export type DealStatus = 'active' | 'watchlist' | 'zombie' | 'exited';
 
 export interface Deal {
   id: string;
@@ -18,38 +19,57 @@ export interface Deal {
   shortId: number | null;
   createdAt: string;
   updatedAt: string;
+  external_id: string | null;
+  external_source: string | null;
+  updated_by_agent_id: string | null;
+  status: DealStatus;
+  next_meeting_at: string | null;
+  archived: boolean;
 }
 
 const VALID_STAGES: DealStage[] = ['sourcing', 'dd', 'pass', 'move', 'portfolio'];
+const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited'];
 
 export function listDeals(filters?: {
   stage?: DealStage;
+  status?: DealStatus;
   name?: string;
+  includeArchived?: boolean;
 }): Deal[] {
   const db = getDealDb();
   const conditions: string[] = [];
-  const params: Record<string, string> = {};
+  const params: Record<string, string | number> = {};
+
+  // Filter out archived deals by default
+  if (!filters?.includeArchived) {
+    conditions.push('archived = 0');
+  }
 
   if (filters?.stage) {
     conditions.push('stage = @stage');
     params.stage = filters.stage;
+  }
+  if (filters?.status) {
+    conditions.push('status = @status');
+    params.status = filters.status;
   }
   if (filters?.name) {
     conditions.push('lower(name) LIKE @name');
     params.name = `%${filters.name.toLowerCase()}%`;
   }
 
-  if (conditions.length === 0) {
-    return db.prepare('SELECT * FROM deals ORDER BY createdAt DESC').all() as Deal[];
-  }
+  const rawDeals = conditions.length === 0
+    ? db.prepare('SELECT * FROM deals ORDER BY createdAt DESC').all() as any[]
+    : db
+      .prepare(`SELECT * FROM deals WHERE ${conditions.join(' AND ')} ORDER BY createdAt DESC`)
+      .all(params) as any[];
 
-  return db
-    .prepare(`SELECT * FROM deals WHERE ${conditions.join(' AND ')} ORDER BY createdAt DESC`)
-    .all(params) as Deal[];
+  return rawDeals.map(deal => ({ ...deal, archived: Boolean(deal.archived) })) as Deal[];
 }
 
 export function getDeal(id: string): Deal | null {
-  return getDealDb().prepare('SELECT * FROM deals WHERE id = ?').get(id) as Deal | null;
+  const rawDeal = getDealDb().prepare('SELECT * FROM deals WHERE id = ?').get(id) as any | null;
+  return rawDeal ? { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal : null;
 }
 
 export function createDeal(data: {
@@ -64,6 +84,12 @@ export function createDeal(data: {
   amount?: string | null;
   lead_investor?: string | null;
   notes?: string | null;
+  external_id?: string | null;
+  external_source?: string | null;
+  updated_by_agent_id?: string | null;
+  status?: DealStatus;
+  next_meeting_at?: string | null;
+  archived?: boolean;
 }): Deal {
   const db = getDealDb();
   const id = crypto.randomUUID();
@@ -73,8 +99,16 @@ export function createDeal(data: {
   const shortId = Number(seq.lastInsertRowid);
 
   db.prepare(`
-    INSERT INTO deals (id, name, company, stage, thesis, contacts, source_agent_id, source_channel_id, round, amount, lead_investor, notes, shortId, createdAt, updatedAt)
-    VALUES (@id, @name, @company, @stage, @thesis, @contacts, @source_agent_id, @source_channel_id, @round, @amount, @lead_investor, @notes, @shortId, @createdAt, @updatedAt)
+    INSERT INTO deals (
+      id, name, company, stage, thesis, contacts, source_agent_id, source_channel_id, 
+      round, amount, lead_investor, notes, shortId, createdAt, updatedAt, 
+      external_id, external_source, updated_by_agent_id, status, next_meeting_at, archived
+    )
+    VALUES (
+      @id, @name, @company, @stage, @thesis, @contacts, @source_agent_id, @source_channel_id, 
+      @round, @amount, @lead_investor, @notes, @shortId, @createdAt, @updatedAt, 
+      @external_id, @external_source, @updated_by_agent_id, @status, @next_meeting_at, @archived
+    )
   `).run({
     id,
     name: data.name,
@@ -91,9 +125,16 @@ export function createDeal(data: {
     shortId,
     createdAt: now,
     updatedAt: now,
+    external_id: data.external_id ?? null,
+    external_source: data.external_source ?? null,
+    updated_by_agent_id: data.updated_by_agent_id ?? null,
+    status: data.status ?? 'active',
+    next_meeting_at: data.next_meeting_at ?? null,
+    archived: data.archived ? 1 : 0,
   });
 
-  return db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as Deal;
+  const rawDeal = db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as any;
+  return { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal;
 }
 
 export function updateDeal(
@@ -110,6 +151,12 @@ export function updateDeal(
     amount?: string | null;
     lead_investor?: string | null;
     notes?: string | null;
+    external_id?: string | null;
+    external_source?: string | null;
+    updated_by_agent_id?: string | null;
+    status?: DealStatus;
+    next_meeting_at?: string | null;
+    archived?: boolean;
   },
 ): Deal | null {
   const db = getDealDb();
@@ -129,9 +176,16 @@ export function updateDeal(
   if (data.amount !== undefined) { setClauses.push('amount = @amount'); params.amount = data.amount; }
   if (data.lead_investor !== undefined) { setClauses.push('lead_investor = @lead_investor'); params.lead_investor = data.lead_investor; }
   if (data.notes !== undefined) { setClauses.push('notes = @notes'); params.notes = data.notes; }
+  if (data.external_id !== undefined) { setClauses.push('external_id = @external_id'); params.external_id = data.external_id; }
+  if (data.external_source !== undefined) { setClauses.push('external_source = @external_source'); params.external_source = data.external_source; }
+  if (data.updated_by_agent_id !== undefined) { setClauses.push('updated_by_agent_id = @updated_by_agent_id'); params.updated_by_agent_id = data.updated_by_agent_id; }
+  if (data.status !== undefined) { setClauses.push('status = @status'); params.status = data.status; }
+  if (data.next_meeting_at !== undefined) { setClauses.push('next_meeting_at = @next_meeting_at'); params.next_meeting_at = data.next_meeting_at; }
+  if (data.archived !== undefined) { setClauses.push('archived = @archived'); params.archived = data.archived ? 1 : 0; }
 
   db.prepare(`UPDATE deals SET ${setClauses.join(', ')} WHERE id = @id`).run(params);
-  return db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as Deal | null;
+  const rawDeal = db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as any | null;
+  return rawDeal ? { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal : null;
 }
 
 export function deleteDeal(id: string): boolean {
@@ -142,9 +196,14 @@ export function deleteDeal(id: string): boolean {
 export function resolveDeal(token: string): Deal | null {
   const db = getDealDb();
   const shortMatch = token.match(/^D#?(\d+)$/i) ?? token.match(/^(\d+)$/);
+  let rawDeal: any | null;
+  
   if (shortMatch) {
     const n = parseInt(shortMatch[1], 10);
-    return db.prepare('SELECT * FROM deals WHERE shortId = ?').get(n) as Deal | null;
+    rawDeal = db.prepare('SELECT * FROM deals WHERE shortId = ?').get(n) as any | null;
+  } else {
+    rawDeal = db.prepare('SELECT * FROM deals WHERE id LIKE ?').get(token + '%') as any | null;
   }
-  return db.prepare('SELECT * FROM deals WHERE id LIKE ?').get(token + '%') as Deal | null;
+  
+  return rawDeal ? { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal : null;
 }
