@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { taskApi } from '../lib/api';
 import { Modal } from './Modal';
 
@@ -166,17 +166,12 @@ export function TaskPanel({ members }: TaskPanelProps) {
                       {task.status === 'done' && (
                         <button className="mac-btn" style={{ fontSize: 9, padding: '0 4px' }} onClick={() => updateStatus(task.id, 'queued')} title="Reopen">↺</button>
                       )}
-                      <select
-                        value={task.assigneeId || ''}
-                        onChange={(e) => updateAssignee(task.id, e.target.value || null)}
-                        style={{ fontSize: 9, fontFamily: 'Geneva, monospace', border: '1px solid #999', background: '#FFF', padding: '0 2px', maxWidth: 80 }}
-                        title="Assign"
-                      >
-                        <option value="">Unassigned</option>
-                        {members.map((m) => (
-                          <option key={m.id} value={m.id}>{m.displayName}</option>
-                        ))}
-                      </select>
+                      <AssigneeDropdown
+                        taskId={task.id}
+                        currentAssigneeId={task.assigneeId}
+                        members={members}
+                        onAssign={updateAssignee}
+                      />
                       <button className="mac-btn" style={{ fontSize: 9, padding: '0 4px', color: '#CC3333' }} onClick={() => deleteTask(task.id)} title="Delete">✕</button>
                     </div>
                   </div>
@@ -287,5 +282,117 @@ function CreateTaskModal({ members, onClose, onCreated }: {
         </div>
       </div>
     </Modal>
+  );
+}
+
+function AssigneeDropdown({ taskId, currentAssigneeId, members, onAssign }: {
+  taskId: string;
+  currentAssigneeId: string | null;
+  members: { id: string; displayName: string }[];
+  onAssign: (taskId: string, assigneeId: string | null) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const currentMember = currentAssigneeId ? members.find(m => m.id === currentAssigneeId) : null;
+  const displayName = currentMember ? currentMember.displayName : 'Unassigned';
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+  
+  const handleSelect = (assigneeId: string | null) => {
+    onAssign(taskId, assigneeId);
+    setIsOpen(false);
+  };
+  
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        className="mac-btn"
+        style={{ 
+          fontSize: 9, 
+          padding: '1px 4px', 
+          maxWidth: 80, 
+          minWidth: 60,
+          textAlign: 'left',
+          background: isHovered ? '#E6E6E6' : '#FFF',
+          border: '1px solid #999'
+        }}
+        onClick={() => setIsOpen(!isOpen)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        title="Click to assign"
+      >
+        {displayName}
+      </button>
+      
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 1000,
+            background: '#FFF',
+            border: '1px solid #999',
+            boxShadow: '2px 2px 4px rgba(0,0,0,0.2)',
+            minWidth: 100,
+            maxHeight: 200,
+            overflowY: 'auto'
+          }}
+        >
+          <button
+            key="unassigned"
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '2px 6px',
+              fontSize: 9,
+              textAlign: 'left',
+              border: 'none',
+              background: !currentAssigneeId ? '#E6E6E6' : '#FFF',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={(e) => (e.target as HTMLButtonElement).style.background = '#CCCCFF'}
+            onMouseLeave={(e) => (e.target as HTMLButtonElement).style.background = !currentAssigneeId ? '#E6E6E6' : '#FFF'}
+            onClick={() => handleSelect(null)}
+          >
+            Unassigned
+          </button>
+          {members.map((member) => (
+            <button
+              key={member.id}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '2px 6px',
+                fontSize: 9,
+                textAlign: 'left',
+                border: 'none',
+                background: currentAssigneeId === member.id ? '#E6E6E6' : '#FFF',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => (e.target as HTMLButtonElement).style.background = '#CCCCFF'}
+              onMouseLeave={(e) => (e.target as HTMLButtonElement).style.background = currentAssigneeId === member.id ? '#E6E6E6' : '#FFF'}
+              onClick={() => handleSelect(member.id)}
+            >
+              {member.displayName}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
