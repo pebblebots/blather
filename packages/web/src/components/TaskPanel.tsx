@@ -111,8 +111,19 @@ export function TaskPanel({ members }: TaskPanelProps) {
           <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#999' }}>⏳ Loading tasks...</div>
         ) : tasks.length === 0 ? (
           <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#999' }}>No tasks yet. Create one!</div>
-        ) : (
-          (['queued', 'in_progress', 'done'] as const).filter((s) => (filter === 'all' ? s !== 'done' : true)).map((status) => {
+        ) : (() => {
+          // Determine which status groups to show based on the active filter.
+          // "All Active" hides done tasks; specific filters show only that status.
+          const visibleStatuses = (['queued', 'in_progress', 'done'] as const).filter((s) => (filter === 'all' ? s !== 'done' : true));
+          const hasVisibleTasks = visibleStatuses.some((s) => grouped[s].length > 0);
+          if (!hasVisibleTasks) {
+            return (
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#999' }}>
+                {filter === 'all' ? '✅ All tasks done! Queue is empty.' : `No ${filter.replace('_', ' ')} tasks.`}
+              </div>
+            );
+          }
+          return visibleStatuses.map((status) => {
             const items = grouped[status];
             if (items.length === 0) return null;
             return (
@@ -172,8 +183,8 @@ export function TaskPanel({ members }: TaskPanelProps) {
                 ))}
               </div>
             );
-          })
-        )}
+          });
+        })()}
       </div>
 
       {showCreate && (
