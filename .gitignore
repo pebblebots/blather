@@ -13,3 +13,4 @@ ecosystem.config.cjs
 
 # Uploaded files (TTS, attachments)
 uploads/
+packages/api/data/
