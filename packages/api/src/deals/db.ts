@@ -48,6 +48,18 @@ export function getDealDb(): Database.Database {
       next_meeting_at TEXT,
       archived INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS deal_changes (
+      id TEXT PRIMARY KEY,
+      deal_id TEXT NOT NULL,
+      agent_id TEXT,
+      field TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      change_type TEXT NOT NULL DEFAULT 'update',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (deal_id) REFERENCES deals(id)
+    );
   `);
 
   // Add new columns to existing tables (migration)
@@ -75,5 +87,5 @@ export function getDealDb(): Database.Database {
 /** For testing only — truncates all deal data without closing the connection */
 export function clearDealDbForTesting(): void {
   const db = getDealDb();
-  db.exec('DELETE FROM deals; DELETE FROM deal_short_id_seq;');
+  db.exec('DELETE FROM deal_changes; DELETE FROM deals; DELETE FROM deal_short_id_seq;');
 }

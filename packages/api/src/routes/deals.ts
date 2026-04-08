@@ -8,6 +8,7 @@ import {
   updateDeal,
   deleteDeal,
   resolveDeal,
+  getDealChanges,
 } from '../deals/queries.js';
 import type { DealStage, DealStatus } from '../deals/queries.js';
 
@@ -40,6 +41,22 @@ dealRoutes.get('/', async (c) => {
   });
 
   return c.json(result);
+});
+
+// Get deal change history
+dealRoutes.get('/:id/changes', async (c) => {
+  const id = c.req.param('id');
+  const deal = resolveDeal(id);
+  if (!deal) return c.json({ error: 'Deal not found' }, 404);
+
+  const agent_id = c.req.query('agent_id');
+  const field = c.req.query('field');
+
+  const changes = getDealChanges(deal.id, {
+    agent_id: agent_id || undefined,
+    field: field || undefined,
+  });
+  return c.json(changes);
 });
 
 // Get single deal (by UUID or D#N short ID)

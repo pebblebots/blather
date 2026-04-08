@@ -27,8 +27,43 @@ export interface Deal {
   archived: boolean;
 }
 
+export interface DealChange {
+  id: string;
+  deal_id: string;
+  agent_id: string | null;
+  field: string;
+  old_value: string | null;
+  new_value: string | null;
+  change_type: string;
+  created_at: string;
+}
+
 const VALID_STAGES: DealStage[] = ['sourcing', 'dd', 'pass', 'move', 'portfolio'];
 const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited'];
+
+function logChange(
+  dealId: string,
+  field: string,
+  oldValue: string | null,
+  newValue: string | null,
+  changeType: string,
+  agentId?: string | null,
+): void {
+  const db = getDealDb();
+  db.prepare(`
+    INSERT INTO deal_changes (id, deal_id, agent_id, field, old_value, new_value, change_type, created_at)
+    VALUES (@id, @deal_id, @agent_id, @field, @old_value, @new_value, @change_type, @created_at)
+  `).run({
+    id: crypto.randomUUID(),
+    deal_id: dealId,
+    agent_id: agentId ?? null,
+    field,
+    old_value: oldValue,
+    new_value: newValue,
+    change_type: changeType,
+    created_at: new Date().toISOString(),
+  });
+}
 
 export function listDeals(filters?: {
   stage?: DealStage;
@@ -134,7 +169,34 @@ export function createDeal(data: {
   });
 
   const rawDeal = db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as any;
-  return { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal;
+  const deal = { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal;
+
+  // Log creation for each field with a value
+  const createdFields: Record<string, string | null> = {
+    name: data.name,
+    company: data.company ?? null,
+    stage: data.stage ?? 'sourcing',
+    thesis: data.thesis ?? null,
+    contacts: data.contacts ?? null,
+    source_agent_id: data.source_agent_id ?? null,
+    source_channel_id: data.source_channel_id ?? null,
+    round: data.round ?? null,
+    amount: data.amount ?? null,
+    lead_investor: data.lead_investor ?? null,
+    notes: data.notes ?? null,
+    external_id: data.external_id ?? null,
+    external_source: data.external_source ?? null,
+    status: data.status ?? 'active',
+    next_meeting_at: data.next_meeting_at ?? null,
+    archived: String(data.archived ? 1 : 0),
+  };
+  for (const [field, value] of Object.entries(createdFields)) {
+    if (value !== null) {
+      logChange(id, field, null, value, 'create', data.source_agent_id);
+    }
+  }
+
+  return deal;
 }
 
 export function updateDeal(
@@ -162,6 +224,10 @@ export function updateDeal(
   const db = getDealDb();
   const now = new Date().toISOString();
 
+  // Read current deal before updating for change detection
+  const current = db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as any | null;
+  if (!current) return null;
+
   const setClauses: string[] = ['updatedAt = @updatedAt'];
   const params: Record<string, unknown> = { id, updatedAt: now };
 
@@ -184,12 +250,41 @@ export function updateDeal(
   if (data.archived !== undefined) { setClauses.push('archived = @archived'); params.archived = data.archived ? 1 : 0; }
 
   db.prepare(`UPDATE deals SET ${setClauses.join(', ')} WHERE id = @id`).run(params);
+
+  // Log changes for each field that actually changed
+  const trackableFields = [
+    'name', 'company', 'stage', 'thesis', 'contacts', 'source_agent_id',
+    'source_channel_id', 'round', 'amount', 'lead_investor', 'notes',
+    'external_id', 'external_source', 'status', 'next_meeting_at', 'archived',
+  ] as const;
+  const agentId = data.updated_by_agent_id ?? current.updated_by_agent_id;
+  for (const field of trackableFields) {
+    if (data[field] === undefined) continue;
+    const newVal = field === 'archived' ? String(data[field] ? 1 : 0) : (data[field] as string | null);
+    const oldVal = current[field] != null ? String(current[field]) : null;
+    if (oldVal !== (newVal ?? null)) {
+      logChange(id, field, oldVal, newVal ?? null, 'update', agentId);
+    }
+  }
+
   const rawDeal = db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as any | null;
   return rawDeal ? { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal : null;
 }
 
-export function deleteDeal(id: string): boolean {
-  const result = getDealDb().prepare('DELETE FROM deals WHERE id = ?').run(id);
+export function deleteDeal(id: string, agentId?: string | null): boolean {
+  const db = getDealDb();
+  const current = db.prepare('SELECT * FROM deals WHERE id = ?').get(id) as any | null;
+  if (!current) return false;
+
+  // Log deletion for key fields before removing the row
+  const fields = ['name', 'company', 'stage', 'status'] as const;
+  for (const field of fields) {
+    if (current[field] != null) {
+      logChange(id, field, String(current[field]), null, 'delete', agentId ?? current.updated_by_agent_id);
+    }
+  }
+
+  const result = db.prepare('DELETE FROM deals WHERE id = ?').run(id);
   return result.changes > 0;
 }
 
@@ -204,6 +299,28 @@ export function resolveDeal(token: string): Deal | null {
   } else {
     rawDeal = db.prepare('SELECT * FROM deals WHERE id LIKE ?').get(token + '%') as any | null;
   }
-  
+
   return rawDeal ? { ...rawDeal, archived: Boolean(rawDeal.archived) } as Deal : null;
+}
+
+export function getDealChanges(
+  dealId: string,
+  filters?: { agent_id?: string; field?: string },
+): DealChange[] {
+  const db = getDealDb();
+  const conditions: string[] = ['deal_id = @deal_id'];
+  const params: Record<string, string> = { deal_id: dealId };
+
+  if (filters?.agent_id) {
+    conditions.push('agent_id = @agent_id');
+    params.agent_id = filters.agent_id;
+  }
+  if (filters?.field) {
+    conditions.push('field = @field');
+    params.field = filters.field;
+  }
+
+  return db
+    .prepare(`SELECT * FROM deal_changes WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`)
+    .all(params) as DealChange[];
 }
