@@ -1,7 +1,7 @@
 import { getDealDb } from './db.js';
 
 export type DealStage = 'sourcing' | 'dd' | 'pass' | 'move' | 'portfolio';
-export type DealStatus = 'active' | 'watchlist' | 'zombie' | 'exited';
+export type DealStatus = 'active' | 'watchlist' | 'zombie' | 'exited' | 'inactive';
 
 export interface Deal {
   id: string;
@@ -39,7 +39,7 @@ export interface DealChange {
 }
 
 const VALID_STAGES: DealStage[] = ['sourcing', 'dd', 'pass', 'move', 'portfolio'];
-const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited'];
+const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited', 'inactive'];
 
 function logChange(
   dealId: string,

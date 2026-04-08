@@ -16,7 +16,7 @@ export const dealRoutes = new Hono<Env>();
 dealRoutes.use('*', authMiddleware);
 
 const VALID_STAGES: DealStage[] = ['sourcing', 'dd', 'pass', 'move', 'portfolio'];
-const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited'];
+const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited', 'inactive'];
 
 // List deals
 dealRoutes.get('/', async (c) => {
