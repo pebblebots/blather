@@ -184,6 +184,12 @@ channelRoutes.post('/dm', async (c) => {
       if (!existing) {
         await db.insert(channelMembers).values({ channelId: existingCh.id, userId: uid })
           .onConflictDoNothing();
+        // Auto-initialize channel_reads so new members start with 0 unread
+        await db.execute(
+          sql`INSERT INTO channel_reads (channel_id, user_id, last_read_at)
+               VALUES (${existingCh.id}, ${uid}, NOW())
+               ON CONFLICT (channel_id, user_id) DO NOTHING`
+        );
       }
     }
     return c.json(existingCh);
@@ -213,6 +219,15 @@ channelRoutes.post('/dm', async (c) => {
     { channelId: dmChannel.id, userId },
     { channelId: dmChannel.id, userId: body.userId },
   ]).onConflictDoNothing();
+
+  // Auto-initialize channel_reads for both DM members so they start with 0 unread
+  for (const uid of userIds) {
+    await db.execute(
+      sql`INSERT INTO channel_reads (channel_id, user_id, last_read_at)
+           VALUES (${dmChannel.id}, ${uid}, NOW())
+           ON CONFLICT (channel_id, user_id) DO NOTHING`
+    );
+  }
 
   await emitEvent(db, {
     channelId: dmChannel.id,
@@ -256,9 +271,11 @@ channelRoutes.get('/unread', async (c) => {
       messages,
       and(
         eq(messages.channelId, channels.id),
+        sql`${messages.userId} != ${userId}`,
         sql`case
-              when ${channelReads.lastReadAt} is null then ${messages.createdAt} >= ${channelMembers.joinedAt}
-              else ${messages.createdAt} > ${channelReads.lastReadAt}
+              when ${channelReads.lastReadAt} is not null then ${messages.createdAt} > ${channelReads.lastReadAt}
+              when ${channels.channelType} = 'dm' then false
+              else ${messages.createdAt} >= ${channelMembers.joinedAt}
             end`
       )
     )
@@ -268,7 +285,7 @@ channelRoutes.get('/unread', async (c) => {
 
   const counts: Record<string, number> = {};
   for (const row of unreadRows) {
-    counts[row.channelId] = row.unreadCount;
+    counts[row.channelId] = Math.min(row.unreadCount, 999);
   }
   return c.json(counts);
 });
