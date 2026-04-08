@@ -23,11 +23,17 @@ export const taskRoutes = new Hono<Env>();
 taskRoutes.use('*', authMiddleware);
 
 const VALID_STATUSES: TaskStatus[] = ['queued', 'in_progress', 'done'];
+const VALID_PRIORITIES: TaskPriority[] = ['urgent', 'normal', 'low'];
 
-function normalizeStatus(s: string): TaskStatus {
+function normalizeStatus(s: string): TaskStatus | null {
   const mapped = s.replace(/-/g, '_');
-  if (!VALID_STATUSES.includes(mapped as TaskStatus)) throw new Error('Invalid status: ' + s);
+  if (!VALID_STATUSES.includes(mapped as TaskStatus)) return null;
   return mapped as TaskStatus;
+}
+
+function validatePriority(p: string): TaskPriority | null {
+  if (!VALID_PRIORITIES.includes(p as TaskPriority)) return null;
+  return p as TaskPriority;
 }
 
 // List tasks
@@ -36,9 +42,18 @@ taskRoutes.get('/', async (c) => {
   const priority = c.req.query('priority');
   const assignee = c.req.query('assigneeId');
 
+  if (status) {
+    const normalized = normalizeStatus(status);
+    if (!normalized) return c.json({ error: 'Invalid status: ' + status + '. Valid: ' + VALID_STATUSES.join(', ') }, 400);
+  }
+  if (priority) {
+    const validated = validatePriority(priority);
+    if (!validated) return c.json({ error: 'Invalid priority: ' + priority + '. Valid: ' + VALID_PRIORITIES.join(', ') }, 400);
+  }
+
   const result = listTasks({
-    status: status ? normalizeStatus(status) : undefined,
-    priority: priority as TaskPriority | undefined,
+    status: status ? normalizeStatus(status)! : undefined,
+    priority: priority ? validatePriority(priority)! : undefined,
     assigneeId: assignee,
   });
 
@@ -59,6 +74,10 @@ taskRoutes.post('/', async (c) => {
 
   if (!body.title) {
     return c.json({ error: 'title required' }, 400);
+  }
+
+  if (body.priority && !validatePriority(body.priority)) {
+    return c.json({ error: 'Invalid priority: ' + body.priority + '. Valid: ' + VALID_PRIORITIES.join(', ') }, 400);
   }
 
   const task = createTask({
@@ -107,8 +126,19 @@ taskRoutes.patch('/:id', async (c) => {
   } = {};
   if (body.title !== undefined) updates.title = body.title;
   if (body.description !== undefined) updates.description = body.description;
-  if (body.priority !== undefined) updates.priority = body.priority;
-  if (body.status !== undefined) updates.status = normalizeStatus(body.status);
+  if (body.priority !== undefined) {
+    if (!validatePriority(body.priority)) {
+      return c.json({ error: 'Invalid priority: ' + body.priority + '. Valid: ' + VALID_PRIORITIES.join(', ') }, 400);
+    }
+    updates.priority = body.priority;
+  }
+  if (body.status !== undefined) {
+    const normalized = normalizeStatus(body.status);
+    if (!normalized) {
+      return c.json({ error: 'Invalid status: ' + body.status + '. Valid: ' + VALID_STATUSES.join(', ') }, 400);
+    }
+    updates.status = normalized;
+  }
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
 
   // Check claim conflict before updating — return rich 409 with claimer info
@@ -143,11 +173,11 @@ taskRoutes.patch('/:id', async (c) => {
   if (!task) return c.json({ error: 'Task not found' }, 404);
 
   // Status change notification
-  if (body.status !== undefined && normalizeStatus(body.status) !== existing.status) {
+  if (updates.status && updates.status !== existing.status) {
     if (existing.sourceChannelId) {
       try {
         const { notifyStatusChange } = await import('../bots/tasks.js');
-        await notifyStatusChange(db, task, existing.status, normalizeStatus(body.status), userId);
+        await notifyStatusChange(db, task, existing.status, updates.status, userId);
       } catch (e) {
         console.error('[Tasks] Status notification error:', e);
       }
