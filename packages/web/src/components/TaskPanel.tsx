@@ -24,27 +24,50 @@ export function TaskPanel({ members }: TaskPanelProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(() => {
+  // Refresh tasks without loading spinner — used by action handlers after mutations.
+  const refresh = useCallback(() => {
     const filters = filter === 'all' ? undefined : { status: filter };
-    taskApi.list(filters).then((t) => { setTasks(t); setLoading(false); }).catch(() => setLoading(false));
+    taskApi.list(filters).then(setTasks).catch((err) => {
+      console.error('Failed to refresh tasks:', err);
+    });
   }, [filter]);
 
-  useEffect(() => { load(); }, [load]);
+  // Fetch with loading state on mount and filter changes. The cleanup flag discards
+  // stale responses, fixing the race condition where React 18 strict mode double-fires
+  // the effect or rapid filter changes cause setLoading(true) to overwrite a completed
+  // fetch's setLoading(false). (T#99, T#102, T#115)
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const filters = filter === 'all' ? undefined : { status: filter };
+    taskApi.list(filters).then((t) => {
+      if (!cancelled) {
+        setTasks(t);
+        setLoading(false);
+      }
+    }).catch((err) => {
+      console.error('Failed to load tasks:', err);
+      if (!cancelled) {
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [filter]);
 
   const updateStatus = async (id: string, status: string) => {
     await taskApi.update(id, { status });
-    load();
+    refresh();
   };
 
   const updateAssignee = async (id: string, assigneeId: string | null) => {
     await taskApi.update(id, { assigneeId });
-    load();
+    refresh();
   };
 
   const deleteTask = async (id: string) => {
     if (!confirm('Delete this task?')) return;
     await taskApi.delete(id);
-    load();
+    refresh();
   };
 
   const getMemberName = (id: string | null) => {
@@ -86,11 +109,6 @@ export function TaskPanel({ members }: TaskPanelProps) {
       <div className="mac-inset" style={{ flex: 1, overflow: 'auto', margin: 4 }}>
         {loading ? (
           <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#999' }}>⏳ Loading tasks...</div>
-        ) : error ? (
-          <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#CC3333' }}>
-            ⚠️ {error}
-            <button className="mac-btn" style={{ fontSize: 10, marginLeft: 8, padding: '1px 8px' }} onClick={load}>Retry</button>
-          </div>
         ) : tasks.length === 0 ? (
           <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: '#999' }}>No tasks yet. Create one!</div>
         ) : (
@@ -162,7 +180,7 @@ export function TaskPanel({ members }: TaskPanelProps) {
         <CreateTaskModal
           members={members}
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); load(); }}
+          onCreated={() => { setShowCreate(false); refresh(); }}
         />
       )}
     </div>
