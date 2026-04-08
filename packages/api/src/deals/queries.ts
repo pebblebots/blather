@@ -4,10 +4,10 @@ export type DealStage = 'sourcing' | 'dd' | 'pass' | 'move' | 'portfolio';
 /**
  * Deal status enum:
  * - active:    actively tracked / in pipeline
- * - watchlist: monitoring but not actively pursuing
+ * - watchlist: back burner — still monitoring, checking in occasionally, might re-engage
  * - zombie:    company went dark (their side — no responses, activity stale)
- * - inactive:  GP-paused (our side — deliberate deprioritization, company is fine)
- * - exited:    deal closed or company exited portfolio
+ * - inactive:  off the stove — GP-paused, not monitoring, parked until something changes
+ * - exited:    deal concluded or company exited portfolio
  */
 export type DealStatus = 'active' | 'watchlist' | 'zombie' | 'inactive' | 'exited';
 
