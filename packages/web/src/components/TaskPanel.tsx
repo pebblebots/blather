@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { taskApi } from '../lib/api';
 import { Modal } from './Modal';
 
@@ -23,28 +23,64 @@ export function TaskPanel({ members }: TaskPanelProps) {
   const [filter, setFilter] = useState<string>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const load = useCallback(() => {
-    const filters = filter === 'all' ? undefined : { status: filter };
-    taskApi.list(filters).then((t) => { setTasks(t); setLoading(false); }).catch(() => setLoading(false));
+  const load = useCallback(async () => {
+    // Increment request ID to invalidate any in-flight requests
+    const thisRequest = ++requestIdRef.current;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const filters = filter === 'all' ? undefined : { status: filter };
+      const t = await taskApi.list(filters);
+
+      // Only apply if this is still the latest request (discard stale responses)
+      if (thisRequest === requestIdRef.current) {
+        setTasks(Array.isArray(t) ? t : []);
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+      if (thisRequest === requestIdRef.current) {
+        setError('Failed to load tasks');
+        setLoading(false);
+      }
+    }
   }, [filter]);
 
-  useEffect(() => { load(); }, [load]);
+  // Load on mount and when filter changes
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const updateStatus = async (id: string, status: string) => {
-    await taskApi.update(id, { status });
-    load();
+    try {
+      await taskApi.update(id, { status });
+      load();
+    } catch (error) {
+      console.error('Failed to update task status:', error);
+    }
   };
 
   const updateAssignee = async (id: string, assigneeId: string | null) => {
-    await taskApi.update(id, { assigneeId });
-    load();
+    try {
+      await taskApi.update(id, { assigneeId });
+      load();
+    } catch (error) {
+      console.error('Failed to update task assignee:', error);
+    }
   };
 
   const deleteTask = async (id: string) => {
     if (!confirm('Delete this task?')) return;
-    await taskApi.delete(id);
-    load();
+    try {
+      await taskApi.delete(id);
+      load();
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
   };
 
   const getMemberName = (id: string | null) => {
@@ -246,7 +282,7 @@ function CreateTaskModal({ members, onClose, onCreated }: {
           </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-          <button className="mac-btn" onClick={onClose}>Cancel</button>
+          <button className="mac-btn" onClick={onClose} disabled={submitting}>Cancel</button>
           <button className="mac-btn" onClick={submit} disabled={!title.trim() || submitting}>
             {submitting ? '⏳' : 'Create Task'}
           </button>
