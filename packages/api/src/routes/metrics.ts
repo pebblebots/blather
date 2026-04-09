@@ -323,6 +323,32 @@ metricRoutes.post('/upsert', async (c) => {
     return invalidSourceResponse(c);
   }
 
+  // Temporal guard: check if existing data is newer
+  if (body.revenueAsOfDate) {
+    const [existing] = await db
+      .select({ revenueAsOfDate: portfolioMetrics.revenueAsOfDate })
+      .from(portfolioMetrics)
+      .where(and(
+        eq(portfolioMetrics.companyName, body.companyName!),
+        eq(portfolioMetrics.fund, body.fund!),
+        eq(portfolioMetrics.reportingDate, body.reportingDate!)
+      ));
+
+    if (existing?.revenueAsOfDate) {
+      const incomingDate = new Date(body.revenueAsOfDate);
+      const existingDate = new Date(existing.revenueAsOfDate);
+      
+      if (incomingDate < existingDate) {
+        return c.json({ 
+          error: 'Incoming data is stale', 
+          incomingAsOfDate: body.revenueAsOfDate,
+          existingAsOfDate: existing.revenueAsOfDate,
+          skipped: true 
+        }, 409);
+      }
+    }
+  }
+
   const values = metricValues(body);
 
   const [metric] = await db
