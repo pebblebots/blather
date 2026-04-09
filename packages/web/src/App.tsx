@@ -3,6 +3,7 @@ import { AppContext, type User } from './lib/store';
 import { api, clearToken } from './lib/api';
 import { AuthPage } from './pages/AuthPage';
 import { MainPage } from './pages/MainPage';
+import { ToastProvider } from './components/Toast';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -38,7 +39,9 @@ export default function App() {
 
   return (
     <AppContext.Provider value={{ user, setUser: handleSetUser }}>
-      {user ? <MainPage /> : <AuthPage />}
+      <ToastProvider>
+        {user ? <MainPage /> : <AuthPage />}
+      </ToastProvider>
     </AppContext.Provider>
   );
 }

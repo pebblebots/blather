@@ -16,10 +16,12 @@ import MenuBar from '../components/MenuBar';
 import { HuddleModal } from '../components/HuddleModal';
 import { NewHuddleModal } from '../components/NewHuddleModal';
 import { HelpModal } from '../components/HelpModal';
+import { useToast } from '../components/Toast';
 
 export function MainPage() {
   const { user, setUser } = useApp();
   const isMobile = useIsMobile();
+  const { showToast } = useToast();
   
   // Mobile-specific state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -404,7 +406,10 @@ export function MainPage() {
           return { ...m, reactions: [...(m.reactions || []), { id: reaction.id, userId: user?.id, emoji, createdAt: reaction.createdAt }] };
         }));
       }
-    } catch (e: any) { console.error('Reaction error:', e); }
+    } catch (e: any) {
+      console.error('Reaction error:', e);
+      showToast(e?.message ? `Reaction failed: ${e.message}` : 'Couldn\u2019t add reaction', 'error');
+    }
   };
 
   const handleSend = async (content: string, attachments?: any[]) => {
