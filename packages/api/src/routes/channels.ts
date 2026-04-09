@@ -801,6 +801,29 @@ channelRoutes.post('/:id/read', async (c) => {
   return c.json({ ok: true });
 });
 
+// Mark all channels as read (or optionally just DMs)
+channelRoutes.post('/read-all', async (c) => {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const type = c.req.query('type'); // optional: 'dm' to only mark DMs
+
+  const typeFilter = type === 'dm'
+    ? sql`AND c.channel_type = 'dm'`
+    : sql``;
+
+  await db.execute(
+    sql`INSERT INTO channel_reads (channel_id, user_id, last_read_at)
+         SELECT cm.channel_id, ${userId}, NOW()
+         FROM channel_members cm
+         JOIN channels c ON c.id = cm.channel_id
+         WHERE cm.user_id = ${userId} ${typeFilter}
+         ON CONFLICT (channel_id, user_id)
+         DO UPDATE SET last_read_at = NOW()`
+  );
+
+  return c.json({ ok: true });
+});
+
 
 // Invite user to channel (only existing members can invite)
 channelRoutes.post('/:id/members', async (c) => {

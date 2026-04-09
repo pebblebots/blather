@@ -142,6 +142,9 @@ export const unreadApi = {
   markRead: (channelId: string) =>
     request<{ ok: boolean }>(`/channels/${channelId}/read`, { method: 'POST' }),
 
+  markAllRead: (type?: 'dm') =>
+    request<{ ok: boolean }>(`/channels/read-all${type ? `?type=${type}` : ''}`, { method: 'POST' }),
+
   getUnreadCounts: () =>
     request<Record<string, number>>('/channels/unread'),
 };

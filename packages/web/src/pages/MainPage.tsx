@@ -109,19 +109,36 @@ export function MainPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  // Fetch unread counts and presence on mount
+  // Fetch unread counts and presence on mount + periodic refresh
   useEffect(() => {
-    unreadApi.getUnreadCounts().then(setUnreadCounts).catch(() => {});
-    presenceApi.getPresence().then((data) => {
+    const refreshUnread = () => unreadApi.getUnreadCounts().then(setUnreadCounts).catch(() => {});
+    const refreshPresence = () => presenceApi.getPresence().then((data) => {
       const map = new Map<string, string>();
       for (const p of data) map.set(p.userId, p.status);
       setPresence(map);
     }).catch(() => {});
-    statusApi.getAll().then((data) => {
+    const refreshStatuses = () => statusApi.getAll().then((data) => {
       const map = new Map<string, { text: string; progress?: number; eta?: string }>();
       for (const [userId, s] of Object.entries(data)) map.set(userId, s as any);
       setAgentStatuses(map);
     }).catch(() => {});
+
+    // Initial fetch
+    refreshUnread();
+    refreshPresence();
+    refreshStatuses();
+
+    // Periodic refresh of unread counts (every 60s) to keep badges accurate
+    const unreadInterval = setInterval(refreshUnread, 60_000);
+
+    // Refresh on window focus (user returns to tab)
+    const onFocus = () => refreshUnread();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(unreadInterval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   // Fetch active huddles
