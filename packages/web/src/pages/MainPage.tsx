@@ -375,7 +375,7 @@ export function MainPage() {
     try {
       const updated = await api.editMessage(selectedCh, messageId, content);
       setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, content: updated.content, updatedAt: updated.updatedAt || updated.updated_at } : m));
-    } catch (e: any) { alert(e.message || 'Failed to edit message'); }
+    } catch (e: any) { showToast(e.message || 'Failed to edit message', 'error'); }
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -383,7 +383,7 @@ export function MainPage() {
     try {
       await api.deleteMessage(selectedCh, messageId);
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
-    } catch (e: any) { alert(e.message || 'Failed to delete message'); }
+    } catch (e: any) { showToast(e.message || 'Failed to delete message', 'error'); }
   };
 
   const handleToggleReaction = async (messageId: string, emoji: string, hasReacted: boolean) => {
@@ -417,7 +417,7 @@ export function MainPage() {
     try {
       const msg = await api.sendMessage(selectedCh, content, attachments);
       setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
-    } catch {}
+    } catch (e: any) { showToast("Could not send message", "error"); }
   };
 
   const logout = () => { clearToken(); setUser(null); };
@@ -446,7 +446,7 @@ export function MainPage() {
       await api.archiveChannel(channelId);
       setChannels((prev) => prev.filter((c) => c.id !== channelId));
       if (selectedCh === channelId) setSelectedCh(null);
-    } catch (e: any) { alert(e.message || 'Failed to archive'); }
+    } catch (e: any) { showToast(e.message || 'Failed to archive', 'error'); }
   };
 
   const handleDeleteChannel = async (channelId: string) => {
@@ -455,7 +455,7 @@ export function MainPage() {
       await api.deleteChannel(channelId);
       setChannels((prev) => prev.filter((c) => c.id !== channelId));
       if (selectedCh === channelId) setSelectedCh(null);
-    } catch (e: any) { alert(e.message || 'Failed to delete'); }
+    } catch (e: any) { showToast(e.message || 'Failed to delete', 'error'); }
   };
 
   const handleChannelContextMenu = (e: React.MouseEvent, ch: any) => {
@@ -471,7 +471,7 @@ export function MainPage() {
         await api.unmuteChannel(channelId);
       }
       setChannels((prev) => prev.map((ch) => ch.id === channelId ? { ...ch, muted: mute } : ch));
-    } catch (e: any) { alert(e.message || 'Failed to toggle mute'); }
+    } catch (e: any) { showToast(e.message || 'Failed to toggle mute', 'error'); }
   };
 
   // Keyboard shortcut: Cmd+K or Ctrl+K to open search
