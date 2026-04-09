@@ -324,6 +324,7 @@ metricRoutes.post('/upsert', async (c) => {
   }
 
   // Temporal guard: check if existing data is newer
+  // Note: Guard is bypassed when revenueAsOfDate is missing (manual updates)
   if (body.revenueAsOfDate) {
     const [existing] = await db
       .select({ revenueAsOfDate: portfolioMetrics.revenueAsOfDate })
