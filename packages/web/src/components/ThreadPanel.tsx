@@ -18,12 +18,13 @@ interface Props {
   channelId: string;
   parentMessage: ThreadMessage;
   usersMap: Map<string, { displayName: string; isAgent: boolean }>;
+  displayNames?: Map<string, string>;
   currentUserId?: string;
   onClose: () => void;
   newReplyFromWs?: ThreadMessage;
 }
 
-export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId, onClose, newReplyFromWs }: Props) {
+export function ThreadPanel({ channelId, parentMessage, usersMap, displayNames, currentUserId, onClose, newReplyFromWs }: Props) {
   const { showToast } = useToast();
   const [replies, setReplies] = useState<ThreadMessage[]>([]);
   const [text, setText] = useState('');
@@ -83,7 +84,7 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
       }}>
         <span style={{ color: '#999999', fontSize: 11 }}>[{formatTimestamp(msg.createdAt)}]</span>
         {' '}
-        <span style={{ fontWeight: 'bold', color: nickColor, fontSize: 12 }}>&lt;{user.displayName}&gt;</span>
+        <span style={{ fontWeight: 'bold', color: nickColor, fontSize: 12 }}>&lt;{displayNames?.get(msg.userId) || user.displayName}&gt;</span>
         {' '}
         <MarkdownText text={msg.content} usersMap={usersMap} currentUserId={currentUserId} />
       </div>

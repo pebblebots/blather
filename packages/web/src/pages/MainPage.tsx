@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api, unreadApi, presenceApi, statusApi, clearToken } from '../lib/api';
 import { useApp } from '../lib/store';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -17,6 +17,7 @@ import { HuddleModal } from '../components/HuddleModal';
 import { NewHuddleModal } from '../components/NewHuddleModal';
 import { HelpModal } from '../components/HelpModal';
 import { useToast } from '../components/Toast';
+import { getDisambiguatedNames } from '../lib/chatUtils';
 
 export function MainPage() {
   const { user, setUser } = useApp();
@@ -93,6 +94,8 @@ export function MainPage() {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [presence, setPresence] = useState<Map<string, string>>(new Map());
   const [agentStatuses, setAgentStatuses] = useState<Map<string, { text: string; progress?: number; eta?: string }>>(new Map());
+
+  const displayNames = useMemo(() => getDisambiguatedNames(allMembers), [allMembers]);
 
   // Mobile tab handlers
 
@@ -545,8 +548,7 @@ export function MainPage() {
               if (selectedChannel.channelType === 'dm') {
                 const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; 
                 const otherUserId = uuids.find((id: string) => id !== user?.id);
-                const otherUser = allMembers.find(member => member.id === otherUserId);
-                return `💬 ${otherUser?.displayName || 'Unknown User'}`;
+                return `💬 ${(otherUserId && displayNames.get(otherUserId)) || 'Unknown User'}`;
               } else {
                 return `# ${selectedChannel.name}`;
               }
@@ -578,6 +580,7 @@ export function MainPage() {
               <MessageList
                 messages={messages}
                 usersMap={usersMap}
+                displayNames={displayNames}
                 currentUserId={user?.id}
                 channelId={selectedCh ?? undefined}
                 onLoadOlder={loadOlderMessages}
@@ -837,7 +840,7 @@ export function MainPage() {
                             flexShrink: 0,
                           }} />
                           <span style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ display: 'block' }}>{member.displayName}</span>
+                            <span style={{ display: 'block' }}>{displayNames.get(member.id) || member.displayName}</span>
                             {agentStatuses.has(member.id) && (() => {
                               const s = agentStatuses.get(member.id)!;
                               return (
@@ -916,6 +919,7 @@ export function MainPage() {
             channelId={selectedCh}
             parentMessage={threadMessage}
             usersMap={usersMap}
+            displayNames={displayNames}
             currentUserId={user?.id}
             onClose={() => setThreadMessage(null)}
             newReplyFromWs={threadNewReply}
@@ -1190,7 +1194,7 @@ export function MainPage() {
                         flexShrink: 0,
                       }} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
-                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.displayName}</span>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayNames.get(member.id) || member.displayName}</span>
                         {agentStatuses.has(member.id) && (() => {
                           const s = agentStatuses.get(member.id)!;
                           return (
@@ -1253,8 +1257,7 @@ export function MainPage() {
                   if (selectedChannel.channelType === 'dm') {
                     // For DMs, show the other user's display name
                     const uuids = selectedChannel.slug.replace('dm-', '').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) || []; const otherUserId = uuids.find((id: string) => id !== user?.id);
-                    const otherUser = allMembers.find(member => member.id === otherUserId);
-                    return `💬 ${otherUser?.displayName || 'Unknown User'}`;
+                    return `💬 ${(otherUserId && displayNames.get(otherUserId)) || 'Unknown User'}`;
                   } else {
                     // For regular channels, show channel name and topic
                     return `# ${selectedChannel.name}${selectedChannel.topic ? ' — ' + selectedChannel.topic : ''}`;
@@ -1267,7 +1270,7 @@ export function MainPage() {
               <TaskPanel members={allMembers} />
             ) : selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
+                <MessageList messages={messages} usersMap={usersMap} displayNames={displayNames} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>

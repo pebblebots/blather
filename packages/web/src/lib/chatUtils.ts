@@ -57,3 +57,24 @@ export function formatDateLabel(dateKey: string): string {
   if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
   return d.toLocaleDateString([], { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
+
+/** Build a Map<userId, displayName> with disambiguation suffixes for duplicate display names. */
+export function getDisambiguatedNames(
+  members: { id: string; displayName: string; email?: string }[],
+): Map<string, string> {
+  const nameCounts = new Map<string, number>();
+  for (const m of members) {
+    nameCounts.set(m.displayName, (nameCounts.get(m.displayName) || 0) + 1);
+  }
+
+  const result = new Map<string, string>();
+  for (const m of members) {
+    if ((nameCounts.get(m.displayName) || 0) > 1) {
+      const suffix = m.email ? m.email.split('@')[0] : m.id.slice(0, 6);
+      result.set(m.id, `${m.displayName} (${suffix})`);
+    } else {
+      result.set(m.id, m.displayName);
+    }
+  }
+  return result;
+}

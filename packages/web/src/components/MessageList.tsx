@@ -149,6 +149,7 @@ function isEdited(msg: Msg): boolean {
 interface Props {
   messages: Msg[];
   usersMap: Map<string, { displayName: string; isAgent: boolean }>;
+  displayNames?: Map<string, string>;
   currentUserId?: string;
   channelId?: string;
   onLoadOlder?: () => void;
@@ -161,7 +162,7 @@ interface Props {
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
 }
 
-export function MessageList({ messages, usersMap, currentUserId, channelId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onToggleReaction }: Props) {
+export function MessageList({ messages, usersMap, displayNames, currentUserId, channelId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onToggleReaction }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
   const isRestoringScroll = useRef(false);
@@ -363,7 +364,7 @@ export function MessageList({ messages, usersMap, currentUserId, channelId, onLo
           >
             <span style={{ color: "#999999" }}>[{formatTimestamp(msg.createdAt)}]</span>
             {" "}
-            <span style={{ fontWeight: "bold", color: nickColor }}>&lt;{user.displayName}&gt;</span>
+            <span style={{ fontWeight: "bold", color: nickColor }}>&lt;{displayNames?.get(msg.userId) || user.displayName}&gt;</span>
             {" "}
             {editingMsg === msg.id ? (
               <span style={{ display: "inline" }}>
