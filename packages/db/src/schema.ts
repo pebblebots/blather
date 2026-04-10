@@ -78,10 +78,13 @@ export const messages = pgTable('messages', {
   content: text('content').notNull(),
   attachments: jsonb("attachments").$type<{ url: string; filename: string; contentType: string; size: number }[]>().default([]),
   threadId: uuid('thread_id'),
+  idempotencyKey: uuid('idempotency_key'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   canvas: jsonb('canvas'),
-});
+}, (table) => [
+  unique('uq_messages_user_idempotency').on(table.userId, table.idempotencyKey),
+]);
 
 // ── Reactions ──
 

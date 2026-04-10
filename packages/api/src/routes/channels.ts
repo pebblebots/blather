@@ -497,7 +497,7 @@ channelRoutes.post('/:id/messages', async (c) => {
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
-  const body = await c.req.json<{ content: string; threadId?: string; attachments?: any[]; canvas?: { html: string; title?: string; width?: number; height?: number } }>();
+  const body = await c.req.json<{ content: string; threadId?: string; attachments?: any[]; idempotencyKey?: string; canvas?: { html: string; title?: string; width?: number; height?: number } }>();
 
   // Look up channel
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
@@ -535,6 +535,20 @@ channelRoutes.post('/:id/messages', async (c) => {
     };
   }
 
+  // Idempotency guard: if client sends an idempotencyKey, return existing message on retry
+  if (body.idempotencyKey) {
+    const [existing] = await db.select({ id: messages.id }).from(messages)
+      .where(and(
+        eq(messages.userId, userId),
+        eq(messages.idempotencyKey, body.idempotencyKey),
+      ))
+      .limit(1);
+    if (existing) {
+      console.warn(`[idempotency] Returned existing message for key=${body.idempotencyKey} user=${userId}`);
+      return c.json({ id: existing.id, deduplicated: true }, 200);
+    }
+  }
+
   // Dedupe guard: reject exact duplicate from same user within 60s
   const sixtySecsAgo = new Date(Date.now() - 60_000);
   const [dupe] = await db.select({ id: messages.id }).from(messages)
@@ -555,6 +569,7 @@ channelRoutes.post('/:id/messages', async (c) => {
     userId,
     content: body.content,
     threadId: body.threadId ?? null,
+    idempotencyKey: body.idempotencyKey ?? null,
     attachments: body.attachments || [],
     canvas: canvasData,
   }).returning();
