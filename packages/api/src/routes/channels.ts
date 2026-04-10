@@ -438,6 +438,54 @@ channelRoutes.get('/:id/messages', async (c) => {
   return c.json(result);
 });
 
+// ── Per-user message rate limiting ────────────────────────────────────────────
+// Sliding window: max 5 messages per user per channel per 30 seconds.
+// Keyed by "userId:channelId" → array of timestamps.
+
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 30_000;
+
+const rateLimitMap = new Map<string, number[]>();
+
+// Clean up expired entries every 60s to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamps] of rateLimitMap) {
+    const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    if (valid.length === 0) {
+      rateLimitMap.delete(key);
+    } else {
+      rateLimitMap.set(key, valid);
+    }
+  }
+}, 60_000).unref();
+
+/**
+ * Check rate limit for a user+channel pair. Returns null if allowed,
+ * or the number of seconds until the window resets if exceeded.
+ */
+function checkRateLimit(userId: string, channelId: string): number | null {
+  const key = `${userId}:${channelId}`;
+  const now = Date.now();
+  const timestamps = rateLimitMap.get(key) || [];
+  const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+
+  if (valid.length >= RATE_LIMIT_MAX) {
+    const oldest = valid[0];
+    const retryAfter = Math.ceil((oldest + RATE_LIMIT_WINDOW_MS - now) / 1000);
+    return retryAfter;
+  }
+
+  valid.push(now);
+  rateLimitMap.set(key, valid);
+  return null;
+}
+
+/** Exported for testing — clears all rate limit state. */
+export function _resetRateLimiter() {
+  rateLimitMap.clear();
+}
+
 // Detect raw API error messages that should never be broadcast
 //
 // Two-tier approach:
@@ -515,6 +563,16 @@ channelRoutes.post('/:id/messages', async (c) => {
   if (looksLikeApiError(body.content)) {
     console.warn(`[error-filter] Rejected API error message from user=${userId} channel=${channelId}: ${body.content.slice(0, 200)}`);
     return c.json({ error: 'Message rejected: appears to be a raw API error. These should be handled by the sender, not posted to chat.' }, 422);
+  }
+
+  // Rate limit: max 5 messages per user per channel per 30s window
+  const retryAfter = checkRateLimit(userId, channelId);
+  if (retryAfter !== null) {
+    console.warn(`[rate-limit] User ${userId} exceeded rate limit in channel ${channelId}`);
+    return c.json(
+      { error: `Rate limit exceeded: max ${RATE_LIMIT_MAX} messages per ${RATE_LIMIT_WINDOW_MS / 1000} seconds per channel. Try again in ${retryAfter} seconds.` },
+      { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+    );
   }
 
   // Canvas validation

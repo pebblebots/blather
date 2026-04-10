@@ -9,6 +9,7 @@ import {
 } from '@blather/db';
 import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
+import { _resetRateLimiter } from './channels.js';
 
 type MessageRow = {
   id: string;
@@ -32,6 +33,7 @@ describe('channel routes', () => {
 
   beforeEach(async () => {
     await harness.reset();
+    _resetRateLimiter();
   });
 
   afterAll(async () => {
@@ -623,6 +625,102 @@ describe('channel creation', () => {
     });
     expect(reversed.status).toBe(200);
     expect(reversed.body?.id).toBe(first.body?.id);
+  });
+});
+
+describe('per-user message rate limiting', () => {
+  it('returns 429 after 5 messages in the same channel within 30 seconds', async () => {
+    const { owner, channel } = await createFixture();
+
+    // Send 5 messages — all should succeed
+    for (let i = 0; i < 5; i++) {
+      const res = await harness.request.post<MessageRow>(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { content: `msg ${i}` },
+      });
+      expect(res.status).toBe(201);
+    }
+
+    // 6th message should be rate-limited
+    const limited = await harness.request.post<{ error: string }>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { content: 'one too many' },
+    });
+
+    expect(limited.status).toBe(429);
+    expect(limited.body?.error).toMatch(/Rate limit exceeded/);
+    expect(limited.body?.error).toMatch(/5 messages per 30 seconds/);
+    expect(limited.headers?.get('retry-after')).toBeTruthy();
+  });
+
+  it('rate limits are per-user — different users have separate limits', async () => {
+    const { owner, member, channel } = await createFixture();
+
+    // Owner sends 5 messages
+    for (let i = 0; i < 5; i++) {
+      await harness.request.post(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { content: `owner msg ${i}` },
+      });
+    }
+
+    // Member can still send (separate limit)
+    const memberMsg = await harness.request.post<MessageRow>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(member.id),
+      json: { content: 'member msg' },
+    });
+    expect(memberMsg.status).toBe(201);
+  });
+
+  it('rate limits are per-channel — same user can post in different channels', async () => {
+    const { owner, channel } = await createFixture();
+    const channel2 = await harness.factories.createChannel({
+      name: 'other',
+      slug: 'other',
+      channelType: 'public',
+      createdBy: owner.id,
+    });
+
+    // Owner hits limit in channel 1
+    for (let i = 0; i < 5; i++) {
+      await harness.request.post(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { content: `ch1 msg ${i}` },
+      });
+    }
+
+    // Same owner can still post in channel 2
+    const ch2Msg = await harness.request.post<MessageRow>(`/channels/${channel2.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { content: 'ch2 msg' },
+    });
+    expect(ch2Msg.status).toBe(201);
+  });
+
+  it('rate limit check happens after error filter but before dedupe', async () => {
+    const { owner, channel } = await createFixture();
+
+    // Error filter should still reject API errors even without hitting rate limit
+    const apiError = await harness.request.post<{ error: string }>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { content: 'LLM error api_error: Internal server error' },
+    });
+    expect(apiError.status).toBe(422);
+
+    // Fill up rate limit
+    for (let i = 0; i < 5; i++) {
+      await harness.request.post(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { content: `fill ${i}` },
+      });
+    }
+
+    // Rate-limited request should get 429, not a dedupe 409
+    const rateLimited = await harness.request.post<{ error: string }>(`/channels/${channel.id}/messages`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { content: 'fill 0' },
+    });
+    expect(rateLimited.status).toBe(429);
   });
 });
 
