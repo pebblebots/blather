@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import { getNickColor, formatTimestamp } from '../lib/chatUtils';
 import { MarkdownText } from './MarkdownText';
+import { useToast } from './Toast';
 
 /** Minimal message shape used by ThreadPanel. */
 interface ThreadMessage {
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId, onClose, newReplyFromWs }: Props) {
+  const { showToast } = useToast();
   const [replies, setReplies] = useState<ThreadMessage[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -62,7 +64,7 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, currentUserId,
       setText('');
       setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch (e: any) {
-      alert(e.message || 'Failed to send reply');
+      showToast(e.message || 'Failed to send reply', 'error');
     } finally {
       setSending(false);
     }
