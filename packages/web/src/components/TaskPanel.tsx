@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { taskApi } from '../lib/api';
 import { Modal } from './Modal';
+import { useToast } from './Toast';
 
 const PRIORITY_ICONS: Record<string, string> = {
   urgent: '🔴',
@@ -199,6 +200,7 @@ function CreateTaskModal({ members, onClose, onCreated }: {
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { showToast } = useToast();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('normal');
@@ -217,7 +219,7 @@ function CreateTaskModal({ members, onClose, onCreated }: {
       });
       onCreated();
     } catch (e: any) {
-      alert(e.message || 'Failed to create task');
+      showToast(e.message || 'Failed to create task', 'error');
     } finally {
       setSubmitting(false);
     }
