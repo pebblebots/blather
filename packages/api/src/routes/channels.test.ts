@@ -100,6 +100,14 @@ describe('channel routes', () => {
       '{type: "error", code: 500}',
       'This request would exceed your rate limit',
       'LLM error: Something went wrong with the model',
+      '⚠️ Agent failed before reply: rate limit exceeded.\nLogs: openclaw logs --follow',
+      '⚠️ Context overflow — prompt too large for this model. Try a shorter message or a larger-context model.',
+      '⚠️ Message ordering conflict - please try again.',
+      'All models failed after retry',
+      'Embedded agent failed before reply: timeout',
+      'Image model failed (openai/dall-e-3): quota exceeded',
+      'PDF model failed (anthropic/claude-3): rate limit',
+      'Followup agent failed before reply: connection error',
     ];
 
     for (const content of errorMessages) {
