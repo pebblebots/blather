@@ -16,10 +16,13 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 interface TaskPanelProps {
-  members: { id: string; displayName: string; isAgent: boolean }[];
+  members: { id: string; displayName: string; isAgent: boolean; email?: string }[];
+  /** Pre-computed disambiguated display names (e.g. from getDisambiguatedNames). When
+   *  provided, these are used instead of raw displayName for assignee/creator labels. */
+  disambiguatedNames?: Map<string, string>;
 }
 
-export function TaskPanel({ members }: TaskPanelProps) {
+export function TaskPanel({ members, disambiguatedNames }: TaskPanelProps) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [showCreate, setShowCreate] = useState(false);
@@ -71,10 +74,16 @@ export function TaskPanel({ members }: TaskPanelProps) {
     refresh();
   };
 
-  const getMemberName = (id: string | null) => {
-    if (!id) return '—';
+  /** Returns { label, title } for a member ID.
+   *  label: disambiguated display name (or raw displayName as fallback)
+   *  title: full email for tooltip, or undefined if unavailable
+   */
+  const getMemberInfo = (id: string | null): { label: string; title?: string } => {
+    if (!id) return { label: '—' };
     const m = members.find((u) => u.id === id);
-    return m ? m.displayName : id.slice(0, 8);
+    if (!m) return { label: id.slice(0, 8) };
+    const label = disambiguatedNames?.get(id) ?? m.displayName;
+    return { label, title: m.email ?? undefined };
   };
 
   const grouped = {
@@ -154,8 +163,18 @@ export function TaskPanel({ members }: TaskPanelProps) {
                         </div>
                       )}
                       <div style={{ fontSize: 9, color: '#999', marginTop: 1 }}>
-                        by {getMemberName(task.creatorId)} · assigned: {getMemberName(task.assigneeId)}
-                        {task.claimedById && <> · claimed by: {getMemberName(task.claimedById)}</>}
+                        {(() => {
+                          const creator = getMemberInfo(task.creatorId);
+                          const assignee = getMemberInfo(task.assigneeId);
+                          const claimed = task.claimedById ? getMemberInfo(task.claimedById) : null;
+                          return (
+                            <>
+                              by <span title={creator.title}>{creator.label}</span>
+                              {' · '}assigned: <span title={assignee.title}>{assignee.label}</span>
+                              {claimed && <> · claimed by: <span title={claimed.title}>{claimed.label}</span></>}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>

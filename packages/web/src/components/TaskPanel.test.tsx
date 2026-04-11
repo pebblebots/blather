@@ -170,7 +170,37 @@ describe('TaskPanel', () => {
     mockList.mockResolvedValue([sampleTasks[1]]);
     render(<TaskPanel members={members} />);
 
-    expect(await screen.findByText(/by Alice/)).toBeInTheDocument();
-    expect(screen.getByText(/assigned: Bot/)).toBeInTheDocument();
+    // Names render inside <span> elements; multiple spans may exist per row
+    expect(await screen.findAllByText('Alice')).not.toHaveLength(0);
+    expect(screen.getAllByText('Bot')).not.toHaveLength(0);
+  });
+
+  it('T#137: uses disambiguated names when provided', async () => {
+    mockList.mockResolvedValue([sampleTasks[1]]);
+    const disambiguatedNames = new Map([
+      ['u-1', 'Alice (pbd.bot)'],
+      ['u-2', 'Bot (agent)'],
+    ]);
+    render(<TaskPanel members={members} disambiguatedNames={disambiguatedNames} />);
+
+    expect(await screen.findByText('Alice (pbd.bot)')).toBeInTheDocument();
+    expect(screen.getByText('Bot (agent)')).toBeInTheDocument();
+  });
+
+  it('T#137: shows email as tooltip title on assignee span', async () => {
+    const membersWithEmail = [
+      { id: 'u-1', displayName: 'Alice', isAgent: false, email: 'alice@pbd.bot' },
+      { id: 'u-2', displayName: 'CodeBot', isAgent: true, email: 'code@pbd.bot' },
+    ];
+    mockList.mockResolvedValue([sampleTasks[1]]);
+    render(<TaskPanel members={membersWithEmail} />);
+
+    await screen.findByText('Alice');
+    // There may be multiple CodeBot spans (creator + assignee rows) — find the one
+    // with the tooltip, which is the assignee span
+    const spans = screen.getAllByText('CodeBot');
+    const withTitle = spans.find((el) => el.getAttribute('title') === 'code@pbd.bot');
+    expect(withTitle).toBeDefined();
+    expect(withTitle).toHaveAttribute('title', 'code@pbd.bot');
   });
 });

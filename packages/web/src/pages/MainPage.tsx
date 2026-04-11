@@ -580,7 +580,7 @@ export function MainPage() {
         {/* Mobile content area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
           {showTasks ? (
-            <TaskPanel members={allMembers} />
+            <TaskPanel members={allMembers} disambiguatedNames={displayNames} />
           ) : selectedCh ? (
             <>
               <MessageList
@@ -1273,7 +1273,7 @@ export function MainPage() {
             </div>
 
             {showTasks ? (
-              <TaskPanel members={allMembers} />
+              <TaskPanel members={allMembers} disambiguatedNames={displayNames} />
             ) : selectedCh ? (
               <>
                 <MessageList messages={messages} usersMap={usersMap} displayNames={displayNames} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
