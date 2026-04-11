@@ -482,12 +482,17 @@ export function MainPage() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setShowSearch((v) => !v);
+        setShowSearch((v) => {
+          if (v) return false; // closing search is always ok
+          // Block opening search when another modal is active
+          if (showHelp || showCreateCh || showNewHuddle || showHuddle || inviteChannelId || contextMenu) return false;
+          return true;
+        });
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [showHelp, showCreateCh, showNewHuddle, showHuddle, inviteChannelId, contextMenu]);
 
   const selectedChannel = channels.find((c) => c.id === selectedCh);
 
