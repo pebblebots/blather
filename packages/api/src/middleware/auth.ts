@@ -4,6 +4,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { apiKeys } from '@blather/db';
 import { createHash } from 'crypto';
 import type { Env } from '../app.js';
+import type { Db } from '@blather/db';
 import { JWT_SECRET } from '../config.js';
 import type { Context } from 'hono';
 
@@ -37,44 +38,49 @@ export function logAuthFailure(
   console.warn(`[AUTH FAIL] ${reason} ip=${ip} path=${c.req.path}${extra?.email ? ` email=${extra.email}` : ''}${extra?.apiKeyPrefix ? ` key=${extra.apiKeyPrefix}…` : ''}`);
 }
 
+async function tryApiKey(db: Db, key: string): Promise<string | null> {
+  const hash = hashApiKey(key);
+  const [found] = await db.select().from(apiKeys).where(
+    and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
+  ).limit(1);
+  if (!found) return null;
+  await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, found.id));
+  return found.userId;
+}
+
 export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   const db = c.get('db');
   const authHeader = c.req.header('Authorization');
-  const bearerUserId = verifyBearerToken(authHeader);
 
+  // 1. Try Bearer as JWT
+  const bearerUserId = verifyBearerToken(authHeader);
   if (bearerUserId) {
     c.set('userId', bearerUserId);
     return next();
   }
 
-  // Check X-API-Key header
-  let apiKey = c.req.header('X-API-Key');
-  
-  // If no X-API-Key but Bearer header exists, check if Bearer contains an API key
-  if (!apiKey && authHeader?.startsWith('Bearer ')) {
-    const bearerToken = authHeader.slice(7);
-    // Check if the Bearer token looks like an API key (starts with 'blather_')
-    if (bearerToken.startsWith('blather_')) {
-      apiKey = bearerToken;
-    }
-  }
-  
-  if (apiKey) {
-    const hash = hashApiKey(apiKey);
-    const [found] = await db.select().from(apiKeys).where(
-      and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
-    ).limit(1);
-    if (found) {
-      // Update last_used_at
-      await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, found.id));
-      c.set('userId', found.userId);
+  // 2. Try X-API-Key header
+  const apiKeyHeader = c.req.header('X-API-Key');
+  if (apiKeyHeader) {
+    const userId = await tryApiKey(db, apiKeyHeader);
+    if (userId) {
+      c.set('userId', userId);
       return next();
     }
-    logAuthFailure(c, 'invalid_api_key', { apiKeyPrefix: apiKey.slice(0, 12) });
+    logAuthFailure(c, 'invalid_api_key', { apiKeyPrefix: apiKeyHeader.slice(0, 12) });
     return c.json({ error: 'Invalid API key' }, 401);
   }
 
+  // 3. Bearer token failed JWT parse — try it as an API key before rejecting.
+  //    Agents that send `Authorization: Bearer blather_xxx` instead of `X-API-Key: blather_xxx`
+  //    would otherwise get a hard 401 with no fallback.
   if (authHeader?.startsWith('Bearer ')) {
+    const bearerValue = authHeader.slice(7);
+    const userId = await tryApiKey(db, bearerValue);
+    if (userId) {
+      c.set('userId', userId);
+      return next();
+    }
     logAuthFailure(c, 'invalid_token');
     return c.json({ error: 'Invalid token' }, 401);
   }
