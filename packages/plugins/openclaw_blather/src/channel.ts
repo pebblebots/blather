@@ -82,9 +82,13 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
         targetId = targetId.slice("blather:channel:".length);
       else if (targetId.startsWith("channel:"))
         targetId = targetId.slice("channel:".length);
-      // Explicit user ID target — resolve DM channel first
+      // Explicit user ID target — resolve DM channel first.
+      // Note: normalizeTarget strips the leading "blather:" so we may receive either
+      // "blather:user:<uuid>" (if not yet normalized) or "user:<uuid>" (post-normalize).
       else if (targetId.startsWith("blather:user:"))
         targetId = (await client.getOrCreateDM(targetId.slice("blather:user:".length))).id;
+      else if (targetId.startsWith("user:"))
+        targetId = (await client.getOrCreateDM(targetId.slice("user:".length))).id;
 
       // If still a raw UUID, try as channel first; fall back to user ID (DM) on 404.
       // This handles cases where an agent passes a user ID without the blather:user: prefix.
