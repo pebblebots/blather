@@ -47,7 +47,18 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     return next();
   }
 
-  const apiKey = c.req.header('X-API-Key');
+  // Check X-API-Key header
+  let apiKey = c.req.header('X-API-Key');
+  
+  // If no X-API-Key but Bearer header exists, check if Bearer contains an API key
+  if (!apiKey && authHeader?.startsWith('Bearer ')) {
+    const bearerToken = authHeader.slice(7);
+    // Check if the Bearer token looks like an API key (starts with 'blather_')
+    if (bearerToken.startsWith('blather_')) {
+      apiKey = bearerToken;
+    }
+  }
+  
   if (apiKey) {
     const hash = hashApiKey(apiKey);
     const [found] = await db.select().from(apiKeys).where(
