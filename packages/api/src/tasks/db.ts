@@ -53,6 +53,10 @@ export function getTaskDb(): Database.Database {
   if (!cols.some((c) => c.name === 'claimedById')) {
     _db.exec('ALTER TABLE tasks ADD COLUMN claimedById TEXT');
   }
+  // Migration: add completion_artifact column if it doesn't exist
+  if (!cols.some((c) => c.name === 'completion_artifact')) {
+    _db.exec('ALTER TABLE tasks ADD COLUMN completion_artifact TEXT');
+  }
 
   return _db;
 }

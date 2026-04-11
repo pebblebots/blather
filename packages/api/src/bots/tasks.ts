@@ -166,28 +166,61 @@ async function cmdAdd(db: Db, channelId: string, args: string[], threadId?: stri
 
 async function cmdDone(db: Db, channelId: string, query: string, threadId?: string | null, userId?: string) {
   if (!query) {
-    await postBotMessage(db, channelId, '❌ Please specify a task: `@tasks done <T#id or title>`', threadId);
+    await postBotMessage(db, channelId, '❌ Please specify a task: `@tasks done <T#id or title> [artifact]`', threadId);
     return;
   }
 
-  let task = resolveTask(query.trim());
+  // Parse task ID/title and optional completion artifact
+  // Support both "T#123 commit abc123" and "some task title commit abc123"
+  const parts = query.trim().split(/\s+/);
+  let taskQuery: string;
+  let completionArtifact: string | null = null;
+  
+  // Try to detect if first part is a T# ID
+  if (parts[0]?.match(/^T#?\d+$/i)) {
+    taskQuery = parts[0];
+    completionArtifact = parts.slice(1).join(' ') || null;
+  } else {
+    // For title-based queries, try to find where the artifact starts
+    // Look for common artifact patterns at the end
+    const artifactPatterns = /\b(commit|pr|pull|hash|sha|url|link|deployed|merged)\s+/i;
+    const match = query.match(artifactPatterns);
+    if (match && match.index) {
+      taskQuery = query.slice(0, match.index).trim();
+      completionArtifact = query.slice(match.index).trim();
+    } else {
+      // No artifact pattern found, treat entire query as task identifier
+      taskQuery = query;
+    }
+  }
 
+  let task = resolveTask(taskQuery);
   if (!task) {
-    task = findTaskByTitle(query, { excludeStatus: 'done' });
+    task = findTaskByTitle(taskQuery, { excludeStatus: 'done' });
   }
 
   if (!task) {
-    await postBotMessage(db, channelId, `❌ No task found matching "${query}"`, threadId);
+    await postBotMessage(db, channelId, `❌ No task found matching "${taskQuery}"`, threadId);
     return;
   }
 
   const prevStatus = task.status;
-  const updated = updateTask(task.id, { status: 'done' }, userId);
+  const updates: any = { status: 'done' };
+  if (completionArtifact) {
+    updates.completionArtifact = completionArtifact;
+  }
+  
+  const updated = updateTask(task.id, updates, userId);
   if (!updated) return;
 
   const sid = formatTaskId(updated);
-  await postBotMessage(db, channelId, `✅ Done: **${updated.title}** \`${sid}\``, threadId);
-  await notifyStatusChange(db, updated, prevStatus, 'done', userId);
+  let message = `✅ Done: **${updated.title}** \`${sid}\``;
+  if (completionArtifact) {
+    message += ` (${completionArtifact})`;
+  }
+  
+  await postBotMessage(db, channelId, message, threadId);
+  await notifyStatusChange(db, updated, prevStatus, 'done', userId, completionArtifact);
 }
 
 async function cmdStart(db: Db, channelId: string, query: string, threadId?: string | null, userId?: string) {
@@ -265,7 +298,7 @@ async function cmdComment(db: Db, channelId: string, args: string[], threadId?: 
   await postBotMessage(db, channelId, `💬 Comment added to **${task.title}** \`${sid}\``, threadId);
 }
 
-export async function notifyStatusChange(db: Db, task: any, prevStatus: string, newStatus: string, userId?: string) {
+export async function notifyStatusChange(db: Db, task: any, prevStatus: string, newStatus: string, userId?: string, completionArtifact?: string | null) {
   if (prevStatus === newStatus) return;
   const sourceChannelId = task.sourceChannelId || task.source_channel_id;
   if (!sourceChannelId) return;
@@ -278,7 +311,12 @@ export async function notifyStatusChange(db: Db, task: any, prevStatus: string, 
 
   const sid = formatTaskId(task);
   const statusLabel = newStatus === 'in_progress' ? 'in progress' : newStatus;
-  const content = `📢 Task \`${sid}\` marked as **${statusLabel}** by @${displayName}`;
+  let content = `📢 Task \`${sid}\` marked as **${statusLabel}** by @${displayName}`;
+  
+  if (newStatus === 'done' && completionArtifact) {
+    content += ` (${completionArtifact})`;
+  }
+  
   await postBotMessage(db, sourceChannelId, content);
 }
 
@@ -289,7 +327,7 @@ async function cmdHelp(db: Db, channelId: string, threadId?: string | null) {
     '`@tasks list` — Show open tasks',
     '`@tasks add <title>` — Create a task',
     '`@tasks add urgent <title>` — Create urgent task',
-    '`@tasks done <T#id or title>` — Mark task as done',
+    '`@tasks done <T#id or title> [artifact]` — Mark task as done',
     '`@tasks start <T#id or title>` — Mark task as in progress',
     '`@tasks comment <T#id> <text>` — Add a comment to a task',
     '`@tasks` — Show this help',

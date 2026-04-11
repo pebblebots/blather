@@ -385,6 +385,78 @@ describe('task routes', () => {
     expect(requeueRes.body.claimedById).toBeNull();
   });
 
+  // -- Completion Artifact Tests --
+
+  it('PATCH /tasks/:id accepts and stores completionArtifact', async () => {
+    const { owner } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Artifact task' },
+    });
+
+    const res = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'done', completionArtifact: 'commit abc123' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('done');
+    expect(res.body.completionArtifact).toBe('commit abc123');
+  });
+
+  it('GET /tasks includes completionArtifact field', async () => {
+    const { owner } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Artifact task' },
+    });
+
+    await harness.request.patch(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'done', completionArtifact: 'PR #42' },
+    });
+
+    const listRes = await harness.request.get<any[]>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body).toHaveLength(1);
+    expect(listRes.body![0].completionArtifact).toBe('PR #42');
+  });
+
+  it('PATCH /tasks/:id works without completionArtifact (backward compatible)', async () => {
+    const { owner } = await createFixture();
+
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'No artifact task' },
+    });
+
+    const res = await harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { status: 'done' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('done');
+    expect(res.body.completionArtifact).toBeNull();
+  });
+
+  it('POST /tasks creates task with completionArtifact null by default', async () => {
+    const { owner } = await createFixture();
+
+    const res = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'New task' },
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.completionArtifact).toBeNull();
+  });
+
   // -- Task Comments --
 
   it('POST /tasks/:taskId/comments creates a comment', async () => {

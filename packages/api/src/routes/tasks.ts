@@ -111,6 +111,7 @@ taskRoutes.patch('/:id', async (c) => {
     priority?: TaskPriority;
     status?: string;
     assigneeId?: string | null;
+    completionArtifact?: string | null;
   }>();
 
   // Fetch current task for status comparison
@@ -123,6 +124,7 @@ taskRoutes.patch('/:id', async (c) => {
     priority?: TaskPriority;
     status?: TaskStatus;
     assigneeId?: string | null;
+    completionArtifact?: string | null;
   } = {};
   if (body.title !== undefined) updates.title = body.title;
   if (body.description !== undefined) updates.description = body.description;
@@ -140,6 +142,7 @@ taskRoutes.patch('/:id', async (c) => {
     updates.status = normalized;
   }
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
+  if (body.completionArtifact !== undefined) updates.completionArtifact = body.completionArtifact;
 
   // Check claim conflict before updating — return rich 409 with claimer info
   if (updates.status === 'in_progress') {
@@ -177,7 +180,7 @@ taskRoutes.patch('/:id', async (c) => {
     if (existing.sourceChannelId) {
       try {
         const { notifyStatusChange } = await import('../bots/tasks.js');
-        await notifyStatusChange(db, task, existing.status, updates.status, userId);
+        await notifyStatusChange(db, task, existing.status, updates.status, userId, updates.completionArtifact);
       } catch (e) {
         console.error('[Tasks] Status notification error:', e);
       }
