@@ -76,10 +76,31 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
       const client = new BlatherClient(acct.apiUrl, acct.apiKey);
 
       let targetId = to;
+
+      // Strip known channel prefixes
       if (targetId.startsWith("blather:channel:"))
         targetId = targetId.slice("blather:channel:".length);
       else if (targetId.startsWith("channel:"))
         targetId = targetId.slice("channel:".length);
+      // Explicit user ID target — resolve DM channel first
+      else if (targetId.startsWith("blather:user:"))
+        targetId = (await client.getOrCreateDM(targetId.slice("blather:user:".length))).id;
+
+      // If still a raw UUID, try as channel first; fall back to user ID (DM) on 404.
+      // This handles cases where an agent passes a user ID without the blather:user: prefix.
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(targetId);
+      if (isUuid) {
+        try {
+          const msg = await client.sendMessage(targetId, text);
+          return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
+        } catch (err: any) {
+          if (!err.message?.includes("404")) throw err;
+          // UUID wasn't a channel ID — treat as user ID and create/look up DM channel
+          const dmChannel = await client.getOrCreateDM(targetId);
+          const msg = await client.sendMessage(dmChannel.id, text);
+          return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
+        }
+      }
 
       // Resolve DM targets: "blather:<email>" or bare email addresses
       const isEmail = (s: string) => s.includes("@") && !s.includes("/");

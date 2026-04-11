@@ -115,4 +115,17 @@ describe("BlatherClient", () => {
     expect(url).toBe("https://example.com/api/status");
     expect(opts.method).toBe("DELETE");
   });
+
+  it("T#135: getOrCreateDM posts to /channels/dm with userId and returns channel", async () => {
+    const dmChannel = { id: "ch-dm-1", name: "", slug: "dm-u1-u2", channelType: "dm", isDefault: false };
+    mockFetch.mockResolvedValue(jsonResponse(dmChannel));
+
+    const result = await client.getOrCreateDM("u-target");
+
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toBe("https://example.com/api/channels/dm");
+    expect(opts.method).toBe("POST");
+    expect(JSON.parse(opts.body)).toEqual({ userId: "u-target" });
+    expect(result).toEqual(dmChannel);
+  });
 });

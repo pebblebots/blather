@@ -87,18 +87,12 @@ export class BlatherClient {
     await this.request("/status", { method: "DELETE" });
   }
 
-  /** Create or get an existing DM channel with a user. */
-  async getOrCreateDM(userId: string): Promise<BlatherChannel> {
-    const res = await this.request("/channels/dm", {
+  /** Get or create a DM channel with the given user. Returns the channel. */
+  async getOrCreateDM(targetUserId: string): Promise<BlatherChannel> {
+    const res = await this.request(`/channels/dm`, {
       method: "POST",
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId: targetUserId }),
     });
     return res.json();
-  }
-
-  /** Look up a user by email address. */
-  async findUserByEmail(email: string): Promise<BlatherUser | undefined> {
-    const members = await this.getMembers();
-    return members.find((m) => m.email === email);
   }
 }
