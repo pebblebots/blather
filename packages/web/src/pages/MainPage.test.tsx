@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { MainPage } from './MainPage';
 import { AppContext } from '../lib/store';
 import type { ReactNode } from 'react';
@@ -106,6 +106,43 @@ describe('MainPage', () => {
     // Members section should render — use findAllByText since names may appear in multiple places
     const members = await screen.findAllByText('BobMember');
     expect(members.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('T#132 – ⌘K modal stacking', () => {
+  function setup() {
+    mockGetChannels.mockResolvedValue([{ id: 'ch-1', name: 'general', slug: 'general', channelType: 'public' }]);
+    mockGetMembers.mockResolvedValue([{ id: 'u-1', displayName: 'Alice', isAgent: false }]);
+    mockGetMessages.mockResolvedValue([]);
+    mockGetUnreadCounts.mockResolvedValue({});
+    mockGetPresence.mockResolvedValue([]);
+  }
+
+  it('opens search panel when no other modal is open', async () => {
+    setup();
+    render(<MainPage />, { wrapper: Wrapper });
+    await screen.findAllByText(/general/);
+
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+
+    expect(await screen.findByPlaceholderText(/search/i)).toBeInTheDocument();
+  });
+
+  it('does not open search panel when About modal is already open', async () => {
+    setup();
+    const { getByText, queryByPlaceholderText } = render(<MainPage />, { wrapper: Wrapper });
+    await screen.findAllByText(/general/);
+
+    // Open the About/Help modal via the Help menu item
+    fireEvent.click(getByText('Help'));
+
+    // Confirm About modal is open
+    expect(await screen.findByRole('dialog', { name: 'About Blather' })).toBeInTheDocument();
+
+    // ⌘K should be blocked
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+
+    expect(queryByPlaceholderText(/search/i)).toBeNull();
   });
 });
 

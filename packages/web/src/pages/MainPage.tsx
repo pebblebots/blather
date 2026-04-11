@@ -478,16 +478,26 @@ export function MainPage() {
   };
 
   // Keyboard shortcut: Cmd+K or Ctrl+K to open search
+  // Blocked when any other modal is already open to prevent stacking
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setShowSearch((v) => !v);
+        const modalOpen =
+          showHelp ||
+          showCreateCh ||
+          showNewHuddle ||
+          showHuddle ||
+          !!inviteChannelId ||
+          !!contextMenu;
+        if (!modalOpen) {
+          setShowSearch((v) => !v);
+        }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [showHelp, showCreateCh, showNewHuddle, showHuddle, inviteChannelId, contextMenu]);
 
   const selectedChannel = channels.find((c) => c.id === selectedCh);
 
