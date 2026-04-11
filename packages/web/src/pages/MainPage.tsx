@@ -483,16 +483,12 @@ export function MainPage() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        const modalOpen =
-          showHelp ||
-          showCreateCh ||
-          showNewHuddle ||
-          showHuddle ||
-          !!inviteChannelId ||
-          !!contextMenu;
-        if (!modalOpen) {
-          setShowSearch((v) => !v);
-        }
+        setShowSearch((v) => {
+          if (v) return false; // closing search is always ok
+          // Block opening search when another modal is active
+          if (showHelp || showCreateCh || showNewHuddle || showHuddle || inviteChannelId || contextMenu) return false;
+          return true;
+        });
       }
     };
     window.addEventListener("keydown", handler);
