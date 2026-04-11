@@ -327,11 +327,14 @@ function AssigneeDropdown({ taskId, currentAssigneeId, members, onAssign }: {
         style={{ 
           fontSize: 9, 
           padding: '1px 4px', 
-          maxWidth: 80, 
+          maxWidth: 120, 
           minWidth: 60,
           textAlign: 'left',
           background: isHovered ? '#E6E6E6' : '#FFF',
-          border: '1px solid #999'
+          border: '1px solid #999',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
         }}
         onClick={() => setIsOpen(!isOpen)}
         onMouseEnter={() => setIsHovered(true)}
