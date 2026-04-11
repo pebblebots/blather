@@ -58,23 +58,74 @@ export function formatDateLabel(dateKey: string): string {
   return d.toLocaleDateString([], { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
-/** Build a Map<userId, displayName> with disambiguation suffixes for duplicate display names. */
+/** Build a Map<userId, displayName> with disambiguation suffixes for duplicate display names.
+ *
+ * Disambiguation priority:
+ *   1. If display names are unique → use as-is.
+ *   2. If display names collide → try email username prefix (e.g. "nicole").
+ *   3. If the username prefix also collides (same username, different domains) → use domain suffix (e.g. "pbd.bot").
+ *   4. If domain also collides (or no email) → fall back to full email, then short user ID.
+ */
 export function getDisambiguatedNames(
   members: { id: string; displayName: string; email?: string }[],
 ): Map<string, string> {
+  // Step 1: find which display names are duplicated
   const nameCounts = new Map<string, number>();
   for (const m of members) {
     nameCounts.set(m.displayName, (nameCounts.get(m.displayName) || 0) + 1);
   }
 
+  // For members with a duplicate display name, compute candidate suffix at each level
+  // and detect which level is sufficient to make the full label unique.
+  const dupes = members.filter((m) => (nameCounts.get(m.displayName) || 0) > 1);
+
+  // Group dupes by displayName so we can check suffix uniqueness within each collision group
+  const byDisplayName = new Map<string, typeof dupes>();
+  for (const m of dupes) {
+    const group = byDisplayName.get(m.displayName) ?? [];
+    group.push(m);
+    byDisplayName.set(m.displayName, group);
+  }
+
+  // Compute the best suffix for each dupe member
+  const suffixMap = new Map<string, string>(); // userId → chosen suffix
+  for (const group of byDisplayName.values()) {
+    // Try username prefix first
+    const usernames = group.map((m) => (m.email ? m.email.split('@')[0] : null));
+    const usernameUnique = usernames.every(
+      (u, i) => u !== null && usernames.indexOf(u) === i,
+    );
+
+    if (usernameUnique) {
+      for (const m of group) {
+        suffixMap.set(m.id, m.email ? m.email.split('@')[0] : m.id.slice(0, 6));
+      }
+      continue;
+    }
+
+    // Usernames collide — try domain suffix
+    const domains = group.map((m) => (m.email ? m.email.split('@')[1] ?? null : null));
+    const domainUnique = domains.every(
+      (d, i) => d !== null && domains.indexOf(d) === i,
+    );
+
+    if (domainUnique) {
+      for (const m of group) {
+        suffixMap.set(m.id, m.email ? m.email.split('@')[1] : m.id.slice(0, 6));
+      }
+      continue;
+    }
+
+    // Domains also collide — use full email, fall back to short ID
+    for (const m of group) {
+      suffixMap.set(m.id, m.email ?? m.id.slice(0, 6));
+    }
+  }
+
   const result = new Map<string, string>();
   for (const m of members) {
-    if ((nameCounts.get(m.displayName) || 0) > 1) {
-      const suffix = m.email ? m.email.split('@')[0] : m.id.slice(0, 6);
-      result.set(m.id, `${m.displayName} (${suffix})`);
-    } else {
-      result.set(m.id, m.displayName);
-    }
+    const suffix = suffixMap.get(m.id);
+    result.set(m.id, suffix !== undefined ? `${m.displayName} (${suffix})` : m.displayName);
   }
   return result;
 }
