@@ -81,6 +81,32 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
       else if (targetId.startsWith("channel:"))
         targetId = targetId.slice("channel:".length);
 
+      // Resolve DM targets: "blather:<email>" or bare email addresses
+      const isEmail = (s: string) => s.includes("@") && !s.includes("/");
+      let stripped = targetId;
+      if (stripped.startsWith("blather:")) stripped = stripped.slice("blather:".length);
+
+      if (isEmail(stripped)) {
+        // Target is a user email — resolve to DM channel
+        const user = await client.findUserByEmail(stripped);
+        if (!user) throw new Error(`Blather: no user found for email ${stripped}`);
+        const dm = await client.getOrCreateDM(user.id);
+        targetId = dm.id;
+      } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(targetId)) {
+        // Bare UUID — could be channel or user ID. Try sending; if 404, try as user DM.
+        try {
+          const msg = await client.sendMessage(targetId, text);
+          return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
+        } catch (e: any) {
+          if (e?.message?.includes("404")) {
+            const dm = await client.getOrCreateDM(targetId);
+            targetId = dm.id;
+          } else {
+            throw e;
+          }
+        }
+      }
+
       const msg = await client.sendMessage(targetId, text);
       return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
     },
