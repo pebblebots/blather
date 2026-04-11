@@ -607,18 +607,20 @@ channelRoutes.post('/:id/messages', async (c) => {
     }
   }
 
-  // Dedupe guard: reject exact duplicate from same user within 60s
-  const sixtySecsAgo = new Date(Date.now() - 60_000);
-  const [dupe] = await db.select({ id: messages.id }).from(messages)
+  // Dedupe guard: reject near-duplicate from same user within 5 minutes
+  // Uses normalized content (collapsed whitespace) for fuzzy matching
+  const normalizedContent = body.content.replace(/\s+/g, ' ').trim();
+  const fiveMinAgo = new Date(Date.now() - 5 * 60_000);
+  const recentMessages = await db.select({ id: messages.id, content: messages.content }).from(messages)
     .where(and(
       eq(messages.channelId, channelId),
       eq(messages.userId, userId),
-      eq(messages.content, body.content),
-      gt(messages.createdAt, sixtySecsAgo),
+      gt(messages.createdAt, fiveMinAgo),
     ))
-    .limit(1);
+    .limit(20);
+  const dupe = recentMessages.find(m => m.content.replace(/\s+/g, ' ').trim() === normalizedContent);
   if (dupe) {
-    console.warn(`[dedupe] Rejected duplicate message from user=${userId} channel=${channelId}`);
+    console.warn(`[dedupe] Rejected duplicate message from user=${userId} channel=${channelId} (normalized match)`);
     return c.json({ error: 'Duplicate message', existingId: dupe.id }, 409);
   }
 
