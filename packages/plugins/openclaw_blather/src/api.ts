@@ -95,4 +95,10 @@ export class BlatherClient {
     });
     return res.json();
   }
+
+  /** Look up a user by email address. */
+  async findUserByEmail(email: string): Promise<BlatherUser | undefined> {
+    const members = await this.getMembers();
+    return members.find((m) => m.email === email);
+  }
 }
