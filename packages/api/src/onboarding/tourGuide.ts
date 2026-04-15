@@ -38,7 +38,7 @@ export async function ensureTourGuideUser(db: Db) {
  * Build the static fallback welcome message.
  */
 export function buildWelcomeMessage(): string {
-  return `Hey! 👋 Welcome to Blather! I'm the Tour Guide — here to help you get oriented.
+  return `Hey! 👋 Welcome to Yappers! I'm the Tour Guide — here to help you get oriented.
 
 A few things to know:
 • **#intros** is where people introduce themselves — drop in and say hi!
@@ -76,10 +76,10 @@ export async function generateWelcomeMessage(
       body: JSON.stringify({
         model: HAIKU_MODEL,
         max_tokens: 300,
-        system: `You are Tour Guide, a friendly onboarding bot for a messaging platform called Blather. Write a short, warm welcome DM for a new user who just joined. Be casual and helpful — like a coworker showing someone around on their first day. Use 1-2 emoji max. Keep it under 4 short paragraphs. Don't use bullet points or lists. Mention a couple of channels naturally in conversation.`,
+        system: `You are Tour Guide, a friendly onboarding bot for a messaging platform called Yappers. Write a short, warm welcome DM for a new user who just joined. Be casual and helpful — like a coworker showing someone around on their first day. Use 1-2 emoji max. Keep it under 4 short paragraphs. Don't use bullet points or lists. Mention a couple of channels naturally in conversation.`,
         messages: [{
           role: 'user',
-          content: `New user just joined Blather. ${nameGreeting} Available channels: ${channelList}. Write a welcome DM.`,
+          content: `New user just joined Yappers. ${nameGreeting} Available channels: ${channelList}. Write a welcome DM.`,
         }],
       }),
     });

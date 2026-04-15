@@ -4,7 +4,7 @@ declare const __GIT_HASH__: string;
 declare const __GIT_HASH_FULL__: string;
 declare const __GIT_DATE__: string;
 
-function BlatherBubble() {
+function YappersBubble() {
   // Single path: bubble body + tail, no seams
   // Body: (4,4) → (68,4) → (68,46) → (28,46) → tail tip (10,62) → (18,46) → (4,46) → close
   const bubblePath = "M4,4 L68,4 L68,46 L28,46 L10,62 L18,46 L4,46 Z";
@@ -61,10 +61,10 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   const date = typeof __GIT_DATE__ !== 'undefined' ? __GIT_DATE__.split(' ')[0] : '';
 
   return (
-    <Modal title="About Blather" onClose={onClose}>
+    <Modal title="About Yappers" onClose={onClose}>
       <div style={{ textAlign: 'center', padding: '8px 0' }}>
-        <div style={{ marginBottom: 12 }}><BlatherBubble /></div>
-        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 2 }}>Blather</div>
+        <div style={{ marginBottom: 12 }}><YappersBubble /></div>
+        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 2 }}>Yappers</div>
         <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
           Commit{' '}{hashFull ? (
             <a
