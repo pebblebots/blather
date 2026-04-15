@@ -61,10 +61,10 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   const date = typeof __GIT_DATE__ !== 'undefined' ? __GIT_DATE__.split(' ')[0] : '';
 
   return (
-    <Modal title="About Yappers" onClose={onClose}>
+    <Modal title="about yappers" onClose={onClose}>
       <div style={{ textAlign: 'center', padding: '8px 0' }}>
         <div style={{ marginBottom: 12 }}><YappersBubble /></div>
-        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 2 }}>Yappers</div>
+        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 2 }}>yappers</div>
         <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
           Commit{' '}{hashFull ? (
             <a

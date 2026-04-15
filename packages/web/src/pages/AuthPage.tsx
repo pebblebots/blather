@@ -84,7 +84,7 @@ export function AuthPage() {
         <div className="mac-window" style={{ width: 380 }}>
           <div className="mac-titlebar">
             <div className="mac-close-box" />
-            <div style={{ flex: 1, textAlign: 'center' }}>Yappers — Sign In</div>
+            <div style={{ flex: 1, textAlign: 'center' }}>yappers — sign in</div>
           </div>
 
           <div style={{ padding: 20 }}>

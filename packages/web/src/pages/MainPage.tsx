@@ -558,7 +558,7 @@ export function MainPage() {
               } else {
                 return `# ${selectedChannel.name}`;
               }
-            })() : 'Yappers'}
+            })() : 'yappers'}
           </div>
           
           <button
@@ -1036,7 +1036,7 @@ export function MainPage() {
         <div className="mac-titlebar" style={{ display: isMobile ? 'none' : 'flex' }}>
           <div className="mac-close-box" style={{ display: isMobile ? 'none' : 'block' }} />
           <div style={{ flex: 1, textAlign: 'center' }}>
-            Yappers
+            yappers
           </div>
         </div>
 

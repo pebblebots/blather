@@ -130,10 +130,10 @@ authRoutes.post('/magic', authMagicLimiter(rateLimitStore), async (c) => {
   if (resend) {
     try {
       await resend.emails.send({
-        from: process.env.RESEND_FROM || 'Yappers <noreply@localhost>',
+        from: process.env.RESEND_FROM || 'yappers <noreply@localhost>',
         to: email.toLowerCase(),
-        subject: 'Your Yappers login link',
-        html: `<p>Click the link below to log in to Yappers:</p><p><a href="${magicUrl}">${magicUrl}</a></p><p>Or enter this code in the app: <strong>${code}</strong></p><p>This link expires in 15 minutes.</p>`,
+        subject: 'Your yappers login link',
+        html: `<p>Click the link below to log in to yappers:</p><p><a href="${magicUrl}">${magicUrl}</a></p><p>Or enter this code in the app: <strong>${code}</strong></p><p>This link expires in 15 minutes.</p>`,
       });
     } catch (err) {
       console.error('[MAGIC LINK] Email send failed:', err);
