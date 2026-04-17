@@ -626,6 +626,47 @@ describe('channel creation', () => {
     expect(reversed.status).toBe(200);
     expect(reversed.body?.id).toBe(first.body?.id);
   });
+
+  // T#143 regression — DM creation must validate target user existence
+  // and not 500 on a foreign-key violation when body.userId is not a real user.
+  it('POST /channels/dm returns 404 when target user does not exist', async () => {
+    const caller = await harness.factories.createUser({ email: 'dm-caller@example.com', displayName: 'Caller' });
+
+    const res = await harness.request.post<{ error: string }>('/channels/dm', {
+      headers: harness.headers.forUser(caller.id),
+      json: { userId: '00000000-0000-0000-0000-000000000000' },
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body?.error).toMatch(/not found/i);
+  });
+
+  it('POST /channels/dm returns 400 when userId is missing or malformed', async () => {
+    const caller = await harness.factories.createUser({ email: 'dm-caller2@example.com', displayName: 'Caller2' });
+
+    const missing = await harness.request.post<{ error: string }>('/channels/dm', {
+      headers: harness.headers.forUser(caller.id),
+      json: {},
+    });
+    expect(missing.status).toBe(400);
+
+    const malformed = await harness.request.post<{ error: string }>('/channels/dm', {
+      headers: harness.headers.forUser(caller.id),
+      json: { userId: 'not-a-uuid' },
+    });
+    expect(malformed.status).toBe(400);
+  });
+
+  it('POST /channels/dm returns 400 when userId is self', async () => {
+    const caller = await harness.factories.createUser({ email: 'dm-self@example.com', displayName: 'Self' });
+
+    const res = await harness.request.post<{ error: string }>('/channels/dm', {
+      headers: harness.headers.forUser(caller.id),
+      json: { userId: caller.id },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body?.error).toMatch(/yourself/i);
+  });
 });
 
 describe('per-user message rate limiting', () => {

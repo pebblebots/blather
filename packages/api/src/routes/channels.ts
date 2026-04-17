@@ -162,6 +162,21 @@ channelRoutes.post('/dm', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
 
+  // T#143: validate body shape and target user existence before touching channels/members.
+  // Prevents FK violation 500 on channel_members_user_id_users_id_fk when the target
+  // user doesn't exist in this workspace's users table (e.g. UUID from another Blather instance).
+  if (!body || typeof body.userId !== 'string' || !UUID_RE.test(body.userId)) {
+    return c.json({ error: 'userId is required and must be a UUID' }, 400);
+  }
+  if (body.userId === userId) {
+    return c.json({ error: 'Cannot DM yourself' }, 400);
+  }
+  const [targetUser] = await db.select({ id: users.id }).from(users)
+    .where(eq(users.id, body.userId)).limit(1);
+  if (!targetUser) {
+    return c.json({ error: 'Target user not found' }, 404);
+  }
+
   // Sort user IDs to ensure consistent slug
   const userIds = [userId, body.userId].sort();
   const dmSlug = `dm-${userIds.join('-')}`;
