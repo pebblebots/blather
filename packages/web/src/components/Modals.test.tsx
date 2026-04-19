@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach, beforeAll } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '../test-utils';
 import userEvent from '@testing-library/user-event';
 import { CreateChannelModal } from './CreateChannelModal';
 import { HelpModal } from './HelpModal';

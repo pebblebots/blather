@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '../test-utils';
 import { MessageList } from './MessageList';
 
 // jsdom doesn't implement scrollIntoView

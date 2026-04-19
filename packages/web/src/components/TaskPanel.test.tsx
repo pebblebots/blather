@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, cleanup, within } from '@testing-library/react';
+import { render, screen, cleanup, within } from '../test-utils';
 import userEvent from '@testing-library/user-event';
 import { TaskPanel } from './TaskPanel';
 

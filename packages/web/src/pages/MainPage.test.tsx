@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
-import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '../test-utils';
 import { MainPage } from './MainPage';
 import { AppContext } from '../lib/store';
 import type { ReactNode } from 'react';
