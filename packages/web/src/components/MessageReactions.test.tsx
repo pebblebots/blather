@@ -94,3 +94,112 @@ describe('EmojiPicker', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
+
+describe('EmojiPicker keyboard navigation', () => {
+  it('applies grid + gridcell ARIA roles in compact mode', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Emoji picker' })).toBeInTheDocument();
+    expect(screen.getByRole('grid', { name: 'Quick emoji reactions' })).toBeInTheDocument();
+    // 8 quick emojis -> 8 gridcells
+    expect(screen.getAllByRole('gridcell')).toHaveLength(8);
+  });
+
+  it('applies grid + gridcell ARIA roles in full mode', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText('⋯'));
+    expect(screen.getByRole('grid', { name: 'Emoji grid' })).toBeInTheDocument();
+    expect(screen.getAllByRole('gridcell').length).toBeGreaterThan(0);
+  });
+
+  it('ArrowRight moves focus to next emoji in compact mode', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    const grid = screen.getByRole('grid', { name: 'Quick emoji reactions' });
+    const cells = screen.getAllByRole('gridcell');
+    // Start by focusing first cell
+    cells[0].focus();
+    fireEvent.keyDown(grid, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(cells[1]);
+  });
+
+  it('ArrowLeft wraps to last emoji from first in compact mode', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    const grid = screen.getByRole('grid', { name: 'Quick emoji reactions' });
+    const cells = screen.getAllByRole('gridcell');
+    cells[0].focus();
+    fireEvent.keyDown(grid, { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(cells[cells.length - 1]);
+  });
+
+  it('Home / End jump to first / last cell', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    const grid = screen.getByRole('grid', { name: 'Quick emoji reactions' });
+    const cells = screen.getAllByRole('gridcell');
+    cells[3].focus();
+    fireEvent.keyDown(grid, { key: 'End' });
+    expect(document.activeElement).toBe(cells[cells.length - 1]);
+    fireEvent.keyDown(grid, { key: 'Home' });
+    expect(document.activeElement).toBe(cells[0]);
+  });
+
+  it('Enter selects focused emoji and closes', () => {
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+    render(<EmojiPicker onSelect={onSelect} onClose={onClose} />);
+    const grid = screen.getByRole('grid', { name: 'Quick emoji reactions' });
+    const cells = screen.getAllByRole('gridcell');
+    cells[2].focus(); // focus -> onFocus -> setFocusedIndex(2), emoji = 😂
+    fireEvent.keyDown(grid, { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledWith('😂');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('Space selects focused emoji and closes', () => {
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+    render(<EmojiPicker onSelect={onSelect} onClose={onClose} />);
+    const grid = screen.getByRole('grid', { name: 'Quick emoji reactions' });
+    const cells = screen.getAllByRole('gridcell');
+    cells[0].focus();
+    fireEvent.keyDown(grid, { key: ' ' });
+    expect(onSelect).toHaveBeenCalledWith('👍');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('Escape closes the picker', () => {
+    const onClose = vi.fn();
+    render(<EmojiPicker onSelect={vi.fn()} onClose={onClose} />);
+    const grid = screen.getByRole('grid', { name: 'Quick emoji reactions' });
+    const cells = screen.getAllByRole('gridcell');
+    cells[0].focus();
+    fireEvent.keyDown(grid, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('ArrowDown in full-mode grid moves down one row (8 cells)', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText('⋯'));
+    const grid = screen.getByRole('grid', { name: 'Emoji grid' });
+    const cells = screen.getAllByRole('gridcell');
+    // Need at least 2 rows for this test
+    expect(cells.length).toBeGreaterThanOrEqual(9);
+    cells[0].focus();
+    fireEvent.keyDown(grid, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(cells[8]);
+  });
+
+  it('uses roving tabindex (only focused cell has tabIndex=0)', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    const cells = screen.getAllByRole('gridcell');
+    const tabbable = cells.filter((c) => c.getAttribute('tabindex') === '0');
+    expect(tabbable).toHaveLength(1);
+  });
+
+  it('ArrowDown from search input moves focus into grid', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText('⋯'));
+    const searchInput = screen.getByPlaceholderText('Search emoji...');
+    fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+    const cells = screen.getAllByRole('gridcell');
+    expect(document.activeElement).toBe(cells[0]);
+  });
+});
