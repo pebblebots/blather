@@ -212,25 +212,27 @@ describe('WebSocket manager', () => {
     await expect(pong).resolves.toEqual({ type: 'pong' });
   });
 
-  it('publishEvent sends to all clients for public channel', async () => {
+  // T#156: public channel fanout is now gated by membership too.
+  it('publishEvent sends to members only for public channel (T#156)', async () => {
     const ws1 = createAuthedClient('user-e1');
     const ws2 = createAuthedClient('user-e2');
 
-    dbQueryResults = [[{ channelType: 'public' }]];
+    // Single query now: just the members lookup. Only user-e1 is a member.
+    dbQueryResults = [[{ userId: 'user-e1' }]];
     const event = { type: 'message.created', channel_id: 'ch-1', data: { text: 'hello' } };
 
     const p1 = waitForType(ws1, 'message.created');
-    const p2 = waitForType(ws2, 'message.created');
     await publishEvent(event);
 
-    await expect(Promise.all([p1, p2])).resolves.toEqual([event, event]);
+    await expect(p1).resolves.toEqual(event);
+    expect(ws2.sent.some((message) => message.type === 'message.created')).toBe(false);
   });
 
   it('publishEvent restricts private channel events to members only', async () => {
     const ws1 = createAuthedClient('user-priv1');
     const ws2 = createAuthedClient('user-priv2');
 
-    dbQueryResults = [[{ channelType: 'private' }], [{ userId: 'user-priv1' }]];
+    dbQueryResults = [[{ userId: 'user-priv1' }]];
 
     const event = { type: 'message.created', channel_id: 'ch-priv', data: { text: 'secret' } };
     const p1 = waitForType(ws1, 'message.created');
@@ -244,7 +246,7 @@ describe('WebSocket manager', () => {
     const ws1 = createAuthedClient('user-dm1');
     const ws2 = createAuthedClient('user-dm2');
 
-    dbQueryResults = [[{ channelType: 'dm' }], [{ userId: 'user-dm1' }]];
+    dbQueryResults = [[{ userId: 'user-dm1' }]];
 
     const event = { type: 'message.created', channel_id: 'ch-dm', data: { text: 'hi' } };
     const p1 = waitForType(ws1, 'message.created');
@@ -268,16 +270,32 @@ describe('WebSocket manager', () => {
     await expect(publishEvent({ type: 'test' })).resolves.toBeUndefined();
   });
 
-  it('publishEphemeralEvent broadcasts to all clients', async () => {
+  it('publishEphemeralEvent broadcasts to all clients when no channel_id', async () => {
     const ws1 = createAuthedClient('user-eph1');
     const ws2 = createAuthedClient('user-eph2');
 
-    const event = { type: 'typing', channelId: 'ch-1', userId: 'user-eph1' };
+    const event = { type: 'typing', userId: 'user-eph1' };
     const p1 = waitForType(ws1, 'typing');
     const p2 = waitForType(ws2, 'typing');
     await publishEphemeralEvent(event);
 
     await expect(Promise.all([p1, p2])).resolves.toEqual([event, event]);
+  });
+
+  // T#157: ephemeral events scoped to a channel (e.g. typing) are now
+  // membership-gated just like persistent events.
+  it('publishEphemeralEvent restricts channel-scoped events to members only (T#157)', async () => {
+    const ws1 = createAuthedClient('user-eph-m');
+    const ws2 = createAuthedClient('user-eph-notm');
+
+    dbQueryResults = [[{ userId: 'user-eph-m' }]];
+
+    const event = { type: 'typing.started', channel_id: 'ch-eph', data: { userId: 'user-eph-m' } };
+    const p1 = waitForType(ws1, 'typing.started');
+    await publishEphemeralEvent(event);
+
+    await expect(p1).resolves.toEqual(event);
+    expect(ws2.sent.some((message) => message.type === 'typing.started')).toBe(false);
   });
 
   it('publishEphemeralEvent is a no-op when no clients connected', async () => {

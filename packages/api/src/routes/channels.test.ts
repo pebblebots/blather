@@ -180,6 +180,9 @@ describe('channel routes', () => {
   it('POST /channels/:id/messages with threadId creates thread replies and GET replies returns them', async () => {
     const { owner, member, channel } = await createFixture();
 
+    // T#151: public-channel writes now require membership
+    await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
+
     const parent = await harness.factories.createMessage({
       channelId: channel.id,
       userId: owner.id,
@@ -383,6 +386,114 @@ describe('channel routes', () => {
       json: { content: 'hello from dm' },
     });
     expect(allowed.status).toBe(201);
+  });
+
+  // T#151: public channels now require channel_members membership too.
+  describe('public channel membership ACL (T#151)', () => {
+    it('POST /channels/:id/messages rejects non-members with 403', async () => {
+      const { member, channel } = await createFixture();
+
+      const response = await harness.request.post<{ error: string }>(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(member.id),
+        json: { content: 'sneaky public post' },
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('POST /channels/:id/messages allows members', async () => {
+      const { member, channel } = await createFixture();
+      await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
+
+      const response = await harness.request.post<MessageRow>(`/channels/${channel.id}/messages`, {
+        headers: harness.headers.forUser(member.id),
+        json: { content: 'legit public post' },
+      });
+
+      expect(response.status).toBe(201);
+    });
+
+    it('POST /channels/:id/typing rejects non-members with 403', async () => {
+      const { member, channel } = await createFixture();
+
+      const response = await harness.request.post<{ error: string }>(`/channels/${channel.id}/typing`, {
+        headers: harness.headers.forUser(member.id),
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('POST /channels/:id/typing allows members', async () => {
+      const { member, channel } = await createFixture();
+      await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
+
+      const response = await harness.request.post<{ ok: boolean }>(`/channels/${channel.id}/typing`, {
+        headers: harness.headers.forUser(member.id),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('POST /channels/:channelId/messages/:messageId/reactions rejects non-members with 403', async () => {
+      const { owner, member, channel } = await createFixture();
+      const message = await harness.factories.createMessage({
+        channelId: channel.id,
+        userId: owner.id,
+        content: 'react to me',
+      });
+
+      const response = await harness.request.post<{ error: string }>(
+        `/channels/${channel.id}/messages/${message.id}/reactions`,
+        {
+          headers: harness.headers.forUser(member.id),
+          json: { emoji: '👀' },
+        },
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    it('POST /channels/:channelId/messages/:messageId/reactions allows members', async () => {
+      const { owner, member, channel } = await createFixture();
+      await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
+      const message = await harness.factories.createMessage({
+        channelId: channel.id,
+        userId: owner.id,
+        content: 'react to me',
+      });
+
+      const response = await harness.request.post<{ id: string; emoji: string }>(
+        `/channels/${channel.id}/messages/${message.id}/reactions`,
+        {
+          headers: harness.headers.forUser(member.id),
+          json: { emoji: '👀' },
+        },
+      );
+
+      expect(response.status).toBe(201);
+      expect(response.body?.emoji).toBe('👀');
+    });
+
+    it('POST /channels/:id/read rejects non-members with 403', async () => {
+      const { member, channel } = await createFixture();
+
+      const response = await harness.request.post<{ error: string }>(`/channels/${channel.id}/read`, {
+        headers: harness.headers.forUser(member.id),
+      });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('POST /channels/:id/read allows members', async () => {
+      const { member, channel } = await createFixture();
+      await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
+
+      const response = await harness.request.post<{ ok: boolean }>(`/channels/${channel.id}/read`, {
+        headers: harness.headers.forUser(member.id),
+      });
+
+      expect(response.status).toBe(200);
+    });
   });
 
   it('rejects messages that look like raw API errors', async () => {
