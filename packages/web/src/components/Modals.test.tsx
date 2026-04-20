@@ -88,8 +88,8 @@ describe('HelpModal', () => {
   it('renders an About dialog with core content', () => {
     render(<HelpModal onClose={vi.fn()} />);
 
-    expect(screen.getByRole('dialog', { name: 'About Blather' })).toBeInTheDocument();
-    expect(screen.getByText('Blather')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'about yappers' })).toBeInTheDocument();
+    expect(screen.getByText('yappers')).toBeInTheDocument();
     expect(screen.getByText(/Headless-first messaging platform/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'github.com/pebblebots/blather' })).toHaveAttribute(
       'href',

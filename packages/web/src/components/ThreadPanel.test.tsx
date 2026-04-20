@@ -15,7 +15,7 @@ vi.mock('./MarkdownText', () => ({
 
 vi.mock('../lib/chatUtils', () => ({
   getNickColor: () => '#000000',
-  formatTime: (iso: string) => '12:00',
+  formatTimestamp: (iso: string) => '12:00',
 }));
 
 const mockGetThreadReplies = vi.fn();

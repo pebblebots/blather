@@ -6,6 +6,9 @@ import { MessageInput } from './MessageInput';
 // Mock uploadFile to avoid real XHR
 vi.mock('../lib/api', () => ({
   uploadFile: vi.fn(),
+  api: {
+    getMembers: vi.fn(async () => []),
+  },
 }));
 
 afterEach(() => cleanup());

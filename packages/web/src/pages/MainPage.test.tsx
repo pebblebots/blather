@@ -137,7 +137,7 @@ describe('T#132 – ⌘K modal stacking', () => {
     fireEvent.click(getByText('Help'));
 
     // Confirm About modal is open
-    expect(await screen.findByRole('dialog', { name: 'About Blather' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'about yappers' })).toBeInTheDocument();
 
     // ⌘K should be blocked
     fireEvent.keyDown(window, { key: 'k', metaKey: true });

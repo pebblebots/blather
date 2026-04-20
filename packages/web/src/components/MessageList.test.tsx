@@ -34,7 +34,7 @@ function makeMsg(overrides: Partial<{
     id: overrides.id ?? 'msg-1',
     userId: overrides.userId ?? 'u-1',
     content: overrides.content ?? 'Hello world',
-    createdAt: overrides.createdAt ?? '2026-03-24T12:00:00Z',
+    createdAt: overrides.createdAt ?? new Date().toISOString(),
     ...overrides,
   };
 }
