@@ -10,6 +10,7 @@ import type { CreateChannelRequest, CreateDMRequest } from '@blather/types';
 
 import { handleTasksCommand } from '../bots/tasks.js';
 import { handleIncidentCommand } from '../bots/incidents.js';
+import { requireChannelMembership } from '../middleware/channelAccess.js';
 
 // ── Channel ID resolution ──────────────────────────────────────────────────
 
@@ -551,12 +552,9 @@ channelRoutes.post('/:id/messages', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
-  // Check membership for private/dm channels
-  if (channel.channelType === 'dm' || channel.channelType === 'private') {
-    const [membership] = await db.select().from(channelMembers)
-      .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
-      .limit(1);
-    if (!membership) return c.json({ error: 'Not a member of this channel' }, 403);
+  // Membership required for ALL channel types (public, private, DM). See T#151.
+  if (!(await requireChannelMembership(db, userId, channelId))) {
+    return c.json({ error: 'Not a member of this channel' }, 403);
   }
 
   // Reject messages that look like raw API errors (prevents error feedback loops)
@@ -793,15 +791,12 @@ channelRoutes.post('/:id/typing', async (c) => {
     setCachedChannel(channelId, chan);
   }
 
-  // Membership check for private/dm — cache first
-  if (chan.channelType === 'dm' || chan.channelType === 'private') {
+  // Membership required for ALL channel types (public, private, DM). See T#151. Cache first.
+  {
     let isMember = getCachedMembership(channelId, userId);
     if (isMember === undefined) {
       const db = c.get('db');
-      const [membership] = await db.select().from(channelMembers)
-        .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
-        .limit(1);
-      isMember = !!membership;
+      isMember = await requireChannelMembership(db, userId, channelId);
       setCachedMembership(channelId, userId, isMember);
     }
     if (!isMember) return c.json({ error: 'Not a member of this channel' }, 403);
@@ -839,6 +834,11 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();
 
+  // Membership required for ALL channel types (public, private, DM). See T#151.
+  if (!(await requireChannelMembership(db, userId, channelId))) {
+    return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+
   const [reaction] = await db.insert(reactions).values({
     messageId,
     userId,
@@ -873,6 +873,11 @@ channelRoutes.post('/:id/read', async (c) => {
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
+
+  // Membership required for ALL channel types (public, private, DM). See T#151.
+  if (!(await requireChannelMembership(db, userId, channelId))) {
+    return c.json({ error: 'Not a member of this channel' }, 403);
+  }
 
   await db.execute(
     sql`INSERT INTO channel_reads (channel_id, user_id, last_read_at)
