@@ -4,7 +4,7 @@ import type { Server } from 'http';
 import jwt from 'jsonwebtoken';
 import { createHash } from 'crypto';
 import { eq, and, isNull } from 'drizzle-orm';
-import { apiKeys, channels, channelMembers } from '@blather/db';
+import { apiKeys, channelMembers } from '@blather/db';
 import { createDb } from "@blather/db";
 import { JWT_SECRET } from '../config.js';
 
@@ -78,40 +78,52 @@ export function broadcastStatusForUser(userId: string, status: { text: string; p
   }
 }
 
-/** Broadcast an event to all WS clients, respecting channel privacy */
+/**
+ * Look up member user ids for a channel. Used to filter WS fanout by channel
+ * membership (T#151: public channels gated by membership too).
+ */
+async function getChannelMemberIds(channelId: string): Promise<Set<string>> {
+  const members = await db.select({ userId: channelMembers.userId })
+    .from(channelMembers)
+    .where(eq(channelMembers.channelId, channelId));
+  return new Set(members.map(m => m.userId));
+}
+
+/** Broadcast an event to all WS clients, gated by channel membership. */
 export async function publishEvent(event: Record<string, unknown> & { channel_id?: string | null }) {
   let allowedUserIds: Set<string> | null = null;
 
-  // If event is for a specific channel, check if it's private/dm
+  // T#156: If event is scoped to a channel, fanout is gated by membership —
+  // public, private, and DM all require a channel_members row.
   if (event.channel_id) {
-
-    const [ch] = await db.select({ channelType: channels.channelType })
-      .from(channels)
-      .where(eq(channels.id, event.channel_id))
-      .limit(1);
-
-    if (ch && (ch.channelType === 'dm' || ch.channelType === 'private')) {
-      const members = await db.select({ userId: channelMembers.userId })
-        .from(channelMembers)
-        .where(eq(channelMembers.channelId, event.channel_id));
-      allowedUserIds = new Set(members.map(m => m.userId));
-    }
+    allowedUserIds = await getChannelMemberIds(event.channel_id);
   }
 
   const data = JSON.stringify(event);
   for (const client of allClients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
-    // If channel is private/dm, only send to members
     if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
     client.ws.send(data);
   }
 }
 
-/** Broadcast an ephemeral event (no DB write). */
-export async function publishEphemeralEvent(event: Record<string, unknown>) {
+/**
+ * Broadcast an ephemeral event (no DB write).
+ * T#157: if the event is scoped to a channel (`channel_id`), fanout is gated
+ * by membership like `publishEvent`. Events without `channel_id` (global
+ * ephemerals) still broadcast to everyone.
+ */
+export async function publishEphemeralEvent(event: Record<string, unknown> & { channel_id?: string | null }) {
+  let allowedUserIds: Set<string> | null = null;
+
+  if (event.channel_id) {
+    allowedUserIds = await getChannelMemberIds(event.channel_id);
+  }
+
   const data = JSON.stringify(event);
   for (const client of allClients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
+    if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
     client.ws.send(data);
   }
 }
