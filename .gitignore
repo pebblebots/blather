@@ -14,3 +14,6 @@ ecosystem.config.cjs
 # Uploaded files (TTS, attachments)
 uploads/
 packages/api/data/
+
+# SQLite databases (live data — never commit)
+data/
