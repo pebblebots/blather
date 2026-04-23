@@ -49,7 +49,7 @@ describe('temporal guard', () => {
     });
     
     expect(response1.status).toBe(201);
-    const result1 = await response1.json();
+    const result1 = response1.body as any;
     expect(result1.wasInserted).toBe(true);
 
     // Try to update with newer data (should succeed)
@@ -68,7 +68,7 @@ describe('temporal guard', () => {
     });
 
     expect(response2.status).toBe(200);
-    const result2 = await response2.json();
+    const result2 = response2.body as any;
     expect(result2.wasInserted).toBe(false);
     expect(parseFloat(result2.revenueArrUsd)).toBe(1200000);
   });
@@ -112,7 +112,7 @@ describe('temporal guard', () => {
     });
 
     expect(response2.status).toBe(409);
-    const result2 = await response2.json();
+    const result2 = response2.body as any;
     expect(result2.error).toBe('Incoming data is stale');
     expect(result2.skipped).toBe(true);
     expect(result2.incomingAsOfDate).toBe('2024-01-15');
@@ -124,7 +124,7 @@ describe('temporal guard', () => {
     });
     
     expect(response3.status).toBe(200);
-    const metrics = await response3.json();
+    const metrics = response3.body as any;
     expect(metrics.length).toBe(1);
     expect(parseFloat(metrics[0].revenueArrUsd)).toBe(1000000); // Original value preserved
   });
@@ -168,7 +168,7 @@ describe('temporal guard', () => {
     });
 
     expect(response2.status).toBe(200);
-    const result2 = await response2.json();
+    const result2 = response2.body as any;
     expect(parseFloat(result2.revenueArrUsd)).toBe(1200000);
   });
 
@@ -214,7 +214,7 @@ describe('temporal guard', () => {
     });
 
     expect(response2.status).toBe(200);
-    const result2 = await response2.json();
+    const result2 = response2.body as any;
     expect(parseFloat(result2.revenueArrUsd)).toBe(1200000);
   });
 });
