@@ -445,6 +445,65 @@ describe('task routes', () => {
     expect(res.body.completionArtifact).toBeNull();
   });
 
+  it('GET /tasks/:id returns a task by UUID', async () => {
+    const { owner } = await createFixture();
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Lookup target' },
+    });
+
+    const res = await harness.request.get<any>(`/tasks/${createRes.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(createRes.body.id);
+    expect(res.body.title).toBe('Lookup target');
+  });
+
+  it('GET /tasks/:id resolves numeric shortId', async () => {
+    const { owner } = await createFixture();
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Short lookup' },
+    });
+    const shortId = createRes.body.shortId;
+
+    const res = await harness.request.get<any>(`/tasks/${shortId}`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.shortId).toBe(shortId);
+    expect(res.body.title).toBe('Short lookup');
+  });
+
+  it('GET /tasks/:id resolves T#N shortId form', async () => {
+    const { owner } = await createFixture();
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'T-hash lookup' },
+    });
+    const shortId = createRes.body.shortId;
+
+    const res = await harness.request.get<any>(`/tasks/T%23${shortId}`, {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.shortId).toBe(shortId);
+  });
+
+  it('GET /tasks/:id returns 404 for unknown id', async () => {
+    const { owner } = await createFixture();
+
+    const res = await harness.request.get<any>('/tasks/00000000-0000-0000-0000-000000000000', {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
   it('POST /tasks creates task with completionArtifact null by default', async () => {
     const { owner } = await createFixture();
 

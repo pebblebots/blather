@@ -88,6 +88,10 @@ export function listOpenTasksWithCommentCount(): TaskWithCommentCount[] {
 export function getTask(id: string): Task | null {
   return getTaskDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Task | null;
 }
+export function getTaskByShortId(shortId: number): Task | null {
+  return getTaskDb().prepare('SELECT * FROM tasks WHERE shortId = ?').get(shortId) as Task | null;
+}
+
 
 export function createTask(data: {
   title: string;

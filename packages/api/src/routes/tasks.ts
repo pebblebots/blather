@@ -8,6 +8,7 @@ import {
   listTasks,
   createTask,
   getTask,
+  getTaskByShortId,
   updateTask,
   deleteTask,
   getTaskClaimConflict,
@@ -98,6 +99,25 @@ taskRoutes.post('/', async (c) => {
   }).catch(() => {});
 
   return c.json(task, 201);
+});
+
+// Get single task (by UUID, numeric shortId, or T#N)
+taskRoutes.get('/:id', async (c) => {
+  const raw = c.req.param('id');
+  let task = null;
+
+  // Try shortId form first if it looks numeric (with optional "T#" prefix)
+  const shortMatch = raw.match(/^T?#?(\d+)$/i);
+  if (shortMatch) {
+    const n = Number(shortMatch[1]);
+    if (Number.isFinite(n)) task = getTaskByShortId(n);
+  }
+
+  // Fall back to UUID lookup
+  if (!task) task = getTask(raw);
+
+  if (!task) return c.json({ error: 'Task not found' }, 404);
+  return c.json(task);
 });
 
 // Update task (with status change notification)
