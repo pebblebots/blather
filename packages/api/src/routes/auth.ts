@@ -140,13 +140,21 @@ authRoutes.post('/magic', authMagicLimiter(rateLimitStore), async (c) => {
     }
   }
 
-  // If no Resend key, log the magic link server-side only (never expose tokens in response)
+  // If no Resend key, log the magic link server-side only
   if (!getResend()) {
     console.log(`[MAGIC LINK] No email provider configured. Magic URL: ${magicUrl}`);
   }
+
+  // Dev/test helper: when running without an email provider AND not in production,
+  // return the token in the response so local dev and e2e tests can complete the
+  // magic-link flow without a real inbox. Double-gated on purpose: never returns
+  // tokens in production, and never returns tokens when email is actually working.
+  const isProduction = process.env.NODE_ENV === 'production';
+  const expose = !isProduction && !getResend();
   return c.json({
     ok: true,
     message: 'Magic link sent! Check your email.',
+    ...(expose ? { _dev: { token, code } } : {}),
   });
 });
 

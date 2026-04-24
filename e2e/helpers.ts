@@ -12,7 +12,12 @@ export async function registerUser(email: string, _displayName?: string, _isAgen
   });
   const magicBody = await magicRes.json();
   const devToken = magicBody._dev?.token;
-  if (!devToken) throw new Error('No _dev token returned — is RESEND_API_KEY unset?');
+  if (!devToken) {
+    throw new Error(
+      'No _dev token returned from POST /auth/magic. The dev-token exposure is gated on ' +
+      '!isProduction && !RESEND_API_KEY. Check that NODE_ENV !== "production" and RESEND_API_KEY is unset in the e2e webServer env.'
+    );
+  }
 
   // Step 2: verify the magic token → creates user if needed, returns JWT
   const verifyRes = await fetch(`${API_URL}/auth/magic/verify`, {

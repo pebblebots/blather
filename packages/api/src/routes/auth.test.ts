@@ -43,6 +43,52 @@ describe('auth routes', () => {
     expect(storedToken?.usedAt).toBeNull();
   });
 
+  it('POST /auth/magic exposes _dev token in non-production when no email provider is configured', async () => {
+    // In test env, NODE_ENV !== 'production' and RESEND_API_KEY is unset, so
+    // the response should include _dev.token and _dev.code. This is what the
+    // e2e magic-link flow relies on and what the "Verify (Dev)" UI button uses.
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalResendKey = process.env.RESEND_API_KEY;
+    delete process.env.NODE_ENV; // ensures isProduction === false
+    delete process.env.RESEND_API_KEY;
+
+    try {
+      const response = await harness.request.post<{ ok: boolean; _dev?: { token: string; code: string } }>('/auth/magic', {
+        json: { email: 'dev-exposed@example.com' },
+        headers: { origin: 'http://localhost:8080' },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body?._dev).toBeDefined();
+      expect(response.body?._dev?.token).toBeTypeOf('string');
+      expect(response.body?._dev?.token.length).toBeGreaterThan(32);
+      expect(response.body?._dev?.code).toMatch(/^\d{6}$/);
+    } finally {
+      if (originalNodeEnv !== undefined) process.env.NODE_ENV = originalNodeEnv;
+      if (originalResendKey !== undefined) process.env.RESEND_API_KEY = originalResendKey;
+    }
+  });
+
+  it('POST /auth/magic does NOT expose _dev token in production', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalResendKey = process.env.RESEND_API_KEY;
+    process.env.NODE_ENV = 'production';
+    delete process.env.RESEND_API_KEY; // even without email provider, production must not leak tokens
+
+    try {
+      const response = await harness.request.post<{ ok: boolean; _dev?: unknown }>('/auth/magic', {
+        json: { email: 'prod-safe@example.com' },
+        headers: { origin: 'http://localhost:8080' },
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body?._dev).toBeUndefined();
+    } finally {
+      if (originalNodeEnv !== undefined) process.env.NODE_ENV = originalNodeEnv; else delete process.env.NODE_ENV;
+      if (originalResendKey !== undefined) process.env.RESEND_API_KEY = originalResendKey;
+    }
+  });
+
   it('POST /auth/magic rejects an invalid email', async () => {
     const response = await harness.request.post('/auth/magic', {
       json: { email: 'not-an-email' },
