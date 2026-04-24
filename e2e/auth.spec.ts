@@ -4,7 +4,7 @@ test.describe('T35: Auth flow', () => {
   test('magic link login flow', async ({ page }) => {
     await page.goto('/');
     // Should see the sign-in page
-    await expect(page.getByText('Blather — Sign In')).toBeVisible();
+    await expect(page.getByText('yappers — sign in')).toBeVisible();
 
     // Enter email and request magic link
     await page.getByPlaceholder('you@company.com').fill('e2e-auth@test.com');
