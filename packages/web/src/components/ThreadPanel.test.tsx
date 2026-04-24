@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThreadPanel } from './ThreadPanel';
+import { ToastProvider } from './Toast';
 
 beforeAll(() => { Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => {
@@ -16,6 +17,7 @@ vi.mock('./MarkdownText', () => ({
 vi.mock('../lib/chatUtils', () => ({
   getNickColor: () => '#000000',
   formatTime: (iso: string) => '12:00',
+  formatTimestamp: (iso: string) => '12:00',
 }));
 
 const mockGetThreadReplies = vi.fn();
@@ -38,7 +40,8 @@ describe('ThreadPanel', () => {
     ]);
 
     render(
-      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />
+      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />,
+      { wrapper: ToastProvider }
     );
 
     expect(screen.getByText('Parent message')).toBeInTheDocument();
@@ -52,7 +55,8 @@ describe('ThreadPanel', () => {
     ]);
 
     render(
-      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />
+      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />,
+      { wrapper: ToastProvider }
     );
 
     expect(await screen.findByText(/2 replies/)).toBeInTheDocument();
@@ -64,7 +68,8 @@ describe('ThreadPanel', () => {
 
     const user = userEvent.setup();
     render(
-      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} currentUserId="u-1" onClose={vi.fn()} />
+      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} currentUserId="u-1" onClose={vi.fn()} />,
+      { wrapper: ToastProvider }
     );
 
     const input = screen.getByPlaceholderText('Reply in thread...');
@@ -79,7 +84,8 @@ describe('ThreadPanel', () => {
 
     const user = userEvent.setup();
     render(
-      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />
+      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />,
+      { wrapper: ToastProvider }
     );
 
     const input = screen.getByPlaceholderText('Reply in thread...');
@@ -98,7 +104,8 @@ describe('ThreadPanel', () => {
     const user = userEvent.setup();
 
     render(
-      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={onClose} />
+      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={onClose} />,
+      { wrapper: ToastProvider }
     );
 
     await user.click(screen.getByRole('button', { name: 'Close thread' }));
@@ -110,7 +117,8 @@ describe('ThreadPanel', () => {
     mockGetThreadReplies.mockResolvedValue([existingReply]);
 
     const { rerender } = render(
-      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />
+      <ThreadPanel channelId="ch-1" parentMessage={parentMessage} usersMap={usersMap} onClose={vi.fn()} />,
+      { wrapper: ToastProvider }
     );
 
     // Wait for initial fetch to complete

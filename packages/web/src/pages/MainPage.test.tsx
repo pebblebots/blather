@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { MainPage } from './MainPage';
 import { AppContext } from '../lib/store';
+import { ToastProvider } from '../components/Toast';
 import type { ReactNode } from 'react';
 
 beforeAll(() => { Element.prototype.scrollIntoView = vi.fn(); });
@@ -50,12 +51,14 @@ vi.mock('../components/MessageReactions', () => ({
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (
-    <AppContext.Provider value={{
-      user: { id: 'u-1', email: 'alice@test.com', displayName: 'Alice', avatarUrl: null, isAgent: false },
-      setUser: vi.fn(),
-    }}>
-      {children}
-    </AppContext.Provider>
+    <ToastProvider>
+      <AppContext.Provider value={{
+        user: { id: 'u-1', email: 'alice@test.com', displayName: 'Alice', avatarUrl: null, isAgent: false },
+        setUser: vi.fn(),
+      }}>
+        {children}
+      </AppContext.Provider>
+    </ToastProvider>
   );
 }
 
@@ -137,7 +140,7 @@ describe('T#132 – ⌘K modal stacking', () => {
     fireEvent.click(getByText('Help'));
 
     // Confirm About modal is open
-    expect(await screen.findByRole('dialog', { name: 'About Blather' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'about yappers' })).toBeInTheDocument();
 
     // ⌘K should be blocked
     fireEvent.keyDown(window, { key: 'k', metaKey: true });

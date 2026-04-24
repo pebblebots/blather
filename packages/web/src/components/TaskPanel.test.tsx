@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TaskPanel } from './TaskPanel';
+import { ToastProvider } from './Toast';
 
 afterEach(() => cleanup());
 
@@ -38,18 +39,18 @@ describe('TaskPanel', () => {
 
   it('shows loading then tasks', async () => {
     mockList.mockResolvedValue([sampleTasks[0]]);
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
     expect(await screen.findByText('Fix bug')).toBeInTheDocument();
   });
 
   it('shows empty state when no tasks', async () => {
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
     expect(await screen.findByText(/no tasks yet/i)).toBeInTheDocument();
   });
 
   it('groups tasks by status with section headers', async () => {
     mockList.mockResolvedValue(sampleTasks);
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     expect(await screen.findByText('Fix bug')).toBeInTheDocument();
     expect(screen.getByText('Deploy')).toBeInTheDocument();
@@ -62,7 +63,7 @@ describe('TaskPanel', () => {
     mockList.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
     const user = userEvent.setup();
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     await screen.findByText(/no tasks yet/i);
     await user.click(screen.getByText('+ New Task'));
@@ -80,7 +81,7 @@ describe('TaskPanel', () => {
     mockUpdate.mockResolvedValue({});
 
     const user = userEvent.setup();
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     const startBtn = await screen.findByTitle('Start');
     await user.click(startBtn);
@@ -93,7 +94,7 @@ describe('TaskPanel', () => {
     mockUpdate.mockResolvedValue({});
 
     const user = userEvent.setup();
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     const doneBtn = await screen.findByTitle('Done');
     await user.click(doneBtn);
@@ -107,7 +108,7 @@ describe('TaskPanel', () => {
     mockUpdate.mockResolvedValue({});
 
     const user = userEvent.setup();
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     // Need to switch filter to "Done" to see done tasks (default is "All Active" which hides done)
     const filterSelect = screen.getByDisplayValue('All Active');
@@ -125,7 +126,7 @@ describe('TaskPanel', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     const user = userEvent.setup();
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     const deleteBtn = await screen.findByTitle('Delete');
     await user.click(deleteBtn);
@@ -141,7 +142,7 @@ describe('TaskPanel', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     const user = userEvent.setup();
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     const deleteBtn = await screen.findByTitle('Delete');
     await user.click(deleteBtn);
@@ -155,7 +156,7 @@ describe('TaskPanel', () => {
     mockList.mockResolvedValue([]);
 
     const user = userEvent.setup();
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     await screen.findByText(/no tasks yet/i);
     expect(mockList).toHaveBeenCalledWith(undefined);
@@ -168,7 +169,7 @@ describe('TaskPanel', () => {
 
   it('displays member names for creator and assignee', async () => {
     mockList.mockResolvedValue([sampleTasks[1]]);
-    render(<TaskPanel members={members} />);
+    render(<TaskPanel members={members} />, { wrapper: ToastProvider });
 
     // Names render inside <span> elements; multiple spans may exist per row
     expect(await screen.findAllByText('Alice')).not.toHaveLength(0);
@@ -181,7 +182,7 @@ describe('TaskPanel', () => {
       ['u-1', 'Alice (pbd.bot)'],
       ['u-2', 'Bot (agent)'],
     ]);
-    render(<TaskPanel members={members} disambiguatedNames={disambiguatedNames} />);
+    render(<TaskPanel members={members} disambiguatedNames={disambiguatedNames} />, { wrapper: ToastProvider });
 
     expect(await screen.findByText('Alice (pbd.bot)')).toBeInTheDocument();
     expect(screen.getByText('Bot (agent)')).toBeInTheDocument();
@@ -193,7 +194,7 @@ describe('TaskPanel', () => {
       { id: 'u-2', displayName: 'CodeBot', isAgent: true, email: 'code@pbd.bot' },
     ];
     mockList.mockResolvedValue([sampleTasks[1]]);
-    render(<TaskPanel members={membersWithEmail} />);
+    render(<TaskPanel members={membersWithEmail} />, { wrapper: ToastProvider });
 
     await screen.findByText('Alice');
     // There may be multiple CodeBot spans (creator + assignee rows) — find the one
