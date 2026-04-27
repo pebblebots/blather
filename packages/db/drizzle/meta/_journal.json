@@ -71,6 +71,34 @@
       "when": 1774675200000,
       "tag": "0010_remove_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775063050026,
+      "tag": "0011_fix_tasks_short_id_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775505665471,
+      "tag": "0012_add_user_deactivated_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1775505665471,
+      "tag": "0013_add_channel_mute",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1775844816976,
+      "tag": "0014_add_message_idempotency_key",
+      "breakpoints": true
     }
   ]
 }
