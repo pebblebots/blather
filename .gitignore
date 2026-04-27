@@ -1,19 +1,17 @@
-node_modules/
-dist/
-.env
-*.tsbuildinfo
-dist/
-packages/web/dist
-packages/web/node_modules
-cognee-env/
-cognee-data/
-.gravel/
-
-ecosystem.config.cjs
-
-# Uploaded files (TTS, attachments)
-uploads/
-packages/api/data/
 
 # SQLite databases (live data — never commit)
+# Uploaded files (TTS, attachments)
+*.tsbuildinfo
+.env
+.gravel/
+cognee-data/
+cognee-env/
 data/
+dist/
+ecosystem.config.cjs
+logs/
+node_modules/
+packages/api/data/
+packages/web/dist
+packages/web/node_modules
+uploads/
