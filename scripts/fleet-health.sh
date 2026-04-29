@@ -18,15 +18,23 @@ fail() { FAILURES+=("$1"); log "FAIL: $1"; }
 ok() { log "OK: $1"; }
 
 # --- 1. Agent instances (GCP VMs) ---
+# Retry with backoff: 3 attempts, 5s delay between.
+# Rationale: single transient gcloud-ssh blips were pageing #alerts as false positives
+# (e.g. aura-farmer 2026-04-29 incident: VM was healthy 53 days, paged 3x over 30min
+# for a single-shot probe timeout). Matches check_gateway's pattern below.
 check_vm() {
   local name="$1" user="$2" zone="$3"
-  if gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022 \
-    --command="echo OK" --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" \
-    &>/dev/null; then
-    ok "VM $name"
-  else
-    fail "VM $name unreachable (${zone})"
-  fi
+  local attempts=3 delay=5
+  for i in $(seq 1 $attempts); do
+    if gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022 \
+      --command="echo OK" --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" \
+      &>/dev/null; then
+      ok "VM $name"
+      return
+    fi
+    [ $i -lt $attempts ] && sleep $delay
+  done
+  fail "VM $name unreachable (${zone}) after $attempts attempts"
 }
 
 # localhost
@@ -62,12 +70,19 @@ check_gateway sourcy-mcfunnel admin us-west4-a
 
 # --- 2. Services on dev box ---
 
-# Blather API
-if curl -sf --max-time 10 http://localhost:3000/ > /dev/null 2>&1; then
-  ok "Blather API"
-else
-  fail "Blather API not responding"
-fi
+# Blather API (retry: 3 attempts, 3s delay — probe is local, keep it snappy)
+check_blather_api() {
+  local attempts=3 delay=3
+  for i in $(seq 1 $attempts); do
+    if curl -sf --max-time 10 http://localhost:3000/ > /dev/null 2>&1; then
+      ok "Blather API"
+      return
+    fi
+    [ $i -lt $attempts ] && sleep $delay
+  done
+  fail "Blather API not responding after $attempts attempts"
+}
+check_blather_api
 
 # PM2 processes
 for proc in blather-api blather-web cognee-service; do
