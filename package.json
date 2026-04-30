@@ -31,7 +31,19 @@
       "bcrypt",
       "better-sqlite3",
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "tar": ">=7.5.13",
+      "minimatch": ">=10.0.0",
+      "picomatch": ">=4.0.4",
+      "brace-expansion": ">=1.1.13",
+      "postcss": ">=8.5.10",
+      "rollup": ">=4.59.0",
+      "esbuild": ">=0.25.0",
+      "vite": ">=7.3.2",
+      "uuid": ">=14.0.0",
+      "drizzle-orm": ">=0.45.2"
+    }
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
