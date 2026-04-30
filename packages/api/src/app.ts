@@ -21,6 +21,11 @@ export type Env = {
   Variables: {
     userId: string;
     db: Db;
+    // Role marker set by the auth middleware. Currently only used for
+    // guest-mode (T#161) — guests are synthesized on unauthenticated
+    // requests when GUEST_MODE_VIEW_ONLY=true and can only read public
+    // channels. Authenticated users leave this unset.
+    role?: 'guest';
   };
 };
 
