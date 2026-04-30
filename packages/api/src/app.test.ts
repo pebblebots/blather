@@ -18,6 +18,20 @@ describe('app', () => {
     await testDatabase.close();
   });
 
+  it('serves /health unauthenticated with 200 (T#164)', async () => {
+    const app = createApp(testDatabase.db);
+    const response = await app.request('/health', { method: 'GET' });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, service: 'blather-api' });
+  });
+
+  it('serves /api/health unauthenticated with 200 (T#164 — Caddy prefix-strip safety)', async () => {
+    const app = createApp(testDatabase.db);
+    const response = await app.request('/api/health', { method: 'GET' });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, service: 'blather-api' });
+  });
+
   it('serves the API metadata at the root with CORS enabled', async () => {
     const app = createApp(testDatabase.db);
     const response = await app.request('/', {

@@ -45,6 +45,16 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
 
   app.get('/', (c) => c.json({ name: 'blather', version: '0.1.0' }));
 
+  // Public, unauthenticated health probe. Always returns 200 with a tiny
+  // body when the API process is alive and responsive. Mounted at both
+  // `/health` and `/api/health` to survive Caddy prefix stripping
+  // inconsistencies (see T#164 context: Aura misdiagnosed the API as dead
+  // because GET /api/me returns 404 — /me is the real route). Do NOT
+  // add auth/rate-limit middleware here; downstream probes need cheap 200s.
+  const healthHandler = (c: any) => c.json({ ok: true, service: 'blather-api' });
+  app.get('/health', healthHandler);
+  app.get('/api/health', healthHandler);
+
   // Per-user general rate limit on authenticated routes (applied before route handlers)
   const generalLimiter = generalApiLimiter(rateLimitStore);
   for (const prefix of ['/channels', '/members', '/tasks', '/deals', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status', '/presence']) {
