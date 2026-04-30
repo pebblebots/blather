@@ -292,6 +292,18 @@ export async function startMonitor(params: MonitorParams) {
         responsePrefixContext: prefixContext,
         humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
         deliver: async (payload) => {
+          // T#147: drop reasoning / compaction-notice payloads before they
+          // reach Blather. The core pipeline tags internal prose with
+          // `isReasoning` / `isCompactionNotice`; other channels (e.g.
+          // Mattermost) already short-circuit on these. Blather historically
+          // did not, which is why scratchpad fragments, tool-call metadata,
+          // and pre-tool thinking leaked into real channels under the
+          // agent's userId. See T#147 for repros across code-boffin, irma,
+          // portia, sourcy on 2026-04-19 through 2026-04-28.
+          if (typeof payload === "object" && payload !== null) {
+            if ((payload as any).isReasoning) return;
+            if ((payload as any).isCompactionNotice) return;
+          }
           const text = typeof payload === "string" ? payload : ((payload as any).text ?? "");
           if (text.trim()) await client.sendMessage(data.channelId, text);
         },
