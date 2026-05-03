@@ -109,7 +109,7 @@ export function createTask(data: {
   const shortId = Number(seq.lastInsertRowid);
 
   db.prepare(`
-    INSERT INTO tasks (id, title, description, priority, status, assigneeId, creatorId, shortId, sourceChannelId, createdAt, updatedAt, completion_artifact)
+    INSERT INTO tasks (id, title, description, priority, status, assigneeId, creatorId, shortId, sourceChannelId, createdAt, updatedAt, completionArtifact)
     VALUES (@id, @title, @description, @priority, 'queued', @assigneeId, @creatorId, @shortId, @sourceChannelId, @createdAt, @updatedAt, @completionArtifact)
   `).run({
     id,
@@ -159,7 +159,7 @@ export function updateTask(
   if (data.priority !== undefined) { setClauses.push('priority = @priority'); params.priority = data.priority; }
   if (data.status !== undefined) { setClauses.push('status = @status'); params.status = data.status; }
   if (data.assigneeId !== undefined) { setClauses.push('assigneeId = @assigneeId'); params.assigneeId = data.assigneeId; }
-  if (data.completionArtifact !== undefined) { setClauses.push('completion_artifact = @completionArtifact'); params.completionArtifact = data.completionArtifact; }
+  if (data.completionArtifact !== undefined) { setClauses.push('completionArtifact = @completionArtifact'); params.completionArtifact = data.completionArtifact; }
 
   // Set claimedById when transitioning to in_progress, clear when going to queued or done
   if (data.status === 'in_progress' && userId) {
