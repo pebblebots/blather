@@ -15,9 +15,15 @@ export default defineConfig({
       url: 'http://localhost:3000/',
       timeout: 120_000,
       reuseExistingServer: !process.env.CI,
-      // Disable auth/general rate-limits in CI — all requests share ip=unknown
-      // and the magic-link limiter (5/15min) trips mid-suite otherwise.
-      env: process.env.CI ? { DISABLE_RATE_LIMIT: 'true' } : undefined,
+      // CI-only env:
+      //  - DISABLE_RATE_LIMIT: shared ip=unknown trips the 5/15min magic-link limiter otherwise.
+      //  - BLA_ALLOWED_EMAILS: enables magic-link login for the @test.com fixtures; without
+      //    this, /auth/magic returns 403 "Email not allowed" and the UI never shows
+      //    "check your inbox".
+      env: process.env.CI ? {
+        DISABLE_RATE_LIMIT: 'true',
+        BLA_ALLOWED_EMAILS: '*@test.com',
+      } : undefined,
     },
     {
       command: 'pnpm --filter @blather/web dev --host 127.0.0.1 --port 8080',
