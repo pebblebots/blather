@@ -113,8 +113,8 @@ describe('upload routes', () => {
     expect(res.status).toBe(400);
   });
 
-  it('POST /uploads rejects files exceeding 25MB', async () => {
-    const oversized = 'x'.repeat(25 * 1024 * 1024 + 1);
+  it('POST /uploads rejects files exceeding 10MB', async () => {
+    const oversized = 'x'.repeat(10 * 1024 * 1024 + 1);
 
     const res = await uploadFile('big.txt', oversized);
 
@@ -175,5 +175,41 @@ describe('upload routes', () => {
     expect(getRes.status).toBe(200);
     expect(getRes.headers.get('Content-Type')).toBe('text/plain');
     expect(await getRes.text()).toBe(content);
+  });
+
+
+  // ── HTML upload + force-download (XSS defense) ──
+
+  it('POST /uploads accepts text/html uploads', async () => {
+    const res = await uploadFile('page.html', '<h1>hello</h1>', 'text/html');
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.url).toMatch(/^\/uploads\/.+\.html$/);
+    expect(body.contentType).toBe('text/html');
+  });
+
+  it('GET /uploads/:filename serves .html with Content-Disposition: attachment (no inline render)', async () => {
+    await writeFile(join(uploadDir, 'malicious.html'), '<script>alert(1)</script>');
+
+    const res = await harness.app.request('/uploads/malicious.html', { method: 'GET' });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('text/html');
+    // Critical: force download, do not render inline on our origin (XSS defense)
+    expect(res.headers.get('Content-Disposition')).toMatch(/^attachment;/);
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+
+  it('GET /uploads/:filename serves safe types (image/text) without forcing download', async () => {
+    await writeFile(join(uploadDir, 'photo.png'), Buffer.from('fake-png'));
+
+    const res = await harness.app.request('/uploads/photo.png', { method: 'GET' });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('image/png');
+    // No Content-Disposition — image can render inline (still protected by nosniff)
+    expect(res.headers.get('Content-Disposition')).toBeNull();
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
   });
 });
