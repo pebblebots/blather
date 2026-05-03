@@ -15,6 +15,13 @@ const ALLOWED_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp",
   "video/mp4", "video/webm",
   "application/pdf", "text/plain",
+  "text/html",
+]);
+
+// Content-types that must NEVER render inline on our origin (XSS risk).
+// Served with Content-Disposition: attachment to force download.
+const FORCE_DOWNLOAD_TYPES = new Set([
+  "text/html",
 ]);
 const MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -26,6 +33,8 @@ const MIME_TYPES: Record<string, string> = {
   ".webm": "video/webm",
   ".pdf": "application/pdf",
   ".txt": "text/plain",
+  ".html": "text/html",
+  ".htm": "text/html",
 };
 
 function ensureDirectory(path: string) {
@@ -38,17 +47,26 @@ function isInvalidFilename(filename: string) {
   return filename.includes("..") || filename.includes("/");
 }
 
-function createFileResponse(filePath: string, contentType: string) {
+function createFileResponse(filePath: string, contentType: string, originalFilename?: string) {
   const stat = statSync(filePath);
   const stream = createReadStream(filePath);
 
-  return new Response(ReadableStream.from(stream as any) as any, {
-    headers: {
-      "Content-Type": contentType,
-      "Content-Length": String(stat.size),
-      "Cache-Control": "public, max-age=31536000, immutable",
-    },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": contentType,
+    "Content-Length": String(stat.size),
+    "Cache-Control": "public, max-age=31536000, immutable",
+    // Defense in depth: prevent browsers from sniffing a different content-type (e.g. treating .txt as HTML)
+    "X-Content-Type-Options": "nosniff",
+  };
+
+  // Force download for content-types that are unsafe to render inline on our origin (XSS risk).
+  // Example: .html uploads rendered inline would run JS on blather.pbd.bot with full cookie/JWT access.
+  if (FORCE_DOWNLOAD_TYPES.has(contentType)) {
+    const safeName = (originalFilename || "download").replace(/["\\]/g, "_");
+    headers["Content-Disposition"] = `attachment; filename="${safeName}"`;
+  }
+
+  return new Response(ReadableStream.from(stream as any) as any, { headers });
 }
 
 ensureDirectory(UPLOAD_DIR);
@@ -141,5 +159,5 @@ uploadRoutes.get("/:filename", async (c) => {
   const ext = extname(filename).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
 
-  return createFileResponse(filePath, contentType);
+  return createFileResponse(filePath, contentType, filename);
 });
