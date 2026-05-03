@@ -23,6 +23,9 @@ export default defineConfig({
       env: process.env.CI ? {
         DISABLE_RATE_LIMIT: 'true',
         BLA_ALLOWED_EMAILS: '*@test.com',
+        // Enables "Verify (Dev)" button in AuthPage by returning the magic token
+        // in the /auth/magic response. CI-only; never use in production.
+        EXPOSE_MAGIC_TOKEN_IN_RESPONSE: 'true',
       } : undefined,
     },
     {
