@@ -7,6 +7,12 @@ import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { createReplyPrefixContext } from "openclaw/plugin-sdk/channel-runtime";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { BlatherClient, type BlatherUser } from "./api.js";
+import {
+  shouldDeliverReplyPayload,
+  type DeliverReplyInfo,
+} from "./deliver-guard.js";
+export { shouldDeliverReplyPayload };
+export type { DeliverReplyInfo };
 
 const RECONNECT_BASE_MS = 3_000;
 const RECONNECT_MAX_MS = 60_000;
@@ -291,21 +297,22 @@ export async function startMonitor(params: MonitorParams) {
         ...replyPrefix,
         responsePrefixContext: prefixContext,
         humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
-        deliver: async (payload) => {
-          // T#147: drop reasoning / compaction-notice payloads before they
-          // reach Blather. The core pipeline tags internal prose with
-          // `isReasoning` / `isCompactionNotice`; other channels (e.g.
-          // Mattermost) already short-circuit on these. Blather historically
-          // did not, which is why scratchpad fragments, tool-call metadata,
-          // and pre-tool thinking leaked into real channels under the
-          // agent's userId. See T#147 for repros across code-boffin, irma,
-          // portia, sourcy on 2026-04-19 through 2026-04-28.
-          if (typeof payload === "object" && payload !== null) {
-            if ((payload as any).isReasoning) return;
-            if ((payload as any).isCompactionNotice) return;
+        deliver: async (payload, info) => {
+          // T#147 + T#171: filter reasoning / compaction / intermediate
+          // block-reply payloads before they reach Blather. The core
+          // dispatcher fires `deliver` once per assistant-text segment
+          // with `info.kind in {tool, block, final}`; only `final` is the
+          // real reply. Streaming channels (Slack/Discord/Matrix) consume
+          // blocks as a running draft, but Blather is not a streaming
+          // surface so blocks would leak as narration-prose ("Let me
+          // check", "Found it.", etc.). See shouldDeliverReplyPayload
+          // for details and monitor.deliver-guard.test.ts for the contract.
+          const decision = shouldDeliverReplyPayload(payload, info);
+          if (!decision.deliver) {
+            log?.debug?.(`deliver skipped: ${decision.reason}`);
+            return;
           }
-          const text = typeof payload === "string" ? payload : ((payload as any).text ?? "");
-          if (text.trim()) await client.sendMessage(data.channelId, text);
+          await client.sendMessage(data.channelId, decision.text);
         },
         onError: (err, info) => log?.error(`${info.kind} reply failed: ${err}`),
       });

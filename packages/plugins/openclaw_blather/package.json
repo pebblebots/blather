@@ -4,11 +4,15 @@
   "private": true,
   "description": "OpenClaw Blather channel plugin",
   "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.0"
+    "@types/ws": "^8.5.0",
+    "vitest": "^3.2.4"
   },
   "openclaw": {
     "extensions": [
