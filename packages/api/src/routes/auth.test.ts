@@ -43,6 +43,32 @@ describe('auth routes', () => {
     expect(storedToken?.usedAt).toBeNull();
   });
 
+  it('POST /auth/magic does NOT return token by default (production safe)', async () => {
+    const response = await harness.request.post<{ ok: boolean; _dev?: { token: string } }>('/auth/magic', {
+      json: { email: 'Alice@Example.com' },
+    });
+    expect(response.status).toBe(200);
+    expect(response.body?.ok).toBe(true);
+    expect(response.body?._dev).toBeUndefined();
+  });
+
+  it('POST /auth/magic returns _dev.token when EXPOSE_MAGIC_TOKEN_IN_RESPONSE=true', async () => {
+    const original = process.env.EXPOSE_MAGIC_TOKEN_IN_RESPONSE;
+    process.env.EXPOSE_MAGIC_TOKEN_IN_RESPONSE = 'true';
+    try {
+      const response = await harness.request.post<{ ok: boolean; _dev?: { token: string; code: string } }>('/auth/magic', {
+        json: { email: 'Bob@Example.com' },
+      });
+      expect(response.status).toBe(200);
+      expect(response.body?.ok).toBe(true);
+      expect(response.body?._dev?.token).toMatch(/^[a-f0-9]{64}$/);
+      expect(response.body?._dev?.code).toMatch(/^\d{6}$/);
+    } finally {
+      if (original === undefined) delete process.env.EXPOSE_MAGIC_TOKEN_IN_RESPONSE;
+      else process.env.EXPOSE_MAGIC_TOKEN_IN_RESPONSE = original;
+    }
+  });
+
   it('POST /auth/magic rejects an invalid email', async () => {
     const response = await harness.request.post('/auth/magic', {
       json: { email: 'not-an-email' },

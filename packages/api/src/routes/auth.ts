@@ -144,9 +144,19 @@ authRoutes.post('/magic', authMagicLimiter(rateLimitStore), async (c) => {
   if (!getResend()) {
     console.log(`[MAGIC LINK] No email provider configured. Magic URL: ${magicUrl}`);
   }
+
+  // Dev-mode: return the token in the response so the AuthPage "Verify (Dev)" button
+  // can complete auth without reading email. Opt-in via EXPOSE_MAGIC_TOKEN_IN_RESPONSE=true.
+  // Never enable this in production — tokens in API responses can be logged, cached,
+  // or reflected into attacker-controlled surfaces.
+  const devPayload = process.env.EXPOSE_MAGIC_TOKEN_IN_RESPONSE === 'true'
+    ? { _dev: { token, code } }
+    : {};
+
   return c.json({
     ok: true,
     message: 'Magic link sent! Check your email.',
+    ...devPayload,
   });
 });
 

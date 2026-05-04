@@ -53,9 +53,16 @@ export function getTaskDb(): Database.Database {
   if (!cols.some((c) => c.name === 'claimedById')) {
     _db.exec('ALTER TABLE tasks ADD COLUMN claimedById TEXT');
   }
-  // Migration: add completion_artifact column if it doesn't exist
-  if (!cols.some((c) => c.name === 'completion_artifact')) {
-    _db.exec('ALTER TABLE tasks ADD COLUMN completion_artifact TEXT');
+  // Migration: add completionArtifact column if it doesn't exist.
+  // On older DBs this was named completion_artifact (snake_case), which broke
+  // the SELECT * -> Task mapping. Rename if present, otherwise add fresh.
+  const refreshedCols = _db.pragma('table_info(tasks)') as { name: string }[];
+  const hasSnake = refreshedCols.some((c) => c.name === 'completion_artifact');
+  const hasCamel = refreshedCols.some((c) => c.name === 'completionArtifact');
+  if (hasSnake && !hasCamel) {
+    _db.exec('ALTER TABLE tasks RENAME COLUMN completion_artifact TO completionArtifact');
+  } else if (!hasCamel) {
+    _db.exec('ALTER TABLE tasks ADD COLUMN completionArtifact TEXT');
   }
 
   return _db;

@@ -68,6 +68,11 @@ export function rateLimit(options: RateLimitOptions) {
   const ownStore = options.store ?? createRateLimitStore();
 
   return createMiddleware<Env>(async (c, next) => {
+    // Bypass for test/CI environments where many requests share one "ip" (usually "unknown").
+    // Opt-in via env var so this can never accidentally disable production rate-limiting.
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
+      return await next();
+    }
     const store = ownStore;
     const key = `${label}:${keyFn(c as never)}`;
     const now = Date.now();

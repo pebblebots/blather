@@ -501,7 +501,7 @@ const EXACT_ERROR_PATTERNS = [
   /^LLM request (failed|rejected|error)/i,
   /^LLM error/i,
   /^API error/i,
-  /^Internal server error\.?$/i,
+  /^Internal server error/i,
   /^\{?"?type"?\s*:\s*"?error/i,
   /^rate.?limit.?(error|exceeded)/i,
   /^quota.?exceeded/i,

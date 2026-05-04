@@ -146,4 +146,25 @@ describe('rate-limit middleware', () => {
       vi.useRealTimers();
     }
   });
+
+
+  it('bypasses all rate limits when DISABLE_RATE_LIMIT=true', async () => {
+    const original = process.env.DISABLE_RATE_LIMIT;
+    process.env.DISABLE_RATE_LIMIT = 'true';
+    try {
+      const store = createRateLimitStore();
+      const app = new Hono();
+      app.use('/test', rateLimit({ max: 2, windowMs: 60_000, store }));
+      app.get('/test', (c) => c.text('ok'));
+
+      // Far exceeding the max of 2 should still be 200 when bypass is on
+      for (let i = 0; i < 10; i++) {
+        const res = await app.request('/test', { headers: { 'x-forwarded-for': '1.1.1.1' } });
+        expect(res.status).toBe(200);
+      }
+    } finally {
+      if (original === undefined) delete process.env.DISABLE_RATE_LIMIT;
+      else process.env.DISABLE_RATE_LIMIT = original;
+    }
+  });
 });
