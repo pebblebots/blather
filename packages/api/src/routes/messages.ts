@@ -7,6 +7,16 @@ import { authMiddleware } from "../middleware/auth.js";
 export const messageRoutes = new Hono<Env>();
 messageRoutes.use("*", authMiddleware);
 
+// T#161: block writes for guests. Currently /messages has no POST routes,
+// but guard the Hono group so any future POST/PATCH/DELETE inherits the
+// 403 without silently allowing writes.
+messageRoutes.use("*", async (c, next) => {
+  if (c.get("role") === "guest" && c.req.method !== "GET") {
+    return c.json({ error: "Guests cannot perform this action. Sign in to continue." }, 403);
+  }
+  return next();
+});
+
 // GET /messages/search
 messageRoutes.get("/search", async (c) => {
   const db = c.get("db");
@@ -24,7 +34,8 @@ messageRoutes.get("/search", async (c) => {
   const limit = Math.min(parseInt(c.req.query("limit") || "20", 10), 50);
 
   // Get channels the user can access:
-  // All public channels + private/dm channels the user is a member of
+  // All public channels + private/dm channels the user is a member of.
+  // T#161: guests see public-only.
   const allChannels = await db
     .select({ id: channels.id, channelType: channels.channelType })
     .from(channels);
@@ -33,22 +44,29 @@ messageRoutes.get("/search", async (c) => {
     .filter((ch) => ch.channelType === "public")
     .map((ch) => ch.id);
 
-  const privateMemberships = await db
-    .select({ channelId: channelMembers.channelId })
-    .from(channelMembers)
-    .where(eq(channelMembers.userId, userId));
+  const isGuest = c.get("role") === "guest";
 
-  const privateMemberChannelIds = privateMemberships.map((m) => m.channelId);
+  let accessibleChannelIds: string[];
+  if (isGuest) {
+    accessibleChannelIds = publicChannelIds;
+  } else {
+    const privateMemberships = await db
+      .select({ channelId: channelMembers.channelId })
+      .from(channelMembers)
+      .where(eq(channelMembers.userId, userId));
 
-  const privateAccessibleIds = allChannels
-    .filter(
-      (ch) =>
-        (ch.channelType === "private" || ch.channelType === "dm") &&
-        privateMemberChannelIds.includes(ch.id)
-    )
-    .map((ch) => ch.id);
+    const privateMemberChannelIds = privateMemberships.map((m) => m.channelId);
 
-  const accessibleChannelIds = [...publicChannelIds, ...privateAccessibleIds];
+    const privateAccessibleIds = allChannels
+      .filter(
+        (ch) =>
+          (ch.channelType === "private" || ch.channelType === "dm") &&
+          privateMemberChannelIds.includes(ch.id)
+      )
+      .map((ch) => ch.id);
+
+    accessibleChannelIds = [...publicChannelIds, ...privateAccessibleIds];
+  }
 
   if (accessibleChannelIds.length === 0) {
     return c.json([]);

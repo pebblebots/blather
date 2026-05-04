@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import type { Env } from '../app.js';
 import type { Db } from '@blather/db';
 import { JWT_SECRET } from '../config.js';
+import { isGuestModeEnabled, GUEST_USER_ID, GUEST_ROLE } from '../config/guest-mode.js';
 import type { Context } from 'hono';
 
 export function signToken(userId: string): string {
@@ -83,6 +84,16 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     }
     logAuthFailure(c, 'invalid_token');
     return c.json({ error: 'Invalid token' }, 401);
+  }
+
+  // Guest-mode fallthrough (T#161): if the deployment opts in via
+  // GUEST_MODE_VIEW_ONLY=true, unauthenticated GETs get a synthesized
+  // guest context instead of a 401. Route handlers are responsible for
+  // restricting to public channels and refusing writes (see role check).
+  if (isGuestModeEnabled()) {
+    c.set('userId', GUEST_USER_ID);
+    c.set('role', GUEST_ROLE);
+    return next();
   }
 
   return c.json({ error: 'Authentication required' }, 401);
