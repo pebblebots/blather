@@ -4,11 +4,12 @@ import type { Server } from 'http';
 import jwt from 'jsonwebtoken';
 import { createHash } from 'crypto';
 import { eq, and, isNull } from 'drizzle-orm';
-import { apiKeys, channelMembers } from '@blather/db';
+import { apiKeys, channelMembers, channels } from '@blather/db';
 import { createDb } from "@blather/db";
 import { JWT_SECRET } from '../config.js';
+import { isGuestModeEnabled, GUEST_USER_ID } from '../config/guest-mode.js';
 
-const db = createDb();
+let db: ReturnType<typeof createDb> = createDb();
 
 const HEARTBEAT_INTERVAL = 30_000;
 const IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
@@ -24,6 +25,12 @@ interface AuthedClient {
 const allClients = new Set<AuthedClient>();
 
 function addClient(client: AuthedClient) {
+  // T#161: guest connections are anonymous and share one identity. Don't
+  // count them toward per-user caps and don't broadcast presence for them.
+  if (client.userId === GUEST_USER_ID) {
+    allClients.add(client);
+    return;
+  }
   // Limit connections per user — close oldest if over limit
   const userConns = [...allClients].filter(c => c.userId === client.userId);
   while (userConns.length >= MAX_CONNECTIONS_PER_USER) {
@@ -37,6 +44,7 @@ function addClient(client: AuthedClient) {
 
 function removeClient(client: AuthedClient) {
   allClients.delete(client);
+  if (client.userId === GUEST_USER_ID) return;
   // Check if user still has other connections
   const stillConnected = [...allClients].some(c => c.userId === client.userId);
   if (!stillConnected) {
@@ -89,20 +97,51 @@ async function getChannelMemberIds(channelId: string): Promise<Set<string>> {
   return new Set(members.map(m => m.userId));
 }
 
+/**
+ * T#161 helper: is this channel public? Cached lookup used to gate guest
+ * WS fanout. Guests have no channel_members rows, so the normal membership
+ * filter would skip them on every event — we bypass it only when the
+ * channel is public.
+ */
+const _publicChannelCache = new Map<string, boolean>();
+async function isPublicChannel(channelId: string): Promise<boolean> {
+  const cached = _publicChannelCache.get(channelId);
+  if (cached !== undefined) return cached;
+  const [row] = await db.select({ channelType: channels.channelType })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+  const isPublic = row?.channelType === 'public';
+  _publicChannelCache.set(channelId, isPublic);
+  // Invalidate after 30s so channel-type flips (rare) propagate.
+  setTimeout(() => _publicChannelCache.delete(channelId), 30_000).unref();
+  return isPublic;
+}
+
 /** Broadcast an event to all WS clients, gated by channel membership. */
 export async function publishEvent(event: Record<string, unknown> & { channel_id?: string | null }) {
   let allowedUserIds: Set<string> | null = null;
+  let guestAllowed = false;
 
   // T#156: If event is scoped to a channel, fanout is gated by membership —
   // public, private, and DM all require a channel_members row.
+  // T#161: guests (no membership rows) are allowed on public channels only.
   if (event.channel_id) {
     allowedUserIds = await getChannelMemberIds(event.channel_id);
+    guestAllowed = await isPublicChannel(event.channel_id);
   }
 
   const data = JSON.stringify(event);
   for (const client of allClients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
-    if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
+    if (allowedUserIds) {
+      const isGuestClient = client.userId === GUEST_USER_ID;
+      if (isGuestClient) {
+        if (!guestAllowed) continue;
+      } else if (!allowedUserIds.has(client.userId)) {
+        continue;
+      }
+    }
     client.ws.send(data);
   }
 }
@@ -115,15 +154,24 @@ export async function publishEvent(event: Record<string, unknown> & { channel_id
  */
 export async function publishEphemeralEvent(event: Record<string, unknown> & { channel_id?: string | null }) {
   let allowedUserIds: Set<string> | null = null;
+  let guestAllowed = false;
 
   if (event.channel_id) {
     allowedUserIds = await getChannelMemberIds(event.channel_id);
+    guestAllowed = await isPublicChannel(event.channel_id);
   }
 
   const data = JSON.stringify(event);
   for (const client of allClients) {
     if (client.ws.readyState !== WebSocket.OPEN) continue;
-    if (allowedUserIds && !allowedUserIds.has(client.userId)) continue;
+    if (allowedUserIds) {
+      const isGuestClient = client.userId === GUEST_USER_ID;
+      if (isGuestClient) {
+        if (!guestAllowed) continue;
+      } else if (!allowedUserIds.has(client.userId)) {
+        continue;
+      }
+    }
     client.ws.send(data);
   }
 }
@@ -229,6 +277,13 @@ export function attachWebSocket(server: Server) {
         });
         return;
       }
+    } else if (isGuestModeEnabled()) {
+      // T#161: guest-mode deployment — accept anonymous upgrade and attach as
+      // the shared guest identity. Only public-channel events will fan out
+      // to this client (see publishEvent).
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        setupAuthedClient(ws, GUEST_USER_ID);
+      });
     } else {
       // Auth via first message
       wss.handleUpgrade(req, socket, head, (ws) => {
@@ -287,6 +342,14 @@ function setupPendingClient(ws: WebSocket) {
 export const __testing = {
   resetState() {
     allClients.clear();
+    _publicChannelCache.clear();
+  },
+  /**
+   * Swap the module-scope db for tests. Call with `null` to revert.
+   * Only exposed under __testing so production code can't reach it.
+   */
+  setDbForTesting(next: ReturnType<typeof createDb> | null) {
+    db = next ?? createDb();
   },
   setupAuthedClient,
   setupPendingClient,

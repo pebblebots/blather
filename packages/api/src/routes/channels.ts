@@ -11,6 +11,18 @@ import type { CreateChannelRequest, CreateDMRequest } from '@blather/types';
 import { handleTasksCommand } from '../bots/tasks.js';
 import { handleIncidentCommand } from '../bots/incidents.js';
 import { requireChannelMembership } from '../middleware/channelAccess.js';
+import type { Context } from 'hono';
+
+// ── Guest-mode helpers (T#161) ────────────────────────────────────────────
+// Guests have role='guest' set by the auth middleware when GUEST_MODE_VIEW_ONLY
+// is on. They can read public channels only; any write returns 403.
+function isGuest(c: Context<Env>): boolean {
+  return c.get('role') === 'guest';
+}
+
+function guestForbidden(c: Context<Env>) {
+  return c.json({ error: 'Guests cannot perform this action. Sign in to continue.' }, 403);
+}
 
 // ── Channel ID resolution ──────────────────────────────────────────────────
 
@@ -39,6 +51,25 @@ channelRoutes.use('*', authMiddleware);
 channelRoutes.get('/', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
+
+  // T#161: guests only see public, non-archived channels.
+  if (isGuest(c)) {
+    const guestChannels = await db
+      .select({
+        id: channels.id,
+        name: channels.name,
+        slug: channels.slug,
+        channelType: channels.channelType,
+        isDefault: channels.isDefault,
+        topic: channels.topic,
+        createdBy: channels.createdBy,
+        createdAt: channels.createdAt,
+        archived: channels.archived,
+      })
+      .from(channels)
+      .where(and(eq(channels.channelType, 'public'), eq(channels.archived, false)));
+    return c.json(guestChannels.map(r => ({ ...r, muted: false })));
+  }
 
   // Get public non-archived channels with muted status
   const publicChannels = await db
@@ -117,6 +148,7 @@ channelRoutes.get('/', async (c) => {
 
 // Create channel
 channelRoutes.post('/', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const body = await c.req.json<CreateChannelRequest>();
   const db = c.get('db');
   const userId = c.get('userId');
@@ -159,6 +191,7 @@ channelRoutes.post('/', async (c) => {
 
 // Create or get DM channel
 channelRoutes.post('/dm', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const body = await c.req.json<CreateDMRequest>();
   const db = c.get('db');
   const userId = c.get('userId');
@@ -251,6 +284,8 @@ channelRoutes.post('/dm', async (c) => {
 
 // Get unread counts per channel
 channelRoutes.get('/unread', async (c) => {
+  // Guests have no membership rows, so unread is trivially empty.
+  if (isGuest(c)) return c.json({});
   const db = c.get('db');
   const userId = c.get('userId');
 
@@ -313,7 +348,12 @@ channelRoutes.get('/:id/messages', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
-  if (channel.channelType === 'dm' || channel.channelType === 'private') {
+  // T#161: guests can only read public channels.
+  if (isGuest(c)) {
+    if (channel.channelType !== 'public') {
+      return c.json({ error: 'Not a member of this channel' }, 403);
+    }
+  } else if (channel.channelType === 'dm' || channel.channelType === 'private') {
     const [membership] = await db.select().from(channelMembers)
       .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
       .limit(1);
@@ -542,6 +582,7 @@ function looksLikeApiError(content: string): boolean {
 
 // Post message to channel
 channelRoutes.post('/:id/messages', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -774,6 +815,7 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
 
 // Send typing indicator (in-memory state, DB only on cache miss)
 channelRoutes.post('/:id/typing', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -827,6 +869,7 @@ channelRoutes.post('/:id/typing', async (c) => {
 
 // Add reaction to message
 channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('channelId'));
@@ -869,6 +912,7 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
 
 // Mark channel as read
 channelRoutes.post('/:id/read', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -892,6 +936,7 @@ channelRoutes.post('/:id/read', async (c) => {
 
 // Invite user to channel (only existing members can invite)
 channelRoutes.post('/:id/members', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -930,6 +975,7 @@ channelRoutes.post('/:id/members', async (c) => {
 
 // Archive channel
 channelRoutes.patch('/:id/archive', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -959,6 +1005,7 @@ channelRoutes.patch('/:id/archive', async (c) => {
 
 // Mute channel
 channelRoutes.patch('/:id/mute', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -975,6 +1022,7 @@ channelRoutes.patch('/:id/mute', async (c) => {
 
 // Unmute channel
 channelRoutes.patch('/:id/unmute', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -998,6 +1046,11 @@ channelRoutes.get('/:id/members', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
+  // T#161: guests may see public-channel members but never private/DM ones.
+  if (isGuest(c) && channel.channelType !== 'public') {
+    return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+
   if (channel.channelType === 'dm' || channel.channelType === 'private') {
     const [membership] = await db.select().from(channelMembers)
       .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
@@ -1016,6 +1069,7 @@ channelRoutes.get('/:id/members', async (c) => {
 
 // Delete channel
 channelRoutes.delete('/:id', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('id'));
@@ -1051,6 +1105,7 @@ channelRoutes.delete('/:id', async (c) => {
 
 // Edit message (only author can edit)
 channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('channelId'));
@@ -1113,6 +1168,7 @@ channelRoutes.patch('/:channelId/messages/:messageId', async (c) => {
 
 // Delete message (only author can delete)
 channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('channelId'));
@@ -1148,6 +1204,7 @@ channelRoutes.delete('/:channelId/messages/:messageId', async (c) => {
 
 // Delete/toggle reaction
 channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
+  if (isGuest(c)) return guestForbidden(c);
   const db = c.get('db');
   const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('channelId'));
