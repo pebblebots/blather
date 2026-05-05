@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { uploadFile, api } from '../lib/api';
+import { useToast } from './Toast';
 import { EMOJI_DATA } from './emojiData';
 
 interface Member {
@@ -45,6 +46,7 @@ function isMobileDevice(): boolean {
 export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) {
   const [text, setText] = useState('');
   const [files, setFiles] = useState<AttachedFile[]>([]);
+  const { showToast } = useToast();
   const lastTypingSent = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -248,7 +250,19 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
     const trimmed = text.trim();
     const uploadedAttachments = files.filter((f) => f.uploaded).map((f) => f.uploaded!);
     const stillUploading = files.some((f) => f.uploading);
+    const erroredFiles = files.filter((f) => f.error);
     if (stillUploading) return;
+
+    // T#173: don't silently send a message whose attachments failed to upload.
+    // Block the send and surface a toast so the user can retry or remove the file.
+    if (erroredFiles.length > 0) {
+      const label = erroredFiles.length === 1
+        ? `"${erroredFiles[0].file.name}" failed to upload — retry or remove it before sending.`
+        : `${erroredFiles.length} attachments failed to upload — retry or remove them before sending.`;
+      showToast(label, 'error');
+      return;
+    }
+
     if (!trimmed && uploadedAttachments.length === 0) return;
 
     onSend(trimmed, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
@@ -323,6 +337,14 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
           const cleaned = text.replace(/\n$/, '');
           const trimmed = cleaned.trim();
           const uploadedAttachments = files.filter((f) => f.uploaded).map((f) => f.uploaded!);
+          const erroredFiles = files.filter((f) => f.error);
+          if (erroredFiles.length > 0) {
+            const label = erroredFiles.length === 1
+              ? `"${erroredFiles[0].file.name}" failed to upload — retry or remove it before sending.`
+              : `${erroredFiles.length} attachments failed to upload — retry or remove them before sending.`;
+            showToast(label, 'error');
+            return;
+          }
           if (trimmed || uploadedAttachments.length > 0) {
             onSend(trimmed, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
             setText('');
@@ -552,6 +574,7 @@ export function MessageInput({ onSend, onTyping, disabled }: MessageInputProps) 
               </div>
               <button
                 onClick={() => removeFile(af.file)}
+                aria-label={`Remove attachment ${af.file.name}`}
                 style={{
                   position: 'absolute', top: -4, right: -4,
                   width: 14, height: 14, borderRadius: 7,
