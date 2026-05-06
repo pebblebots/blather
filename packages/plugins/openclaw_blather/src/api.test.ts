@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BlatherClient } from "./api.js";
+import { BlatherClient, parseRetryAfter } from "./api.js";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -127,5 +127,136 @@ describe("BlatherClient", () => {
     expect(opts.method).toBe("POST");
     expect(JSON.parse(opts.body)).toEqual({ userId: "u-target" });
     expect(result).toEqual(dmChannel);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseRetryAfter
+// ---------------------------------------------------------------------------
+describe("parseRetryAfter", () => {
+  it("returns undefined for null/undefined/empty", () => {
+    expect(parseRetryAfter(null)).toBeUndefined();
+    expect(parseRetryAfter(undefined)).toBeUndefined();
+    expect(parseRetryAfter("")).toBeUndefined();
+    expect(parseRetryAfter("   ")).toBeUndefined();
+  });
+
+  it("parses delta-seconds", () => {
+    expect(parseRetryAfter("5")).toBe(5000);
+    expect(parseRetryAfter("30")).toBe(30_000);
+    expect(parseRetryAfter("0")).toBe(0);
+  });
+
+  it("parses HTTP-date in the future", () => {
+    const nowMs = 1_000_000;
+    const futureDate = new Date(nowMs + 10_000).toUTCString();
+    const result = parseRetryAfter(futureDate, nowMs);
+    expect(result).toBeGreaterThanOrEqual(9_900);
+    expect(result).toBeLessThanOrEqual(10_100);
+  });
+
+  it("returns 0 for HTTP-date in the past", () => {
+    const nowMs = 1_000_000_000;
+    const pastDate = new Date(nowMs - 5_000).toUTCString();
+    expect(parseRetryAfter(pastDate, nowMs)).toBe(0);
+  });
+
+  it("returns undefined for unparseable strings", () => {
+    expect(parseRetryAfter("not-a-date")).toBeUndefined();
+    expect(parseRetryAfter("abc")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 429 retry / backoff (T#165)
+// ---------------------------------------------------------------------------
+describe("BlatherClient 429 backoff (T#165)", () => {
+  const sleepMock = vi.fn().mockResolvedValue(undefined);
+  const rateLimitEvents: Array<{ path: string; retryAfterMs: number; attempt: number }> = [];
+
+  const client429 = new BlatherClient("https://example.com/api", "key", {
+    maxRetries: 3,
+    backoffBaseMs: 100,
+    backoffMaxMs: 10_000,
+    sleep: sleepMock,
+    onRateLimit: (info) => rateLimitEvents.push(info),
+  });
+
+  beforeEach(() => {
+    mockFetch.mockReset();
+    sleepMock.mockReset();
+    rateLimitEvents.length = 0;
+  });
+
+  it("retries on 429 and succeeds on second attempt", async () => {
+    const user = { id: "u1", email: "a@b.c", displayName: "A", isAgent: false };
+    mockFetch
+      .mockResolvedValueOnce(new Response("rate limited", { status: 429, headers: { "Retry-After": "2" } }))
+      .mockResolvedValueOnce(jsonResponse(user));
+
+    const result = await client429.getMe();
+
+    expect(result).toEqual(user);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(sleepMock).toHaveBeenCalledTimes(1);
+    expect(sleepMock).toHaveBeenCalledWith(2000); // honors Retry-After: 2
+    expect(rateLimitEvents).toHaveLength(1);
+    expect(rateLimitEvents[0]).toMatchObject({ retryAfterMs: 2000, attempt: 1 });
+  });
+
+  it("uses exponential backoff when Retry-After is absent", async () => {
+    const user = { id: "u1", email: "a@b.c", displayName: "A", isAgent: false };
+    mockFetch
+      .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+      .mockResolvedValueOnce(jsonResponse(user));
+
+    await client429.getMe();
+
+    expect(sleepMock).toHaveBeenCalledTimes(1);
+    const [delayMs] = sleepMock.mock.calls[0];
+    // backoffBaseMs=100, attempt=1 → expMs = 100*2^0 = 100, +/-20% jitter
+    expect(delayMs).toBeGreaterThanOrEqual(80);
+    expect(delayMs).toBeLessThanOrEqual(120);
+  });
+
+  it("retries up to maxRetries then throws", async () => {
+    // 4 consecutive 429s (initial + 3 retries)
+    mockFetch.mockResolvedValue(new Response("rate limited", { status: 429 }));
+
+    await expect(client429.getMe()).rejects.toThrow("Blather API 429");
+
+    expect(mockFetch).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+    expect(sleepMock).toHaveBeenCalledTimes(3);
+    expect(rateLimitEvents).toHaveLength(3);
+  });
+
+  it("does NOT retry on non-429 errors", async () => {
+    mockFetch.mockResolvedValue(new Response("server error", { status: 500 }));
+
+    await expect(client429.getMe()).rejects.toThrow("Blather API 500");
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(sleepMock).not.toHaveBeenCalled();
+  });
+
+  it("caps delay at backoffMaxMs", async () => {
+    const clientCapped = new BlatherClient("https://example.com/api", "key", {
+      maxRetries: 1,
+      backoffBaseMs: 1_000,
+      backoffMaxMs: 500,
+      sleep: sleepMock,
+    });
+    const user = { id: "u1", email: "a@b.c", displayName: "A", isAgent: false };
+    mockFetch
+      .mockResolvedValueOnce(new Response("rate limited", {
+        status: 429,
+        headers: { "Retry-After": "999" }, // server says 999s
+      }))
+      .mockResolvedValueOnce(jsonResponse(user));
+
+    await clientCapped.getMe();
+
+    const [delayMs] = sleepMock.mock.calls[0];
+    expect(delayMs).toBe(500); // capped at backoffMaxMs
   });
 });
