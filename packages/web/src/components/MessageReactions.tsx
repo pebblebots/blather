@@ -78,6 +78,9 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [showFull, setShowFull] = useState(false);
+  // Index of the currently-focused emoji button. -1 when the search input has
+  // focus (full mode) or nothing is focused yet.
+  const [focusIdx, setFocusIdx] = useState(0);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -97,9 +100,74 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
       ).slice(0, 40)
     : EMOJI_DATA.slice(0, 40);
 
+  // Size of the focus ring in each mode
+  const totalButtons = showFull ? filtered.length : QUICK_EMOJIS.length + 1; // +1 for the … "more" button in quick mode
+  const gridCols = 8;
+
+  // Reset focus when switching modes or when search result count changes
+  useEffect(() => {
+    setFocusIdx(showFull ? -1 : 0);
+  }, [showFull]);
+  useEffect(() => {
+    if (showFull && focusIdx >= filtered.length) setFocusIdx(-1);
+  }, [filtered.length, showFull, focusIdx]);
+
+  // Scroll the focused button into view in the grid
+  useEffect(() => {
+    if (focusIdx < 0 || !ref.current) return;
+    const btn = ref.current.querySelector<HTMLButtonElement>(`[data-emoji-idx="${focusIdx}"]`);
+    btn?.focus();
+  }, [focusIdx]);
+
+  // Key handling — global for the picker
+  const onPickerKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (!showFull) {
+      // Quick row: left/right navigation
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setFocusIdx((i) => Math.min(i + 1, totalButtons - 1));
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setFocusIdx((i) => Math.max(i - 1, 0));
+      }
+      return;
+    }
+    // Full-grid mode: 8-column grid + search input above it.
+    // focusIdx === -1 means search input has focus.
+    if (focusIdx === -1 && e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusIdx(0);
+      return;
+    }
+    if (focusIdx < 0) return; // let the search input handle other keys normally
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setFocusIdx((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (focusIdx === 0) setFocusIdx(-1); // back into search
+      else setFocusIdx((i) => i - 1);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusIdx((i) => Math.min(i + gridCols, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (focusIdx < gridCols) setFocusIdx(-1); // out of grid, back to search
+      else setFocusIdx((i) => i - gridCols);
+    }
+  };
+
   return (
     <div
       ref={ref}
+      role="dialog"
+      aria-label="Emoji picker"
+      onKeyDown={onPickerKeyDown}
       style={{
         position: "absolute",
         right: 0,
@@ -116,9 +184,12 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
     >
       {!showFull ? (
         <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
-          {QUICK_EMOJIS.map((e) => (
+          {QUICK_EMOJIS.map((e, i) => (
             <button
               key={e}
+              data-emoji-idx={i}
+              aria-label={`Add ${e} reaction`}
+              tabIndex={focusIdx === i ? 0 : -1}
               onClick={() => { onSelect(e); onClose(); }}
               style={{
                 background: "transparent",
@@ -136,6 +207,9 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
             </button>
           ))}
           <button
+            data-emoji-idx={QUICK_EMOJIS.length}
+            aria-label="Open full emoji picker"
+            tabIndex={focusIdx === QUICK_EMOJIS.length ? 0 : -1}
             onClick={() => setShowFull(true)}
             style={{
               background: "transparent",
@@ -182,6 +256,9 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
             {filtered.map((e: EmojiEntry, i: number) => (
               <button
                 key={`${e.emoji}-${i}`}
+                data-emoji-idx={i}
+                aria-label={`${e.name} ${e.emoji}`}
+                tabIndex={focusIdx === i ? 0 : -1}
                 onClick={() => { onSelect(e.emoji); onClose(); }}
                 title={`:${e.name}:`}
                 style={{

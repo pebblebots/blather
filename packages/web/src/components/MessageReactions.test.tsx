@@ -94,3 +94,60 @@ describe('EmojiPicker', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
+
+
+describe('EmojiPicker a11y (T#170)', () => {
+  it('has role=dialog and aria-label on the container', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    const dialog = screen.getByRole('dialog', { name: /emoji picker/i });
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it('exposes descriptive aria-labels on quick emoji buttons', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /add 👍 reaction/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open full emoji picker/i })).toBeInTheDocument();
+  });
+
+  it('Escape key calls onClose', () => {
+    const onClose = vi.fn();
+    render(<EmojiPicker onSelect={vi.fn()} onClose={onClose} />);
+    const dialog = screen.getByRole('dialog', { name: /emoji picker/i });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('ArrowRight/ArrowLeft navigate between quick emoji buttons (roving tabindex)', () => {
+    const { container } = render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    const dialog = screen.getByRole('dialog', { name: /emoji picker/i });
+    const first = container.querySelector('[data-emoji-idx="0"]') as HTMLButtonElement;
+    const second = container.querySelector('[data-emoji-idx="1"]') as HTMLButtonElement;
+    expect(first.tabIndex).toBe(0);
+    expect(second.tabIndex).toBe(-1);
+
+    fireEvent.keyDown(dialog, { key: 'ArrowRight' });
+    expect(first.tabIndex).toBe(-1);
+    expect(second.tabIndex).toBe(0);
+
+    fireEvent.keyDown(dialog, { key: 'ArrowLeft' });
+    expect(first.tabIndex).toBe(0);
+    expect(second.tabIndex).toBe(-1);
+  });
+
+  it('ArrowLeft at the first quick emoji does not underflow', () => {
+    const { container } = render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    const dialog = screen.getByRole('dialog', { name: /emoji picker/i });
+    fireEvent.keyDown(dialog, { key: 'ArrowLeft' });
+    const first = container.querySelector('[data-emoji-idx="0"]') as HTMLButtonElement;
+    expect(first.tabIndex).toBe(0);
+  });
+
+  it('full-mode grid buttons have aria-labels with emoji name', () => {
+    render(<EmojiPicker onSelect={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText('⋯'));
+    const searchInput = screen.getByPlaceholderText('Search emoji...');
+    fireEvent.change(searchInput, { target: { value: 'fire' } });
+    const fireBtn = screen.getByRole('button', { name: /fire/i });
+    expect(fireBtn).toBeInTheDocument();
+  });
+});
