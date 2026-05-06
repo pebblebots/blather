@@ -9,7 +9,7 @@ const db = createDb();
 
 type Phase = "opening" | "debate" | "synthesis";
 
-interface AgentState {
+export interface AgentState {
   userId: string;
   displayName: string;
   bio: string | null;
@@ -105,13 +105,51 @@ function assignAngles(topic: string, agents: AgentState[]): Map<string, string> 
   return angles;
 }
 
-function buildAgentPrompt(agent: AgentState, topic: string, angle: string, starter: string | null, allAgents: AgentState[]): string {
-  const otherNames = allAgents.filter(a => a.userId !== agent.userId).map(a => a.displayName);
-  const bioLine = agent.bio ? `Your expertise: ${agent.bio}` : "";
-  const starterLine = starter ? `\nA provocative seed to react to: "${starter}"` : "";
-  const othersLine = otherNames.length > 0 ? ` You're debating with ${otherNames.join(" and ")}.` : "";
-  
-  return `@${agent.displayName} — Huddle topic: "${topic}". ${bioLine}\n\nYour angle: ${angle}.${starterLine}${othersLine}\n\nIMPORTANT: Keep responses to 1-2 sentences MAX. This is a quick conversation, not an essay. Be punchy and opinionated. Riff on what others say.`;
+/**
+ * Build the per-agent huddle prompt.
+ *
+ * Exported for testing. The prompt asserts first-person identity up front
+ * so the agent does not confabulate one when the huddle is spawned in a
+ * fresh session that has not pre-flight-read its own SOUL.md / IDENTITY.md
+ * (see T#179 / 2026-05-06 22:47 UTC incident: Aura introduced herself as
+ * "code" during a huddle because the prompt gave her a topic + angle but
+ * not an identity anchor).
+ */
+export function buildAgentPrompt(
+  agent: AgentState,
+  topic: string,
+  angle: string,
+  starter: string | null,
+  allAgents: AgentState[],
+): string {
+  const otherNames = allAgents
+    .filter(a => a.userId !== agent.userId)
+    .map(a => a.displayName);
+
+  // First-person identity anchor. Comes BEFORE the topic so the model
+  // commits to "I am <name>" in context before reading the rest.
+  const identityLine = `You are ${agent.displayName}. Speak in the first person AS ${agent.displayName} throughout this huddle — never impersonate another participant.`;
+
+  const bioLine = agent.bio ? ` Your expertise: ${agent.bio}` : "";
+  const starterLine = starter
+    ? `\nA provocative seed to react to: "${starter}"`
+    : "";
+  const othersLine = otherNames.length > 0
+    ? ` You're debating with ${otherNames.join(" and ")}.`
+    : "";
+
+  // Pre-flight nudge. Cheap reminder that costs ~15 tokens and has no
+  // downside even when the agent already has its persona loaded. Helps
+  // cold-spawned sessions avoid confabulating a generic-engineer identity.
+  const preflightLine =
+    " If you have a SOUL.md or IDENTITY.md in your workspace, your own persona overrides any assumption about who you are based on participant list.";
+
+  return (
+    `@${agent.displayName} — ${identityLine}${bioLine}${preflightLine}\n\n` +
+    `Huddle topic: "${topic}".\n\n` +
+    `Your angle: ${angle}.${starterLine}${othersLine}\n\n` +
+    `IMPORTANT: Keep responses to 1-2 sentences MAX. This is a quick conversation, not an essay. Be punchy and opinionated. Riff on what others say.`
+  );
 }
 
 export function onMessageCreated(channelId: string, messageData: {
