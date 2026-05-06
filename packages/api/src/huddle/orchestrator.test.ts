@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildAgentPrompt, type AgentState } from "./orchestrator.js";
+import {
+  buildAgentPrompt,
+  computeNudgeDelayMs,
+  type AgentState,
+} from "./orchestrator.js";
 
 function makeAgent(overrides: Partial<AgentState> = {}): AgentState {
   return {
@@ -140,6 +144,18 @@ describe("buildAgentPrompt — identity injection (T#179 follow-up)", () => {
     expect(prompt.startsWith("@aura")).toBe(true);
   });
 
+  it("includes the one-message-per-nudge turn-discipline rule (fix #3)", () => {
+    const prompt = buildAgentPrompt(
+      makeAgent(),
+      "intro huddle",
+      "the culture angle",
+      null,
+      [makeAgent(), makeAgent({ userId: "u-c", displayName: "code" })],
+    );
+    expect(prompt).toContain("ONE message per nudge");
+    expect(prompt).toMatch(/addresses you by name/i);
+  });
+
   it("reproduces the T#179 regression shape", () => {
     // Regression: prior to this fix, the prompt for aura began with
     // "@aura — Huddle topic" and contained no "You are aura." anchor.
@@ -167,5 +183,60 @@ describe("buildAgentPrompt — identity injection (T#179 follow-up)", () => {
     const identityIdx = prompt.indexOf("You are aura.");
     const topicIdx = prompt.indexOf("Huddle topic:");
     expect(identityIdx).toBeLessThan(topicIdx);
+  });
+});
+
+describe("computeNudgeDelayMs — TTS-aware nudge pacing (fix #1)", () => {
+  // Deterministic RNG for the jitter component.
+  const zeroRng = () => 0;
+  const maxRng = () => 0.9999999;
+
+  it("enforces the 6s minimum floor when TTS is short or absent", () => {
+    expect(computeNudgeDelayMs(0, zeroRng)).toBe(6000);
+    expect(computeNudgeDelayMs(2000, zeroRng)).toBe(6000);
+    expect(computeNudgeDelayMs(4999, zeroRng)).toBe(6000);
+  });
+
+  it("extends beyond the floor when TTS ran longer than 5s", () => {
+    // 8s audio + 1s pad = 9s floor, no jitter.
+    expect(computeNudgeDelayMs(8000, zeroRng)).toBe(9000);
+    // 15s audio + 1s pad = 16s floor.
+    expect(computeNudgeDelayMs(15000, zeroRng)).toBe(16000);
+  });
+
+  it("adds up to 3s of jitter on top of the floor", () => {
+    // 8s TTS + 1s pad = 9s floor. Max jitter pushes to ~12s.
+    const delay = computeNudgeDelayMs(8000, maxRng);
+    expect(delay).toBeGreaterThanOrEqual(9000);
+    expect(delay).toBeLessThanOrEqual(12000);
+  });
+
+  it("jitter also applies to the 6s floor case", () => {
+    // Short audio, max jitter → 6s + ~3s = ~9s.
+    const delay = computeNudgeDelayMs(1000, maxRng);
+    expect(delay).toBeGreaterThanOrEqual(6000);
+    expect(delay).toBeLessThanOrEqual(9000);
+  });
+
+  it("returns an integer millisecond value", () => {
+    const delay = computeNudgeDelayMs(7777, () => 0.3333);
+    expect(Number.isInteger(delay)).toBe(true);
+  });
+
+  it("defaults to Math.random when no rng is passed", () => {
+    // Sanity: invoked with defaults produces a value in a plausible range.
+    const delay = computeNudgeDelayMs(5000);
+    expect(delay).toBeGreaterThanOrEqual(6000);
+    // 5000+1000=6000 floor, +<=3000 jitter → max 9000.
+    expect(delay).toBeLessThanOrEqual(9000);
+  });
+
+  it("regression: 30-word reply at ~150wpm produces ~12s audio, nudge waits >=13s", () => {
+    // ~12s TTS duration → 12000 + 1000 = 13000 floor.
+    const delay = computeNudgeDelayMs(12000, zeroRng);
+    expect(delay).toBe(13000);
+    // Pre-fix behaviour (15000 + random*5000) could fire the nudge
+    // during audio playback; post-fix the floor guarantees audio
+    // finishes + 1s buffer before the next speaker is prompted.
   });
 });

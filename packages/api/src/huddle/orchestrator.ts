@@ -33,6 +33,14 @@ interface ActiveOrchestrator {
   startedAt: number;
   phase: Phase;
   createdBy: string;
+  /**
+   * Duration (ms) of the most recent speaker's TTS audio. Used by
+   * scheduleTurnTaking() to delay the next nudge until after the audio has
+   * had a chance to play, so listeners don't get a "@X — what do you think?"
+   * overlay while the previous speaker's voice is still rendering.
+   * Zero when TTS hasn't returned yet or the last speaker had none.
+   */
+  lastTtsDurationMs: number;
 }
 
 const activeOrchestrators = new Map<string, ActiveOrchestrator>();
@@ -148,7 +156,12 @@ export function buildAgentPrompt(
     `@${agent.displayName} — ${identityLine}${bioLine}${preflightLine}\n\n` +
     `Huddle topic: "${topic}".\n\n` +
     `Your angle: ${angle}.${starterLine}${othersLine}\n\n` +
-    `IMPORTANT: Keep responses to 1-2 sentences MAX. This is a quick conversation, not an essay. Be punchy and opinionated. Riff on what others say.`
+    `IMPORTANT: Keep responses to 1-2 sentences MAX. This is a quick conversation, not an essay. Be punchy and opinionated. Riff on what others say. ` +
+    // Turn discipline (fix #3). Agents on lower-latency or more verbose
+    // models have been posting 2-3 back-to-back messages per single
+    // nudge, which breaks the conversational rhythm for listeners and
+    // crowds out quieter participants.
+    `You only get ONE message per nudge. Do not post a follow-up reply unless another participant addresses you by name.`
   );
 }
 
@@ -198,11 +211,42 @@ function getNextQuietAgent(orch: ActiveOrchestrator): AgentState | null {
   return candidate;
 }
 
+/**
+ * Compute how long to wait before nudging the next agent after the
+ * current speaker.
+ *
+ * Before (fix #1): fixed 15000 + up-to-5000 jitter. Listener experience
+ * was bad when TTS ran longer than that — a 30-word reply at ~150wpm is
+ * ~12s of audio, so the nudge would land with the previous voice still
+ * rendering.
+ *
+ * After: floor at `max(ttsDuration + 1000ms, 6000ms)`, plus a small
+ * 0-3000ms jitter so consecutive huddles don't feel mechanically timed.
+ * The `+1000ms` gives the audio a beat of silence before the next prompt
+ * is spoken.
+ *
+ * Short audio (or none) still gets the 6s minimum breathing room, which
+ * matches human conversational turn-taking better than 15s.
+ *
+ * Exported for unit testing.
+ */
+export function computeNudgeDelayMs(
+  lastTtsDurationMs: number,
+  rng: () => number = Math.random,
+): number {
+  const PAD_MS = 1000;
+  const MIN_DELAY_MS = 6000;
+  const JITTER_MAX_MS = 3000;
+  const floor = Math.max(lastTtsDurationMs + PAD_MS, MIN_DELAY_MS);
+  const jitter = rng() * JITTER_MAX_MS;
+  return Math.round(floor + jitter);
+}
+
 function scheduleTurnTaking(orch: ActiveOrchestrator) {
   if (orch.turnTimer) clearTimeout(orch.turnTimer);
   if (orch.stopped) return;
 
-  const delay = 15000 + Math.random() * 5000;
+  const delay = computeNudgeDelayMs(orch.lastTtsDurationMs);
   orch.turnTimer = setTimeout(async () => {
     if (orch.stopped) return;
     const next = getNextQuietAgent(orch);
@@ -297,6 +341,15 @@ async function handleHuddleMessage(orch: ActiveOrchestrator, msg: {
     const { audioUrl, duration } = await generateTTS(msg.content, voice, msg.id);
     console.log(`[Huddle] TTS generated: audioUrl=${audioUrl} duration=${duration} msgId=${msg.id}`);
 
+    // Record duration for nudge pacing (fix #1). `duration` is seconds; we
+    // store ms so the comparison in computeNudgeDelayMs is unit-consistent.
+    // Only update when this TTS corresponds to the current last speaker so
+    // we don't clobber the value with a delayed/late-arriving TTS from an
+    // earlier turn.
+    if (orch.lastSpeakerId === msg.userId) {
+      orch.lastTtsDurationMs = Math.round(duration * 1000);
+    }
+
     await publishEvent({
       type: "huddle.audio",
       data: {
@@ -365,6 +418,7 @@ export async function startOrchestrator(params: {
     startedAt: Date.now(),
     phase: "opening",
     createdBy: params.createdBy,
+    lastTtsDurationMs: 0,
   };
 
   activeOrchestrators.set(params.huddleId, orch);
