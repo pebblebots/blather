@@ -1,5 +1,11 @@
 import { logAgentActivity, isAgentUser } from "./activity.js";
 import { onMessageCreated, isHuddleChannel } from "../huddle/orchestrator.js";
+import {
+  scanForSecretLintIssues,
+  formatSecretFlagLogLine,
+  DEFAULT_LINTED_CHANNEL_NAMES,
+  type SecretFlag,
+} from "./secret-linter.js";
 import { Hono } from 'hono';
 import { eq, and, desc, gt, lt, sql, or } from 'drizzle-orm';
 import { messages, reactions, channels, channelMembers, channelReads, events, users } from '@blather/db';
@@ -676,6 +682,22 @@ channelRoutes.post('/:id/messages', async (c) => {
   // Get user info for the payload
   const [msgUser] = await db.select({ displayName: users.displayName, isAgent: users.isAgent }).from(users).where(eq(users.id, userId)).limit(1);
 
+  // Secret-linter (T#179): scan for unsourced security-cascade claims.
+  // Warn-only: emit a console log line + X-Secret-Flag response header so
+  // downstream tooling (and the agent who posted) can see the flag, but
+  // never reject the message. Enforcement / artifact-gating is a follow-up.
+  let secretFlag: SecretFlag | null = null;
+  if (DEFAULT_LINTED_CHANNEL_NAMES.has(channel.slug ?? channel.name ?? '')) {
+    secretFlag = scanForSecretLintIssues(body.content, {
+      authorUserId: userId,
+      channelId,
+      messageId: msg.id,
+    });
+    if (secretFlag && secretFlag.reason === 'trigger_without_citation') {
+      console.warn(formatSecretFlagLogLine(secretFlag));
+    }
+  }
+
   await emitEvent(db, {
     channelId,
     userId,
@@ -758,6 +780,13 @@ channelRoutes.post('/:id/messages', async (c) => {
   }
   // Auto-log agent activity
   isAgentUser(db, userId).then(isAgent => { if (isAgent) logAgentActivity(db, { userId, action: "message_sent", targetChannelId: channelId, targetMessageId: msg.id, metadata: { contentPreview: body.content?.slice(0, 100), threadId: msg.threadId } }); }).catch(() => {});
+
+  // Secret-linter flag in response header (T#179). Allows the posting client
+  // to know when its message tripped the linter without adding a body field.
+  if (secretFlag && secretFlag.reason === 'trigger_without_citation') {
+    c.header('X-Secret-Flag', 'trigger_without_citation');
+    c.header('X-Secret-Flag-Triggers', secretFlag.matched_triggers.join(','));
+  }
   return c.json(msg, 201);
 });
 
