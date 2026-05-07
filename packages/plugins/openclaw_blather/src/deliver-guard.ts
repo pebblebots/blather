@@ -64,3 +64,79 @@ export function shouldDeliverReplyPayload(
   }
   return { deliver: true, text };
 }
+
+// ---------------------------------------------------------------------------
+// T#178 — per-turn idempotency guard.
+//
+// Background: the upstream openclaw reply-dispatcher occasionally emits more
+// than one `kind="final"` payload for a single model turn. This can happen
+// with Sonnet 4.6 + thinking=low when the turn has mid-tool-loop text that
+// gets re-emitted as a final at turn close, among other shapes.
+//
+// Without a guard, each extra final becomes a separate chat message on
+// Blather. Combined with the runtime's queue-flush re-delivery behaviour
+// (see T#178 comments), this produces O(N²) cascading amplification across
+// the fleet — a single 4-message leak can spiral into 15-20 phantom
+// messages and pull three or four agents into a chase.
+//
+// The guard is a stateful wrapper around the deliver-guard decision: it
+// tracks how many finals have been approved for the current turn and
+// suppresses the second and onward, logging each suppression for
+// observability. Tool/block kinds are unaffected (they're already dropped
+// by the pure guard).
+//
+// Turn boundary is owned by the caller: create a new guard via
+// `createPerTurnDeliveryGuard()` per `dispatchReplyFromConfig` call.
+// ---------------------------------------------------------------------------
+
+export type PerTurnDecision =
+  | DeliverDecision
+  | { deliver: false; reason: "duplicate_final"; suppressedIndex: number };
+
+export interface PerTurnDeliveryGuard {
+  /** Apply the pure guard plus per-turn final-count idempotency. */
+  check: (payload: unknown, info?: DeliverReplyInfo) => PerTurnDecision;
+  /** How many finals have been approved for delivery this turn. */
+  approvedFinalCount: () => number;
+  /** How many finals were suppressed as duplicates this turn. */
+  suppressedFinalCount: () => number;
+}
+
+/**
+ * Create a per-turn delivery guard. Caller must create a fresh guard per
+ * `dispatchReplyFromConfig` call (i.e. per inbound message) so counters
+ * reset at turn boundaries.
+ */
+export function createPerTurnDeliveryGuard(): PerTurnDeliveryGuard {
+  let approvedFinals = 0;
+  let suppressedFinals = 0;
+
+  return {
+    check(payload, info) {
+      const decision = shouldDeliverReplyPayload(payload, info);
+      if (!decision.deliver) return decision;
+
+      // Only finals are counted toward the idempotency check — the pure
+      // guard already rejects block/tool kinds.
+      if (info?.kind === "final") {
+        if (approvedFinals >= 1) {
+          suppressedFinals += 1;
+          return {
+            deliver: false,
+            reason: "duplicate_final",
+            suppressedIndex: suppressedFinals,
+          };
+        }
+        approvedFinals += 1;
+      }
+
+      return decision;
+    },
+    approvedFinalCount() {
+      return approvedFinals;
+    },
+    suppressedFinalCount() {
+      return suppressedFinals;
+    },
+  };
+}

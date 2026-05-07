@@ -9,9 +9,10 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { BlatherClient, type BlatherUser } from "./api.js";
 import {
   shouldDeliverReplyPayload,
+  createPerTurnDeliveryGuard,
   type DeliverReplyInfo,
 } from "./deliver-guard.js";
-export { shouldDeliverReplyPayload };
+export { shouldDeliverReplyPayload, createPerTurnDeliveryGuard };
 export type { DeliverReplyInfo };
 
 const RECONNECT_BASE_MS = 3_000;
@@ -292,24 +293,40 @@ export async function startMonitor(params: MonitorParams) {
       channel: "blather",
       accountId: route.accountId,
     });
+    // T#178: fresh per-turn idempotency guard. Any finals beyond the first
+    // are logged and suppressed here, breaking the cascade at source.
+    const perTurnGuard = createPerTurnDeliveryGuard();
     const { dispatcher, replyOptions, markDispatchIdle } =
       core.channel.reply.createReplyDispatcherWithTyping({
         ...replyPrefix,
         responsePrefixContext: prefixContext,
         humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
         deliver: async (payload, info) => {
-          // T#147 + T#171: filter reasoning / compaction / intermediate
-          // block-reply payloads before they reach Blather. The core
-          // dispatcher fires `deliver` once per assistant-text segment
-          // with `info.kind in {tool, block, final}`; only `final` is the
-          // real reply. Streaming channels (Slack/Discord/Matrix) consume
-          // blocks as a running draft, but Blather is not a streaming
-          // surface so blocks would leak as narration-prose ("Let me
-          // check", "Found it.", etc.). See shouldDeliverReplyPayload
-          // for details and monitor.deliver-guard.test.ts for the contract.
-          const decision = shouldDeliverReplyPayload(payload, info);
+          // T#147 + T#171 + T#178: filter reasoning / compaction /
+          // intermediate block-reply payloads before they reach Blather,
+          // and suppress any duplicate finals from a single model turn.
+          //
+          // The core dispatcher fires `deliver` once per assistant-text
+          // segment with `info.kind in {tool, block, final}`; only
+          // `final` is the real reply. Blather is non-streaming, so
+          // blocks would leak as narration-prose (T#171).
+          //
+          // T#178 additionally guards against the upstream dispatcher
+          // emitting MORE THAN ONE `final` per turn, which manifests as
+          // duplicate chat messages and feeds the O(N²) cross-agent
+          // cascade. The per-turn guard approves the first final and
+          // logs-and-suppresses any extras.
+          const decision = perTurnGuard.check(payload, info);
           if (!decision.deliver) {
-            log?.debug?.(`deliver skipped: ${decision.reason}`);
+            if (decision.reason === "duplicate_final") {
+              log?.warn?.(
+                `[t178-cascade-guard] suppressed duplicate final #${
+                  "suppressedIndex" in decision ? decision.suppressedIndex : "?"
+                } for channel=${data.channelId}`,
+              );
+            } else {
+              log?.debug?.(`deliver skipped: ${decision.reason}`);
+            }
             return;
           }
           await client.sendMessage(data.channelId, decision.text);
@@ -326,7 +343,31 @@ export async function startMonitor(params: MonitorParams) {
     markDispatchIdle();
     clearInterval(typingInterval);
 
-    if (queuedFinal) log?.info(`sent ${counts.final} reply(ies)`);
+    // T#178 observability: log when the dispatcher reports a final was
+    // queued but the per-turn guard saw zero approved finals reach the
+    // wire (possible when the queued count is off-by-one, or the final
+    // was dropped by a downstream guard). And log the silent-drop case,
+    // where queuedFinal is false but something presumably was produced.
+    const approved = perTurnGuard.approvedFinalCount();
+    const suppressed = perTurnGuard.suppressedFinalCount();
+    if (queuedFinal) {
+      log?.info(
+        `sent ${approved} reply(ies)` +
+          (suppressed > 0 ? ` [t178: suppressed ${suppressed} duplicate final(s)]` : "") +
+          (approved !== counts.final
+            ? ` [t178: dispatcher counts.final=${counts.final} approved=${approved}]`
+            : ""),
+      );
+    } else if (approved === 0) {
+      // Silent-drop: dispatcher completed without queuing a final.
+      // Could be legitimate (NO_REPLY, suppressDelivery), or the T#178
+      // zero-final bug (happens with qwen + no-tool-call turns). We log
+      // structured so it can be grepped + correlated with upstream
+      // trajectory events without having to parse the bundle.
+      log?.debug?.(
+        `[t178-drop-check] no final queued (counts.tool=${counts.tool ?? 0} counts.block=${counts.block ?? 0})`,
+      );
+    }
   }
 
   connect();

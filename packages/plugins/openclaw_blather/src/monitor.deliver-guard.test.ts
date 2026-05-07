@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   shouldDeliverReplyPayload,
+  createPerTurnDeliveryGuard,
   type DeliverReplyInfo,
 } from "./deliver-guard.js";
 
@@ -201,5 +202,125 @@ describe("deliver guard edge cases", () => {
     expect(shouldDeliverReplyPayload(undefined, { kind: "final" })).toMatchObject({
       deliver: false,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T#178 — per-turn idempotency guard (cascade-break at source).
+//
+// Background: the upstream openclaw reply-dispatcher occasionally emits
+// more than one `kind="final"` payload for a single model turn. Combined
+// with the runtime's queue-flush re-delivery behaviour, this can cascade
+// to O(N²) amplification across the fleet. The per-turn guard is a
+// stateful wrapper that approves only the first final per turn and
+// suppresses the rest.
+// ---------------------------------------------------------------------------
+describe("per-turn delivery guard T#178 (cascade break)", () => {
+  it("approves the first final and suppresses duplicates", () => {
+    const guard = createPerTurnDeliveryGuard();
+    const first = guard.check({ text: "real reply" }, { kind: "final" });
+    expect(first).toMatchObject({ deliver: true, text: "real reply" });
+
+    const dup1 = guard.check({ text: "dup 1" }, { kind: "final" });
+    expect(dup1).toMatchObject({ deliver: false, reason: "duplicate_final" });
+    const dup2 = guard.check({ text: "dup 2" }, { kind: "final" });
+    expect(dup2).toMatchObject({ deliver: false, reason: "duplicate_final" });
+
+    expect(guard.approvedFinalCount()).toBe(1);
+    expect(guard.suppressedFinalCount()).toBe(2);
+  });
+
+  it("returns increasing suppressedIndex for each duplicate", () => {
+    const guard = createPerTurnDeliveryGuard();
+    guard.check({ text: "first" }, { kind: "final" });
+    const d1 = guard.check({ text: "dup a" }, { kind: "final" });
+    const d2 = guard.check({ text: "dup b" }, { kind: "final" });
+    const d3 = guard.check({ text: "dup c" }, { kind: "final" });
+    expect(d1).toMatchObject({ suppressedIndex: 1 });
+    expect(d2).toMatchObject({ suppressedIndex: 2 });
+    expect(d3).toMatchObject({ suppressedIndex: 3 });
+  });
+
+  it("does not count block/tool kinds toward the final budget", () => {
+    const guard = createPerTurnDeliveryGuard();
+    // block and tool are dropped by the pure guard — they should not
+    // consume the single-final budget.
+    guard.check({ text: "thinking..." }, { kind: "block" });
+    guard.check({ text: "tool output" }, { kind: "tool" });
+    guard.check({ text: "more thinking" }, { kind: "block" });
+    // The first final after those block/tool drops should still deliver.
+    const result = guard.check({ text: "real reply" }, { kind: "final" });
+    expect(result).toMatchObject({ deliver: true, text: "real reply" });
+    expect(guard.approvedFinalCount()).toBe(1);
+    expect(guard.suppressedFinalCount()).toBe(0);
+  });
+
+  it("inherits the pure guard's reasoning / compaction filters", () => {
+    const guard = createPerTurnDeliveryGuard();
+    const reasoning = guard.check(
+      { text: "internal thinking", isReasoning: true },
+      { kind: "final" },
+    );
+    expect(reasoning).toMatchObject({ deliver: false, reason: "reasoning" });
+    // And the reasoning payload should not have consumed the budget:
+    const real = guard.check({ text: "real" }, { kind: "final" });
+    expect(real).toMatchObject({ deliver: true, text: "real" });
+  });
+
+  it("treats empty finals as non-consuming", () => {
+    const guard = createPerTurnDeliveryGuard();
+    guard.check({ text: "   " }, { kind: "final" });
+    // Empty didn't count as the approved final, so the next real final
+    // still gets delivered.
+    const real = guard.check({ text: "real" }, { kind: "final" });
+    expect(real).toMatchObject({ deliver: true });
+  });
+
+  it("reproduces Sourcy's T#178 `sent 4` cascade shape", () => {
+    // Pre-fix: dispatcher emitted 4 finals for a single turn, all 4
+    // posted as separate Blather messages. Post-fix: guard approves
+    // the first, suppresses the other 3.
+    const guard = createPerTurnDeliveryGuard();
+    const send = vi.fn();
+    const finals = [
+      "intermediate text from pre-tool segment",
+      "another intermediate re-emitted as final",
+      "third mis-tagged segment",
+      "real reply",
+    ];
+    for (const text of finals) {
+      const d = guard.check({ text }, { kind: "final" });
+      if (d.deliver) send("ch1", d.text);
+    }
+    expect(send).toHaveBeenCalledTimes(1);
+    // First-wins policy: the approved final is the FIRST one emitted,
+    // not the last. The upstream dispatcher is supposed to emit the
+    // real reply last; when it misbehaves, first-wins is a safe
+    // trade-off because intermediate segments are typically thinking /
+    // planning prose that is LESS appropriate than the last segment.
+    //
+    // We document this here because it's a deliberate choice: if we
+    // get a steady stream of complaints that the guard keeps the wrong
+    // segment, we can flip to last-wins (a one-line change). First-wins
+    // matches the behavior of most existing cascade-break guards.
+    expect(send).toHaveBeenCalledWith(
+      "ch1",
+      "intermediate text from pre-tool segment",
+    );
+    expect(guard.suppressedFinalCount()).toBe(3);
+  });
+
+  it("each call to createPerTurnDeliveryGuard returns a fresh counter", () => {
+    const g1 = createPerTurnDeliveryGuard();
+    g1.check({ text: "turn 1 final" }, { kind: "final" });
+    g1.check({ text: "dup" }, { kind: "final" });
+    expect(g1.approvedFinalCount()).toBe(1);
+    expect(g1.suppressedFinalCount()).toBe(1);
+
+    const g2 = createPerTurnDeliveryGuard();
+    expect(g2.approvedFinalCount()).toBe(0);
+    expect(g2.suppressedFinalCount()).toBe(0);
+    const fresh = g2.check({ text: "turn 2 final" }, { kind: "final" });
+    expect(fresh).toMatchObject({ deliver: true });
   });
 });
