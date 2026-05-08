@@ -127,6 +127,40 @@ body {
   content: '';
 }
 
+/* Mac zoom box — small square with a nested square, top-right.
+ * Classic Mac OS used this to toggle window size between user size and
+ * zoomed (maximum useful) size. We reuse it for the Huddle full-screen
+ * toggle. Hover swaps the outer/inner so the nested shape is visible
+ * against the inverted background. */
+.mac-zoom-box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #000000;
+  background: #FFFFFF;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 8px;
+  flex-shrink: 0;
+  font-size: 0;
+  line-height: 1;
+}
+.mac-zoom-box::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid #000000;
+  background: transparent;
+}
+.mac-zoom-box:hover {
+  background: #000000;
+}
+.mac-zoom-box:hover::after {
+  border-color: #FFFFFF;
+}
+
 /* Mac OS button */
 .mac-btn {
   background: #EEEEEE;
