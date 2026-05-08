@@ -640,4 +640,94 @@ describe('HuddleModal', () => {
     await waitFor(() => {});
     expect(onEnded).not.toHaveBeenCalled();
   });
+
+  // ------------------------------------------------------------------
+  // Full-screen mode (2026-05-08)
+  // Tammie asked for a full-screen toggle so huddles aren't stuck in the
+  // 480px window. Toggle lives in the titlebar (classic Mac zoom box),
+  // persists across huddles via localStorage, and supports ESC / F
+  // keyboard shortcuts.
+  // ------------------------------------------------------------------
+  describe('full-screen mode', () => {
+    beforeEach(() => {
+      window.localStorage.removeItem('huddle:fullscreen');
+    });
+
+    it('renders a zoom-box toggle in the titlebar', () => {
+      renderHuddle();
+      const zoom = screen.getByRole('button', { name: /Enter full-screen/ });
+      expect(zoom).toBeInTheDocument();
+    });
+
+    it('toggles to full-screen when the zoom box is clicked', async () => {
+      const user = userEvent.setup();
+      renderHuddle();
+      await user.click(screen.getByRole('button', { name: /Enter full-screen/ }));
+      expect(
+        screen.getByRole('button', { name: /Exit full-screen/ }),
+      ).toBeInTheDocument();
+    });
+
+    it('toggles full-screen on the F key', async () => {
+      const user = userEvent.setup();
+      renderHuddle();
+      // Focus somewhere outside the input first
+      document.body.focus();
+      await user.keyboard('f');
+      expect(
+        screen.getByRole('button', { name: /Exit full-screen/ }),
+      ).toBeInTheDocument();
+    });
+
+    it('does NOT toggle on F when the input is focused (user is typing)', async () => {
+      const user = userEvent.setup();
+      renderHuddle();
+      const input = screen.getByPlaceholderText('Say something...');
+      await user.click(input);
+      await user.keyboard('f');
+      // Still windowed
+      expect(
+        screen.getByRole('button', { name: /Enter full-screen/ }),
+      ).toBeInTheDocument();
+      expect(input).toHaveValue('f');
+    });
+
+    it('ESC exits full-screen instead of closing the huddle', async () => {
+      const onClose = vi.fn();
+      const user = userEvent.setup();
+      renderHuddle({ onClose });
+      await user.click(screen.getByRole('button', { name: /Enter full-screen/ }));
+      await user.keyboard('{Escape}');
+      // Back to windowed, but onClose NOT called
+      expect(
+        screen.getByRole('button', { name: /Enter full-screen/ }),
+      ).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('ESC closes the huddle when already windowed', async () => {
+      const onClose = vi.fn();
+      const user = userEvent.setup();
+      renderHuddle({ onClose });
+      await user.keyboard('{Escape}');
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('persists the full-screen preference to localStorage', async () => {
+      const user = userEvent.setup();
+      renderHuddle();
+      await user.click(screen.getByRole('button', { name: /Enter full-screen/ }));
+      expect(window.localStorage.getItem('huddle:fullscreen')).toBe('1');
+      await user.click(screen.getByRole('button', { name: /Exit full-screen/ }));
+      expect(window.localStorage.getItem('huddle:fullscreen')).toBe('0');
+    });
+
+    it('reads the saved preference on mount', () => {
+      window.localStorage.setItem('huddle:fullscreen', '1');
+      renderHuddle();
+      expect(
+        screen.getByRole('button', { name: /Exit full-screen/ }),
+      ).toBeInTheDocument();
+    });
+  });
 });

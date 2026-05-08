@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { api } from '../lib/api';
 import { apiUrl } from '../lib/urls';
 
@@ -44,6 +44,29 @@ interface HuddleModalProps {
   huddleEvents: any[];
 }
 
+// LocalStorage key for remembering the user's preferred fullscreen state
+// across huddles. Opt-in: if the key is missing we default to the windowed
+// size so the UX stays familiar for first-time users.
+const FULLSCREEN_PREF_KEY = 'huddle:fullscreen';
+
+function readFullscreenPref(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(FULLSCREEN_PREF_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeFullscreenPref(value: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FULLSCREEN_PREF_KEY, value ? '1' : '0');
+  } catch {
+    /* localStorage can throw in private-mode / blocked contexts; ignore. */
+  }
+}
+
 export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMap, onClose, onEnded, huddleEvents }: HuddleModalProps) {
   const [participants, setParticipants] = useState<HuddleParticipant[]>([]);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -54,6 +77,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
   const [muted, setMuted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [ended, setEnded] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState<boolean>(readFullscreenPref);
   const startTime = useRef(Date.now());
   const transcriptRef = useRef<HTMLDivElement>(null);
   const audioQueue = useRef<{ url: string; messageId: string }[]>([]);
@@ -259,6 +283,46 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     onClose();
   };
 
+  const toggleFullScreen = useCallback(() => {
+    setIsFullScreen(prev => {
+      const next = !prev;
+      writeFullscreenPref(next);
+      return next;
+    });
+  }, []);
+
+  // Keyboard shortcuts:
+  //   ESC  — exit full-screen (if active), otherwise close the huddle
+  //   F    — toggle full-screen (skipped while typing in the input box,
+  //          so users can still type the letter f normally)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isFullScreen) {
+          e.preventDefault();
+          toggleFullScreen();
+          return;
+        }
+        handleClose();
+        return;
+      }
+      if (e.key === 'f' || e.key === 'F') {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        toggleFullScreen();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // handleClose is stable enough for this scope; we don't rebind on
+    // every render because the cleanup + rebind cost would be paid on
+    // every transcript/elapsed tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullScreen, toggleFullScreen]);
+
   const toggleMute = () => {
     setMuted(m => {
       if (!m) {
@@ -276,13 +340,62 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     return u?.displayName || 'Unknown';
   };
 
+  // Full-screen vs windowed dimensions. Full-screen takes the viewport
+  // minus a small margin so the Mac-style border still reads as a window,
+  // matches the retro aesthetic, and leaves room for the scrim underneath.
+  const windowStyle: CSSProperties = isFullScreen
+    ? {
+        width: 'calc(100vw - 24px)',
+        height: 'calc(100vh - 24px)',
+        maxHeight: 'calc(100vh - 24px)',
+        display: 'flex',
+        flexDirection: 'column',
+      }
+    : {
+        width: 480,
+        maxHeight: '80vh',
+        display: 'flex',
+        flexDirection: 'column',
+      };
+
+  // In full-screen the transcript should expand to fill available space
+  // instead of hitting a 300px cap. minHeight stays so the pane is never
+  // collapsed when the transcript is empty.
+  const transcriptStyle: CSSProperties = isFullScreen
+    ? {
+        flex: 1,
+        overflow: 'auto',
+        margin: 8,
+        padding: 8,
+        minHeight: 200,
+        fontFamily: 'Monaco, IBM Plex Mono, monospace',
+        fontSize: 11,
+      }
+    : {
+        flex: 1,
+        overflow: 'auto',
+        margin: 8,
+        padding: 8,
+        minHeight: 200,
+        maxHeight: 300,
+        fontFamily: 'Monaco, IBM Plex Mono, monospace',
+        fontSize: 11,
+      };
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(221,221,221,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={handleClose}>
-      <div className="mac-window" style={{ width: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+      <div className="mac-window" style={windowStyle} onClick={e => e.stopPropagation()}>
         <div className="mac-titlebar">
-          <div className="mac-close-box" onClick={handleClose} />
+          <div className="mac-close-box" onClick={handleClose} aria-label="Close huddle" role="button" />
           <div style={{ flex: 1, textAlign: 'center' }}>🎙️ Huddle: &ldquo;{topic}&rdquo;</div>
           <span style={{ fontSize: 11, fontWeight: 'normal', fontFamily: 'Monaco, IBM Plex Mono, monospace' }}>⏱️ {mm}:{ss} / 30:00</span>
+          <div
+            className="mac-zoom-box"
+            onClick={toggleFullScreen}
+            aria-label={isFullScreen ? 'Exit full-screen (Esc or F)' : 'Enter full-screen (F)'}
+            role="button"
+            title={isFullScreen ? 'Exit full-screen (Esc or F)' : 'Full-screen (F)'}
+          />
         </div>
 
         {/* Agent avatars */}
@@ -315,7 +428,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
         </div>
 
         {/* Transcript */}
-        <div ref={transcriptRef} className="mac-inset" style={{ flex: 1, overflow: 'auto', margin: 8, padding: 8, minHeight: 200, maxHeight: 300, fontFamily: 'Monaco, IBM Plex Mono, monospace', fontSize: 11 }}>
+        <div ref={transcriptRef} className="mac-inset" style={transcriptStyle}>
           {transcript.length === 0 && (
             <div style={{ color: '#999999', textAlign: 'center', padding: 20 }}>Waiting for agents to speak...</div>
           )}
