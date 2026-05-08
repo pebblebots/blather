@@ -140,3 +140,78 @@ export function createPerTurnDeliveryGuard(): PerTurnDeliveryGuard {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// T#178 — drop-case recovery.
+//
+// When the upstream dispatcher emits zero finals for a turn (e.g. qwen on a
+// no-tool-call turn), nothing reaches the chat surface and the agent
+// appears muted. The model DID produce text — it's just not routed through
+// the dispatcher's final-emission path.
+//
+// Recovery strategy: intercept `getReplyFromConfig` via the `replyResolver`
+// parameter on `dispatchReplyFromConfig`, capture the reply result as a
+// side effect, and if the dispatcher returns `queuedFinal: false` we post
+// the captured text manually.
+//
+// `extractRecoverableText` pulls a deliverable string out of a reply
+// result. Returns null when:
+//   - result is empty / null / undefined
+//   - all payloads are isReasoning / isCompactionNotice (deliberately
+//     suppressed by the existing guards)
+//   - all payloads have empty text
+//   - the text is a NO_REPLY / silent token (agent deliberately chose not
+//     to reply)
+//
+// Exported for unit testing.
+// ---------------------------------------------------------------------------
+
+/** Minimal reply payload shape for recovery. Matches openclaw's ReplyPayload. */
+export interface RecoverableReplyPayload {
+  text?: string;
+  isReasoning?: boolean;
+  isCompactionNotice?: boolean;
+}
+
+/** Silent / no-reply sentinels the agent may emit to opt out of delivery. */
+const SILENT_REPLY_PATTERNS = [
+  /^\s*NO_REPLY\s*$/,
+  /^\s*HEARTBEAT_OK\s*$/,
+];
+
+function isSilentReply(text: string): boolean {
+  return SILENT_REPLY_PATTERNS.some((re) => re.test(text));
+}
+
+/**
+ * Extract a deliverable text string from a reply-resolver result. Returns
+ * null when the turn was legitimately silent (NO_REPLY / HEARTBEAT_OK / all
+ * reasoning) or had no text payload at all.
+ *
+ * When multiple payloads are present, returns the LAST non-reasoning
+ * payload's text. The last segment is usually the finalized reply; prior
+ * segments are typically intermediate planning. This matches the
+ * dispatcher's own last-wins semantics for finals.
+ */
+export function extractRecoverableText(
+  result: RecoverableReplyPayload | RecoverableReplyPayload[] | null | undefined,
+): string | null {
+  if (result === null || result === undefined) return null;
+  const payloads = Array.isArray(result) ? result : [result];
+  if (payloads.length === 0) return null;
+
+  // Walk backward through payloads looking for the last non-suppressed one.
+  for (let i = payloads.length - 1; i >= 0; i -= 1) {
+    const p = payloads[i];
+    if (!p || typeof p !== "object") continue;
+    if (p.isReasoning) continue;
+    if (p.isCompactionNotice) continue;
+    const text = typeof p.text === "string" ? p.text.trim() : "";
+    if (!text) continue;
+    if (isSilentReply(text)) return null;
+    return text;
+  }
+
+  return null;
+}
+
