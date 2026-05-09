@@ -517,9 +517,58 @@ export function MainPage() {
     );
   }
 
+  // Stable overlays (huddle / help / new-huddle / create-channel).
+  // Rendered as a sibling Fragment child AFTER the main layout div so they
+  // survive the mobile/desktop branch flip (triggered by viewport resize
+  // across the 768px breakpoint). Previously the HuddleModal was inlined
+  // inside each branch's root <div>, so resizing across the breakpoint
+  // unmounted the modal, wiping the audio queue and WebSocket event state
+  // mid-huddle (reported 2026-05-09 by tammie).
+  const overlays = (
+    <>
+      {showCreateCh && (
+        <CreateChannelModal
+          onClose={() => setShowCreateCh(false)}
+          onCreated={(ch) => {
+            setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]);
+            setSelectedCh(ch.id);
+            if (isMobile) setIsSidebarOpen(false);
+          }}
+        />
+      )}
+      {showNewHuddle && (
+        <NewHuddleModal
+          members={allMembers}
+          onClose={() => setShowNewHuddle(false)}
+          onCreated={(huddle) => {
+            setActiveHuddle(huddle);
+            setCurrentHuddleId(huddle.id);
+            setShowHuddle(true);
+            setHuddleEvents([]);
+            if (isMobile) setIsSidebarOpen(false);
+          }}
+        />
+      )}
+      {showHuddle && currentHuddleId && (
+        <HuddleModal
+          huddleId={currentHuddleId}
+          topic={activeHuddle?.topic || ''}
+          createdBy={activeHuddle?.createdBy || ''}
+          currentUserId={user?.id}
+          usersMap={usersMap}
+          onClose={() => setShowHuddle(false)}
+          onEnded={() => { setShowHuddle(false); setActiveHuddle(null); setCurrentHuddleId(null); setHuddleEvents([]); }}
+          huddleEvents={huddleEvents}
+        />
+      )}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+    </>
+  );
+
   // Render mobile layout
   if (isMobile) {
     return (
+      <>
       <div style={{ 
         height: '100vh', 
         display: 'flex', 
@@ -1000,44 +1049,15 @@ export function MainPage() {
             }}
           />
         )}
-        {showCreateCh && (
-          <CreateChannelModal
-            onClose={() => setShowCreateCh(false)}
-            onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); setIsSidebarOpen(false); }}
-          />
-        )}
-        {showNewHuddle && (
-          <NewHuddleModal
-            members={allMembers}
-            onClose={() => setShowNewHuddle(false)}
-            onCreated={(huddle) => {
-              setActiveHuddle(huddle);
-              setCurrentHuddleId(huddle.id);
-              setShowHuddle(true);
-              setHuddleEvents([]);
-              setIsSidebarOpen(false);
-            }}
-          />
-        )}
-        {showHuddle && currentHuddleId && (
-          <HuddleModal
-            huddleId={currentHuddleId}
-            topic={activeHuddle?.topic || ''}
-            createdBy={activeHuddle?.createdBy || ''}
-            currentUserId={user?.id}
-            usersMap={usersMap}
-            onClose={() => setShowHuddle(false)}
-            onEnded={() => { setShowHuddle(false); setActiveHuddle(null); setCurrentHuddleId(null); setHuddleEvents([]); }}
-            huddleEvents={huddleEvents}
-          />
-        )}
-        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       </div>
+      {overlays}
+    </>
     );
   }
 
   // Desktop layout - completely unchanged from original
   return (
+    <>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#DDDDDD' }}>
       {/* Menu bar */}
       <MenuBar
@@ -1403,37 +1423,8 @@ export function MainPage() {
           }}
         />
       )}
-      {showCreateCh && (
-        <CreateChannelModal
-          onClose={() => setShowCreateCh(false)}
-          onCreated={(ch) => { setChannels((prev) => prev.some((c) => c.id === ch.id) ? prev : [...prev, ch]); setSelectedCh(ch.id); }}
-        />
-      )}
-      {showNewHuddle && (
-        <NewHuddleModal
-          members={allMembers}
-          onClose={() => setShowNewHuddle(false)}
-          onCreated={(huddle) => {
-            setActiveHuddle(huddle);
-            setCurrentHuddleId(huddle.id);
-            setShowHuddle(true);
-            setHuddleEvents([]);
-          }}
-        />
-      )}
-      {showHuddle && currentHuddleId && (
-        <HuddleModal
-          huddleId={currentHuddleId}
-          topic={activeHuddle?.topic || ''}
-          createdBy={activeHuddle?.createdBy || ''}
-          currentUserId={user?.id}
-          usersMap={usersMap}
-          onClose={() => setShowHuddle(false)}
-          onEnded={() => { setShowHuddle(false); setActiveHuddle(null); setCurrentHuddleId(null); setHuddleEvents([]); }}
-          huddleEvents={huddleEvents}
-        />
-      )}
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
     </div>
+    {overlays}
+    </>
   );
 }
