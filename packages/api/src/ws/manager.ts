@@ -98,24 +98,33 @@ async function getChannelMemberIds(channelId: string): Promise<Set<string>> {
 }
 
 /**
- * T#161 helper: is this channel public? Cached lookup used to gate guest
- * WS fanout. Guests have no channel_members rows, so the normal membership
- * filter would skip them on every event — we bypass it only when the
- * channel is public.
+ * T#161 helper, narrowed 2026-05-09: is this channel guest-visible? Used
+ * to gate guest WS fanout. Guests have no channel_members rows, so the
+ * normal membership filter would skip them on every event — we bypass it
+ * only when the channel is public AND its slug is in GUEST_VISIBLE_SLUGS.
+ *
+ * Kept slug+type duplicated here (vs importing GUEST_VISIBLE_SLUGS from
+ * routes/channels.ts) so the WS path doesn't pull in route-handler imports.
+ * If the visible-slugs set ever grows, sync both files.
  */
+const GUEST_VISIBLE_SLUGS_WS: ReadonlySet<string> = new Set(['general']);
 const _publicChannelCache = new Map<string, boolean>();
 async function isPublicChannel(channelId: string): Promise<boolean> {
   const cached = _publicChannelCache.get(channelId);
   if (cached !== undefined) return cached;
-  const [row] = await db.select({ channelType: channels.channelType })
+  const [row] = await db.select({ channelType: channels.channelType, slug: channels.slug })
     .from(channels)
     .where(eq(channels.id, channelId))
     .limit(1);
-  const isPublic = row?.channelType === 'public';
-  _publicChannelCache.set(channelId, isPublic);
-  // Invalidate after 30s so channel-type flips (rare) propagate.
+  const guestVisible =
+    row?.channelType === 'public' &&
+    row?.slug !== null &&
+    row?.slug !== undefined &&
+    GUEST_VISIBLE_SLUGS_WS.has(row.slug);
+  _publicChannelCache.set(channelId, guestVisible);
+  // Invalidate after 30s so channel-type / slug flips (rare) propagate.
   setTimeout(() => _publicChannelCache.delete(channelId), 30_000).unref();
-  return isPublic;
+  return guestVisible;
 }
 
 /** Broadcast an event to all WS clients, gated by channel membership. */

@@ -46,15 +46,23 @@ describe('guest mode (T#161)', () => {
 
   async function fixture() {
     const owner = await harness.factories.createUser({ email: 'owner@example.com', displayName: 'Owner' });
+    // 2026-05-09: guests now only see channels whose slug is in
+    // GUEST_VISIBLE_SLUGS (default: 'general'). The fixture creates BOTH
+    // a #general channel (guest-visible) and a non-general public channel
+    // (guest-hidden) so each test can pick the right one.
+    const generalCh = await harness.factories.createChannel({
+      name: 'general', slug: 'general', channelType: 'public', createdBy: owner.id,
+    });
     const publicCh = await harness.factories.createChannel({
       name: 'public-room', slug: 'public-room', channelType: 'public', createdBy: owner.id,
     });
     const privateCh = await harness.factories.createChannel({
       name: 'private-room', slug: 'private-room', channelType: 'private', createdBy: owner.id,
     });
+    await harness.factories.createMessage({ channelId: generalCh.id, userId: owner.id, content: 'general hello' });
     await harness.factories.createMessage({ channelId: publicCh.id, userId: owner.id, content: 'public hello' });
     await harness.factories.createMessage({ channelId: privateCh.id, userId: owner.id, content: 'secret' });
-    return { owner, publicCh, privateCh };
+    return { owner, generalCh, publicCh, privateCh };
   }
 
   it('flag OFF: unauthenticated request still returns 401', async () => {
@@ -64,29 +72,40 @@ describe('guest mode (T#161)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('flag ON + unauth GET /channels: returns public channels only', async () => {
+  it('flag ON + unauth GET /channels: returns ONLY guest-visible channels (#general by default)', async () => {
     _setGuestModeForTesting(true);
-    const { publicCh, privateCh } = await fixture();
+    const { generalCh, publicCh, privateCh } = await fixture();
 
     const res = await harness.request.get<any[]>('/channels');
     expect(res.status).toBe(200);
     const ids = (res.body ?? []).map((c) => c.id);
-    expect(ids).toContain(publicCh.id);
+    // #general visible
+    expect(ids).toContain(generalCh.id);
+    // Other public + private channels NOT visible
+    expect(ids).not.toContain(publicCh.id);
     expect(ids).not.toContain(privateCh.id);
-    // All returned channels must be public
-    for (const ch of res.body ?? []) {
-      expect(ch.channelType).toBe('public');
-    }
+    // Only ONE channel returned (the general one)
+    expect(res.body?.length).toBe(1);
+    expect((res.body ?? [])[0].slug).toBe('general');
   });
 
-  it('flag ON + unauth GET /channels/:public/messages: returns messages', async () => {
+  it('flag ON + unauth GET /channels/:general/messages: returns messages', async () => {
+    _setGuestModeForTesting(true);
+    const { generalCh } = await fixture();
+
+    const res = await harness.request.get<any[]>(`/channels/${generalCh.id}/messages`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect((res.body ?? []).some((m: any) => m.content === 'general hello')).toBe(true);
+  });
+
+  it('flag ON + unauth GET /channels/:other-public/messages: 403', async () => {
+    // Non-general public channels are guest-hidden as of 2026-05-09.
     _setGuestModeForTesting(true);
     const { publicCh } = await fixture();
 
-    const res = await harness.request.get<any[]>(`/channels/${publicCh.id}/messages`);
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect((res.body ?? []).some((m: any) => m.content === 'public hello')).toBe(true);
+    const res = await harness.request.get(`/channels/${publicCh.id}/messages`);
+    expect(res.status).toBe(403);
   });
 
   it('flag ON + unauth GET /channels/:private/messages: 403', async () => {
@@ -97,11 +116,11 @@ describe('guest mode (T#161)', () => {
     expect(res.status).toBe(403);
   });
 
-  it('flag ON + unauth POST /channels/:id/messages: 403', async () => {
+  it('flag ON + unauth POST /channels/:id/messages: 403 (even on #general)', async () => {
     _setGuestModeForTesting(true);
-    const { publicCh } = await fixture();
+    const { generalCh } = await fixture();
 
-    const res = await harness.request.post(`/channels/${publicCh.id}/messages`, {
+    const res = await harness.request.post(`/channels/${generalCh.id}/messages`, {
       json: { content: 'I am a guest trying to post' },
     });
     expect(res.status).toBe(403);
@@ -109,9 +128,9 @@ describe('guest mode (T#161)', () => {
 
   it('flag ON + unauth POST /channels/:id/members: 403', async () => {
     _setGuestModeForTesting(true);
-    const { publicCh } = await fixture();
+    const { generalCh } = await fixture();
 
-    const res = await harness.request.post(`/channels/${publicCh.id}/members`, {
+    const res = await harness.request.post(`/channels/${generalCh.id}/members`, {
       json: { userId: 'some-user' },
     });
     expect(res.status).toBe(403);
@@ -119,13 +138,13 @@ describe('guest mode (T#161)', () => {
 
   it('flag ON + unauth POST /channels/:id/messages/:mid/reactions: 403', async () => {
     _setGuestModeForTesting(true);
-    const { publicCh } = await fixture();
-    // grab a message id
-    const msgs = await harness.request.get<any[]>(`/channels/${publicCh.id}/messages`);
+    const { generalCh } = await fixture();
+    // grab a message id from #general (the only channel guests can read)
+    const msgs = await harness.request.get<any[]>(`/channels/${generalCh.id}/messages`);
     const msgId = msgs.body?.[0]?.id;
     expect(msgId).toBeDefined();
 
-    const res = await harness.request.post(`/channels/${publicCh.id}/messages/${msgId}/reactions`, {
+    const res = await harness.request.post(`/channels/${generalCh.id}/messages/${msgId}/reactions`, {
       json: { emoji: '👍' },
     });
     expect(res.status).toBe(403);
@@ -198,7 +217,7 @@ describe('guest mode (T#161)', () => {
     expect(relevant.length).toBe(0);
   });
 
-  it('flag ON + guest WS client: does receive events on public channels', async () => {
+  it('flag ON + guest WS client: does NOT receive events on non-general public channels (2026-05-09 narrowing)', async () => {
     _setGuestModeForTesting(true);
     const { publicCh } = await fixture();
     wsTesting.setDbForTesting(harness.db as any);
@@ -219,6 +238,33 @@ describe('guest mode (T#161)', () => {
       type: 'message.created',
       channel_id: publicCh.id,
       data: { id: 'y', content: 'hi' },
+    });
+
+    const relevant = sent.filter((s) => !s.includes('"type":"connected"'));
+    expect(relevant.length).toBe(0);
+  });
+
+  it('flag ON + guest WS client: DOES receive events on #general (guest-visible)', async () => {
+    _setGuestModeForTesting(true);
+    const { generalCh } = await fixture();
+    wsTesting.setDbForTesting(harness.db as any);
+
+    const sent: string[] = [];
+    const fakeWs: any = {
+      readyState: 1,
+      send: (data: string) => sent.push(data),
+      ping: () => {},
+      on: () => {},
+      once: () => {},
+      close: () => {},
+      terminate: () => {},
+    };
+    wsTesting.setupAuthedClient(fakeWs, GUEST_USER_ID);
+
+    await publishEvent({
+      type: 'message.created',
+      channel_id: generalCh.id,
+      data: { id: 'g', content: 'hi from general' },
     });
 
     const relevant = sent.filter((s) => !s.includes('"type":"connected"'));
