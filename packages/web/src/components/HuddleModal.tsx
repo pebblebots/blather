@@ -68,62 +68,17 @@ function writeFullscreenPref(value: boolean): void {
 }
 
 // ---------------------------------------------------------------------------
-// Playback-speed preference.
+// Huddle audio playback speed.
 //
-// TTS audio is fire-and-forget from the Huddle orchestrator at normal pace,
-// which can lag behind the text transcript on fast-reading viewers. We give
-// users a cycle control that steps through a small set of speeds:
-//   1.0×  1.25×  1.5×  1.75×  2.0×
-// and applies to every subsequent audio element. Valid range for HTMLAudio
-// playbackRate is 0.0625–8.0; browsers clamp outside it. We stay well inside.
+// TTS audio from the orchestrator runs at normal pace by default, which
+// lagged behind readers' pace during internal testing. Tammie asked for a
+// simple fixed speed-up (~20%) rather than a user-facing toggle — so we
+// hard-code the playback rate here. Exported for unit testing.
+//
+// Valid range for HTMLAudio playbackRate is 0.0625–8.0; browsers clamp
+// outside it. 1.25 is well inside.
 // ---------------------------------------------------------------------------
-const PLAYBACK_RATE_PREF_KEY = 'huddle:playbackRate';
-export const HUDDLE_PLAYBACK_RATES = [1.0, 1.25, 1.5, 1.75, 2.0] as const;
-const DEFAULT_PLAYBACK_RATE = 1.0;
-
-function readPlaybackRatePref(): number {
-  if (typeof window === 'undefined') return DEFAULT_PLAYBACK_RATE;
-  try {
-    const raw = window.localStorage.getItem(PLAYBACK_RATE_PREF_KEY);
-    if (!raw) return DEFAULT_PLAYBACK_RATE;
-    const parsed = Number.parseFloat(raw);
-    // Tolerate missing / out-of-set values by snapping to the nearest.
-    if (!Number.isFinite(parsed)) return DEFAULT_PLAYBACK_RATE;
-    return (HUDDLE_PLAYBACK_RATES as readonly number[]).includes(parsed)
-      ? parsed
-      : DEFAULT_PLAYBACK_RATE;
-  } catch {
-    return DEFAULT_PLAYBACK_RATE;
-  }
-}
-
-function writePlaybackRatePref(value: number): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(PLAYBACK_RATE_PREF_KEY, String(value));
-  } catch {
-    /* ignore */
-  }
-}
-
-/**
- * Advance the playback rate by one step through HUDDLE_PLAYBACK_RATES and
- * wrap around at the end. Exported for unit testing.
- */
-export function nextHuddlePlaybackRate(current: number): number {
-  const idx = (HUDDLE_PLAYBACK_RATES as readonly number[]).indexOf(current);
-  if (idx === -1) return HUDDLE_PLAYBACK_RATES[0];
-  return HUDDLE_PLAYBACK_RATES[(idx + 1) % HUDDLE_PLAYBACK_RATES.length];
-}
-
-/**
- * Format a rate as a human label. `1` → "1×", `1.5` → "1.5×".
- * Exported for unit testing.
- */
-export function formatPlaybackRateLabel(rate: number): string {
-  const s = Number.isInteger(rate) ? rate.toFixed(0) : rate.toString();
-  return `${s}×`;
-}
+export const HUDDLE_PLAYBACK_RATE = 1.25;
 
 export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMap, onClose, onEnded, huddleEvents }: HuddleModalProps) {
   const [participants, setParticipants] = useState<HuddleParticipant[]>([]);
@@ -136,8 +91,6 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
   const [elapsed, setElapsed] = useState(0);
   const [ended, setEnded] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(readFullscreenPref);
-  const [playbackRate, setPlaybackRate] = useState<number>(readPlaybackRatePref);
-  const playbackRateRef = useRef<number>(playbackRate);
   const startTime = useRef(Date.now());
   const transcriptRef = useRef<HTMLDivElement>(null);
   const audioQueue = useRef<{ url: string; messageId: string }[]>([]);
@@ -295,11 +248,8 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (entry) setSpeakingUserId(entry.userId);
 
     const audio = new Audio(fullUrl);
-    // Apply the current playback-rate preference. We set this BEFORE play()
-    // so there's no audible speed jump on the first frame. The ref is read
-    // here (rather than the state closure) so playNext always sees the
-    // latest rate without having to be re-memoized on every change.
-    audio.playbackRate = playbackRateRef.current;
+    // Nudge speech ~20% faster than TTS default. See HUDDLE_PLAYBACK_RATE.
+    audio.playbackRate = HUDDLE_PLAYBACK_RATE;
     currentAudio.current = audio;
     audio.onended = () => {
       isPlaying.current = false;
@@ -352,24 +302,6 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     setIsFullScreen(prev => {
       const next = !prev;
       writeFullscreenPref(next);
-      return next;
-    });
-  }, []);
-
-  // Keep the playbackRate ref in sync with state so playNext() (a memoized
-  // callback that doesn't re-bind) always sees the latest rate.
-  useEffect(() => {
-    playbackRateRef.current = playbackRate;
-    // If audio is currently playing, apply the new rate live.
-    if (currentAudio.current) {
-      currentAudio.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
-
-  const cyclePlaybackRate = useCallback(() => {
-    setPlaybackRate(prev => {
-      const next = nextHuddlePlaybackRate(prev);
-      writePlaybackRatePref(next);
       return next;
     });
   }, []);
@@ -555,15 +487,6 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
           </form>
           <button className="mac-btn" onClick={toggleMute} style={{ minWidth: 0, padding: '4px 8px', fontSize: 13 }} title={muted ? 'Unmute' : 'Mute'}>
             {muted ? '🔇' : '🔊'}
-          </button>
-          <button
-            className="mac-btn"
-            onClick={cyclePlaybackRate}
-            style={{ minWidth: 0, padding: '4px 8px', fontSize: 11, fontFamily: 'Monaco, IBM Plex Mono, monospace' }}
-            title={`Playback speed — click to cycle (next: ${formatPlaybackRateLabel(nextHuddlePlaybackRate(playbackRate))})`}
-            aria-label={`Playback speed: ${formatPlaybackRateLabel(playbackRate)} (click to cycle)`}
-          >
-            {formatPlaybackRateLabel(playbackRate)}
           </button>
           {currentUserId === createdBy && !ended && (
             <button className="mac-btn" onClick={handleEnd} style={{ minWidth: 0, padding: '4px 8px', fontSize: 11, color: '#CC0000' }}>

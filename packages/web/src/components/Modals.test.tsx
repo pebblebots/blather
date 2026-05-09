@@ -5,12 +5,7 @@ import { CreateChannelModal } from './CreateChannelModal';
 import { HelpModal } from './HelpModal';
 import { InviteMemberModal } from './InviteMemberModal';
 import { NewHuddleModal } from './NewHuddleModal';
-import {
-  HuddleModal,
-  HUDDLE_PLAYBACK_RATES,
-  nextHuddlePlaybackRate,
-  formatPlaybackRateLabel,
-} from './HuddleModal';
+import { HuddleModal, HUDDLE_PLAYBACK_RATE } from './HuddleModal';
 import { Modal } from './Modal';
 
 afterEach(() => cleanup());
@@ -738,100 +733,19 @@ describe('HuddleModal', () => {
 
   // ------------------------------------------------------------------
   // Playback speed (2026-05-09)
-  // Tammie asked for faster voices during huddles. Cycle button in the
-  // titlebar controls row steps through 1× / 1.25× / 1.5× / 1.75× / 2×
-  // and the preference persists via localStorage.
+  // Fixed at 1.25× — was originally a user-facing cycle control, but
+  // Tammie asked for a single default speed-up instead of a toggle.
   // ------------------------------------------------------------------
   describe('playback speed', () => {
-    beforeEach(() => {
-      window.localStorage.removeItem('huddle:playbackRate');
+    it('HUDDLE_PLAYBACK_RATE is 1.25', () => {
+      expect(HUDDLE_PLAYBACK_RATE).toBe(1.25);
     });
 
-    it('HUDDLE_PLAYBACK_RATES starts at 1 and steps to 2 in 0.25 increments', () => {
-      expect(Array.from(HUDDLE_PLAYBACK_RATES)).toEqual([1, 1.25, 1.5, 1.75, 2]);
-    });
-
-    it('nextHuddlePlaybackRate cycles through the full list and wraps', () => {
-      expect(nextHuddlePlaybackRate(1)).toBe(1.25);
-      expect(nextHuddlePlaybackRate(1.25)).toBe(1.5);
-      expect(nextHuddlePlaybackRate(1.5)).toBe(1.75);
-      expect(nextHuddlePlaybackRate(1.75)).toBe(2);
-      expect(nextHuddlePlaybackRate(2)).toBe(1);
-    });
-
-    it('nextHuddlePlaybackRate snaps unknown values to the first rate', () => {
-      expect(nextHuddlePlaybackRate(0.5)).toBe(1);
-      expect(nextHuddlePlaybackRate(3)).toBe(1);
-      expect(nextHuddlePlaybackRate(Number.NaN)).toBe(1);
-    });
-
-    it('formatPlaybackRateLabel formats integers without decimals', () => {
-      expect(formatPlaybackRateLabel(1)).toBe('1\u00d7');
-      expect(formatPlaybackRateLabel(2)).toBe('2\u00d7');
-    });
-
-    it('formatPlaybackRateLabel preserves fractional values', () => {
-      expect(formatPlaybackRateLabel(1.25)).toBe('1.25\u00d7');
-      expect(formatPlaybackRateLabel(1.5)).toBe('1.5\u00d7');
-      expect(formatPlaybackRateLabel(1.75)).toBe('1.75\u00d7');
-    });
-
-    it('renders the playback-speed cycle button defaulting to 1×', () => {
+    it('does not render a playback-speed toggle in the controls row', () => {
       renderHuddle();
       expect(
-        screen.getByRole('button', { name: /Playback speed: 1\u00d7/ }),
-      ).toBeInTheDocument();
-    });
-
-    it('cycles through rates on click and persists to localStorage', async () => {
-      const user = userEvent.setup();
-      renderHuddle();
-
-      const speedBtn = screen.getByRole('button', { name: /Playback speed: 1\u00d7/ });
-      await user.click(speedBtn);
-      expect(
-        screen.getByRole('button', { name: /Playback speed: 1\.25\u00d7/ }),
-      ).toBeInTheDocument();
-      expect(window.localStorage.getItem('huddle:playbackRate')).toBe('1.25');
-
-      // Click through to wrap-around
-      await user.click(screen.getByRole('button', { name: /Playback speed: 1\.25\u00d7/ }));
-      await user.click(screen.getByRole('button', { name: /Playback speed: 1\.5\u00d7/ }));
-      await user.click(screen.getByRole('button', { name: /Playback speed: 1\.75\u00d7/ }));
-      expect(
-        screen.getByRole('button', { name: /Playback speed: 2\u00d7/ }),
-      ).toBeInTheDocument();
-
-      // Wrap back to 1×
-      await user.click(screen.getByRole('button', { name: /Playback speed: 2\u00d7/ }));
-      expect(
-        screen.getByRole('button', { name: /Playback speed: 1\u00d7/ }),
-      ).toBeInTheDocument();
-      expect(window.localStorage.getItem('huddle:playbackRate')).toBe('1');
-    });
-
-    it('reads the saved playback-rate preference on mount', () => {
-      window.localStorage.setItem('huddle:playbackRate', '1.5');
-      renderHuddle();
-      expect(
-        screen.getByRole('button', { name: /Playback speed: 1\.5\u00d7/ }),
-      ).toBeInTheDocument();
-    });
-
-    it('falls back to 1× when the stored preference is invalid', () => {
-      window.localStorage.setItem('huddle:playbackRate', 'fast-please');
-      renderHuddle();
-      expect(
-        screen.getByRole('button', { name: /Playback speed: 1\u00d7/ }),
-      ).toBeInTheDocument();
-    });
-
-    it('falls back to 1× when the stored preference is out of the valid set', () => {
-      window.localStorage.setItem('huddle:playbackRate', '0.5');
-      renderHuddle();
-      expect(
-        screen.getByRole('button', { name: /Playback speed: 1\u00d7/ }),
-      ).toBeInTheDocument();
+        screen.queryByRole('button', { name: /Playback speed/i }),
+      ).toBeNull();
     });
   });
 });
