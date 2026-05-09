@@ -5,7 +5,7 @@ import { CreateChannelModal } from './CreateChannelModal';
 import { HelpModal } from './HelpModal';
 import { InviteMemberModal } from './InviteMemberModal';
 import { NewHuddleModal } from './NewHuddleModal';
-import { HuddleModal, HUDDLE_PLAYBACK_RATE } from './HuddleModal';
+import { HuddleModal } from './HuddleModal';
 import { Modal } from './Modal';
 
 afterEach(() => cleanup());
@@ -733,14 +733,11 @@ describe('HuddleModal', () => {
 
   // ------------------------------------------------------------------
   // Playback speed (2026-05-09)
-  // Fixed at 1.25× — was originally a user-facing cycle control, but
-  // Tammie asked for a single default speed-up instead of a toggle.
+  // Handled server-side by ElevenLabs native `speed` parameter in tts.ts.
+  // The client no longer touches HTMLAudio.playbackRate — verify the UI
+  // has no speed toggle and no trace of the earlier client-side hack.
   // ------------------------------------------------------------------
   describe('playback speed', () => {
-    it('HUDDLE_PLAYBACK_RATE is 1.25', () => {
-      expect(HUDDLE_PLAYBACK_RATE).toBe(1.25);
-    });
-
     it('does not render a playback-speed toggle in the controls row', () => {
       renderHuddle();
       expect(

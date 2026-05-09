@@ -21,6 +21,18 @@ const VOICE_MAP: Record<string, string> = {
 
 const DEFAULT_VOICE_ID = "iP95p4xoKVk53GoZ742B"; // Chris
 
+// Native ElevenLabs speed multiplier applied to every huddle TTS call.
+//
+// Range constraints:
+//   - REST API limit: 0.25–4.0
+//   - Our account tier (Agents Platform) caps at 0.7–1.2 — attempting 1.25
+//     returns 400 invalid_voice_settings.
+//
+// 1.2 is the highest allowed and roughly matches the 20-25% speedup Tammie
+// asked for. Using the native parameter (vs HTMLAudio.playbackRate on the
+// client) preserves pitch + keeps the reported duration accurate.
+export const HUDDLE_TTS_SPEED = 1.2;
+
 function resolveVoiceId(voice: string): string {
   // If it looks like an ElevenLabs voice ID (long alphanumeric), use directly
   if (voice && voice.length > 15) return voice;
@@ -70,6 +82,7 @@ export async function generateTTS(
         similarity_boost: 0.75,
         style: 0.5,
         use_speaker_boost: true,
+        speed: HUDDLE_TTS_SPEED,
       },
     }),
   });
@@ -89,7 +102,11 @@ export async function generateTTS(
 }
 
 function estimateDuration(text: string): number {
-  // Rough estimate: ~150 words per minute for TTS
+  // Rough estimate: ~150 words per minute for TTS at 1.0x speed.
+  // The server-side TTS runs at HUDDLE_TTS_SPEED so the audio is shorter;
+  // divide the baseline duration by the speed multiplier so listeners'
+  // transcript-sync logic in HuddleModal stays accurate.
   const words = text.split(/\s+/).length;
-  return Math.max(1, (words / 150) * 60);
+  const baselineSeconds = (words / 150) * 60;
+  return Math.max(1, baselineSeconds / HUDDLE_TTS_SPEED);
 }

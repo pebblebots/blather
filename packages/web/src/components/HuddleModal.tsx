@@ -67,18 +67,11 @@ function writeFullscreenPref(value: boolean): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Huddle audio playback speed.
-//
-// TTS audio from the orchestrator runs at normal pace by default, which
-// lagged behind readers' pace during internal testing. Tammie asked for a
-// simple fixed speed-up (~20%) rather than a user-facing toggle — so we
-// hard-code the playback rate here. Exported for unit testing.
-//
-// Valid range for HTMLAudio playbackRate is 0.0625–8.0; browsers clamp
-// outside it. 1.25 is well inside.
-// ---------------------------------------------------------------------------
-export const HUDDLE_PLAYBACK_RATE = 1.25;
+// Huddle audio speed-up is applied server-side via the ElevenLabs native
+// `speed` parameter in tts.ts (HUDDLE_TTS_SPEED). We no longer touch
+// HTMLAudio.playbackRate here — the native TTS path preserves pitch and
+// reports the correct duration, while a client-side rate change would
+// pitch-shift the voice and desync from the transcript teleprompter.
 
 export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMap, onClose, onEnded, huddleEvents }: HuddleModalProps) {
   const [participants, setParticipants] = useState<HuddleParticipant[]>([]);
@@ -248,8 +241,6 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
     if (entry) setSpeakingUserId(entry.userId);
 
     const audio = new Audio(fullUrl);
-    // Nudge speech ~20% faster than TTS default. See HUDDLE_PLAYBACK_RATE.
-    audio.playbackRate = HUDDLE_PLAYBACK_RATE;
     currentAudio.current = audio;
     audio.onended = () => {
       isPlaying.current = false;
