@@ -19,11 +19,21 @@ import { handleIncidentCommand } from '../bots/incidents.js';
 import { requireChannelMembership } from '../middleware/channelAccess.js';
 import type { Context } from 'hono';
 
-// ── Guest-mode helpers (T#161) ────────────────────────────────────────────
+// ── Guest-mode helpers (T#161, narrowed 2026-05-09) ──────────────────────
 // Guests have role='guest' set by the auth middleware when GUEST_MODE_VIEW_ONLY
-// is on. They can read public channels only; any write returns 403.
+// is on.
+//
+// Original T#161: guests could read any public channel. 2026-05-09: narrow
+// that to a single visible channel by slug (default: 'general'), keeping
+// all other public channels behind sign-in. Writes still 403 in all cases.
+export const GUEST_VISIBLE_SLUGS: ReadonlySet<string> = new Set(['general']);
+
 function isGuest(c: Context<Env>): boolean {
   return c.get('role') === 'guest';
+}
+
+function guestCanSeeChannel(channel: { slug: string | null; channelType: string }): boolean {
+  return channel.channelType === 'public' && channel.slug !== null && GUEST_VISIBLE_SLUGS.has(channel.slug);
 }
 
 function guestForbidden(c: Context<Env>) {
@@ -58,7 +68,8 @@ channelRoutes.get('/', async (c) => {
   const db = c.get('db');
   const userId = c.get('userId');
 
-  // T#161: guests only see public, non-archived channels.
+  // T#161 + 2026-05-09 narrowing: guests only see channels whose slug is in
+  // GUEST_VISIBLE_SLUGS (public + non-archived). Default: just #general.
   if (isGuest(c)) {
     const guestChannels = await db
       .select({
@@ -74,7 +85,8 @@ channelRoutes.get('/', async (c) => {
       })
       .from(channels)
       .where(and(eq(channels.channelType, 'public'), eq(channels.archived, false)));
-    return c.json(guestChannels.map(r => ({ ...r, muted: false })));
+    const visible = guestChannels.filter(ch => guestCanSeeChannel(ch));
+    return c.json(visible.map(r => ({ ...r, muted: false })));
   }
 
   // Get public non-archived channels with muted status
@@ -354,9 +366,11 @@ channelRoutes.get('/:id/messages', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
-  // T#161: guests can only read public channels.
+  // T#161 + 2026-05-09 narrowing: guests can only read channels in
+  // GUEST_VISIBLE_SLUGS. Anything else — even other public channels —
+  // requires sign-in.
   if (isGuest(c)) {
-    if (channel.channelType !== 'public') {
+    if (!guestCanSeeChannel(channel)) {
       return c.json({ error: 'Not a member of this channel' }, 403);
     }
   } else if (channel.channelType === 'dm' || channel.channelType === 'private') {
@@ -1075,8 +1089,10 @@ channelRoutes.get('/:id/members', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
-  // T#161: guests may see public-channel members but never private/DM ones.
-  if (isGuest(c) && channel.channelType !== 'public') {
+  // T#161 + 2026-05-09 narrowing: guests can only see members of
+  // channels in GUEST_VISIBLE_SLUGS. Other public channels and all
+  // private/DM channels are off-limits.
+  if (isGuest(c) && !guestCanSeeChannel(channel)) {
     return c.json({ error: 'Not a member of this channel' }, 403);
   }
 

@@ -3,6 +3,7 @@ import { eq, and, ilike, gt, lt, sql, inArray, type SQL } from "drizzle-orm";
 import { messages, channels, channelMembers, users } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { GUEST_VISIBLE_SLUGS } from "./channels.js";
 
 export const messageRoutes = new Hono<Env>();
 messageRoutes.use("*", authMiddleware);
@@ -35,9 +36,10 @@ messageRoutes.get("/search", async (c) => {
 
   // Get channels the user can access:
   // All public channels + private/dm channels the user is a member of.
-  // T#161: guests see public-only.
+  // T#161 + 2026-05-09 narrowing: guests see only channels whose slug is
+  // in GUEST_VISIBLE_SLUGS (default ['general']).
   const allChannels = await db
-    .select({ id: channels.id, channelType: channels.channelType })
+    .select({ id: channels.id, slug: channels.slug, channelType: channels.channelType })
     .from(channels);
 
   const publicChannelIds = allChannels
@@ -48,7 +50,14 @@ messageRoutes.get("/search", async (c) => {
 
   let accessibleChannelIds: string[];
   if (isGuest) {
-    accessibleChannelIds = publicChannelIds;
+    accessibleChannelIds = allChannels
+      .filter(
+        (ch) =>
+          ch.channelType === "public" &&
+          ch.slug !== null &&
+          GUEST_VISIBLE_SLUGS.has(ch.slug),
+      )
+      .map((ch) => ch.id);
   } else {
     const privateMemberships = await db
       .select({ channelId: channelMembers.channelId })
