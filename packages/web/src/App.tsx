@@ -53,11 +53,31 @@ export default function App() {
     api.getChannels()
       .then(() => {
         const stored = localStorage.getItem('blather_user');
-        if (stored) setUser(JSON.parse(stored));
-        else clearToken();
+        if (stored) {
+          setUser(JSON.parse(stored));
+          setChecking(false);
+        } else {
+          // Token validated but no user record — treat as broken state, fall
+          // through to the unauth flow (guest probe / AuthPage).
+          clearToken();
+          tryGuestThenFinish();
+        }
       })
-      .catch(() => { clearToken(); })
-      .finally(() => setChecking(false));
+      .catch(() => {
+        // Token rejected (server says it's invalid/expired). Clear it and
+        // re-attempt as an unauth user so guest mode can take over instead
+        // of dumping the user on AuthPage.
+        clearToken();
+        if (wantsAuthPage) { setChecking(false); return; }
+        tryGuestThenFinish();
+      });
+
+    function tryGuestThenFinish() {
+      api.getChannels()
+        .then(() => { setUser(GUEST_USER); })
+        .catch(() => { /* leave user null → AuthPage */ })
+        .finally(() => setChecking(false));
+    }
   }, [wantsAuthPage]);
 
   const handleSetUser = (u: User | null) => {
