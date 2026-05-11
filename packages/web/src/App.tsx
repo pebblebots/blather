@@ -21,12 +21,16 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
 
-  // /auth path-aware: when the URL is /auth (or /auth?…) the user
-  // explicitly clicked "Sign in to post" — force AuthPage even if guest
-  // mode would otherwise auto-mount MainPage. Read once on mount; the
-  // AuthPage flow uses history.replaceState back to / on success, and a
-  // hard navigation to /auth re-runs this hook so the path is fresh.
-  const wantsAuthPage = typeof window !== 'undefined' && window.location.pathname === '/auth';
+  // /auth-prefix-aware: AuthPage owns any URL starting with /auth.
+  // That covers:
+  //   - /auth        → user clicked "Sign in to post"
+  //   - /auth/verify → user clicked the magic-link email
+  //   - /auth?token  → legacy magic-link query param
+  // Without this, /auth/verify falls through to the guest probe and
+  // AuthPage's mount-effect never runs, so the token in the URL is
+  // silently discarded and the user stays logged out.
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const wantsAuthPage = path === '/auth' || path.startsWith('/auth/');
 
   useEffect(() => {
     const token = localStorage.getItem('blather_token');
