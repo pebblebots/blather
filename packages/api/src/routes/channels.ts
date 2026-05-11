@@ -391,6 +391,12 @@ channelRoutes.get('/:id/messages', async (c) => {
   // Only fetch top-level messages (not thread replies)
   conditions.push(sql`${messages.threadId} IS NULL`);
 
+  // Skip messages flagged as hidden via meta.hidden — currently used by the
+  // huddle orchestrator to keep persona-priming bootstrap prompts out of
+  // the visible channel feed (T#186). Agents still receive the WS event,
+  // so dispatch is unaffected.
+  conditions.push(sql`(${messages.meta} IS NULL OR ${messages.meta}->>'hidden' IS DISTINCT FROM 'true')`);
+
   // "around" query: fetch messages surrounding a specific message ID
   if (around) {
     // Get the target message's timestamp
@@ -406,7 +412,12 @@ channelRoutes.get('/:id/messages', async (c) => {
       canvas: messages.canvas,
       userName: users.displayName, userIsAgent: users.isAgent,
     }).from(messages).innerJoin(users, eq(messages.userId, users.id))
-      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} <= ${target.createdAt.toISOString()}`))
+      .where(and(
+        eq(messages.channelId, channelId),
+        sql`${messages.threadId} IS NULL`,
+        sql`(${messages.meta} IS NULL OR ${messages.meta}->>'hidden' IS DISTINCT FROM 'true')`,
+        sql`${messages.createdAt} <= ${target.createdAt.toISOString()}`,
+      ))
       .orderBy(sql`${messages.createdAt} DESC`).limit(halfLimit + 1);
     const afterMsgs = await db.select({
       id: messages.id, channelId: messages.channelId, userId: messages.userId,
@@ -416,7 +427,12 @@ channelRoutes.get('/:id/messages', async (c) => {
       canvas: messages.canvas,
       userName: users.displayName, userIsAgent: users.isAgent,
     }).from(messages).innerJoin(users, eq(messages.userId, users.id))
-      .where(and(eq(messages.channelId, channelId), sql`${messages.threadId} IS NULL`, sql`${messages.createdAt} > ${target.createdAt.toISOString()}`))
+      .where(and(
+        eq(messages.channelId, channelId),
+        sql`${messages.threadId} IS NULL`,
+        sql`(${messages.meta} IS NULL OR ${messages.meta}->>'hidden' IS DISTINCT FROM 'true')`,
+        sql`${messages.createdAt} > ${target.createdAt.toISOString()}`,
+      ))
       .orderBy(messages.createdAt).limit(halfLimit);
     // Merge, dedupe, sort
     const allMsgs = [...beforeMsgs.reverse(), ...afterMsgs];
