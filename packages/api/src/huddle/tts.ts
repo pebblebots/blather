@@ -28,10 +28,15 @@ const DEFAULT_VOICE_ID = "iP95p4xoKVk53GoZ742B"; // Chris
 //   - Our account tier (Agents Platform) caps at 0.7–1.2 — attempting 1.25
 //     returns 400 invalid_voice_settings.
 //
-// 1.2 is the highest allowed and roughly matches the 20-25% speedup Tammie
-// asked for. Using the native parameter (vs HTMLAudio.playbackRate on the
-// client) preserves pitch + keeps the reported duration accurate.
-export const HUDDLE_TTS_SPEED = 1.2;
+// History:
+//   - PR #28 hardcoded 1.25 client-side playbackRate (chipmunky pitch)
+//   - PR #29 moved to ElevenLabs native speed=1.2 (max for our tier)
+//   - 2026-05-11 (Tammie): dropped to 1.1 — 1.2 was a touch too fast,
+//     1.1 is closer to natural conversational pace
+//
+// Using the native parameter (vs HTMLAudio.playbackRate on the client)
+// preserves pitch + keeps the reported duration accurate.
+export const HUDDLE_TTS_SPEED = 1.1;
 
 function resolveVoiceId(voice: string): string {
   // If it looks like an ElevenLabs voice ID (long alphanumeric), use directly
