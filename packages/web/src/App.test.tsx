@@ -35,11 +35,34 @@ const TEST_USER = {
 };
 
 describe('App', () => {
-  it('shows AuthPage when no token is stored', async () => {
+  it('shows MainPage as guest when no token is stored AND server has guest mode on', async () => {
+    // T#161 + 2026-05-09 narrowing: when there's no token, App probes the
+    // server with /channels. If guest mode is on the server returns 200
+    // (guest-visible channels). App mounts MainPage with the synthesized
+    // GUEST_USER so the guest can read #general without signing in.
+    mockGetChannels.mockResolvedValue([]);
     render(<App />);
-    // No token → skip fetch, checking becomes false → render AuthPage
+    await screen.findByTestId('main-page');
+    expect(mockGetChannels).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows AuthPage when no token AND server returns 401 (guest mode off)', async () => {
+    mockGetChannels.mockRejectedValue(new Error('401'));
+    render(<App />);
     await screen.findByTestId('auth-page');
-    expect(mockGetChannels).not.toHaveBeenCalled();
+    expect(mockClearToken).not.toHaveBeenCalled();
+  });
+
+  it('does NOT persist the guest sentinel to localStorage', async () => {
+    mockGetChannels.mockResolvedValue([]);
+    render(<App />);
+    await screen.findByTestId('main-page');
+    // Guest sentinel must NEVER be written to localStorage so a future
+    // page-load goes back through the unauth-token branch and re-derives
+    // guest state from the server (catches the case where the server
+    // turns guest mode off mid-session).
+    expect(localStorage.getItem('blather_user')).toBeNull();
+    expect(localStorage.getItem('blather_token')).toBeNull();
   });
 
   it('shows loading state while validating token', () => {
