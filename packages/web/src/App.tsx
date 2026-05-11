@@ -21,10 +21,21 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
 
+  // /auth path-aware: when the URL is /auth (or /auth?…) the user
+  // explicitly clicked "Sign in to post" — force AuthPage even if guest
+  // mode would otherwise auto-mount MainPage. Read once on mount; the
+  // AuthPage flow uses history.replaceState back to / on success, and a
+  // hard navigation to /auth re-runs this hook so the path is fresh.
+  const wantsAuthPage = typeof window !== 'undefined' && window.location.pathname === '/auth';
+
   useEffect(() => {
     const token = localStorage.getItem('blather_token');
 
     if (!token) {
+      // If the user navigated explicitly to /auth, skip the guest probe
+      // and render AuthPage immediately. Otherwise try the guest path.
+      if (wantsAuthPage) { setChecking(false); return; }
+
       // No token — try the guest path. If the server is in GUEST_MODE_VIEW_ONLY,
       // /channels will return 200 with the guest-visible channel set
       // (default: just #general). If it returns 401, guest mode is off and
@@ -47,7 +58,7 @@ export default function App() {
       })
       .catch(() => { clearToken(); })
       .finally(() => setChecking(false));
-  }, []);
+  }, [wantsAuthPage]);
 
   const handleSetUser = (u: User | null) => {
     setUser(u);
@@ -69,10 +80,23 @@ export default function App() {
     );
   }
 
+  // Render priority:
+  //   1. Real signed-in user (not the guest sentinel) → MainPage. AuthPage
+  //      success path replaceState's URL back to '/' before calling setUser,
+  //      so by the time we re-render with a real user the /auth-pinned
+  //      flag is moot — but we still skip it here because the user is
+  //      truly signed in regardless of pathname.
+  //   2. URL is /auth (and user is null OR guest sentinel) → AuthPage.
+  //      Lets a guest click "Sign in to post" and actually reach the form.
+  //   3. Have a guest sentinel and not on /auth → MainPage (read-only).
+  //   4. Nothing → AuthPage (default).
+  const isRealUser = user !== null && user.id !== GUEST_USER_ID;
+  const showAuthPage = isRealUser ? false : (wantsAuthPage || !user);
+
   return (
     <AppContext.Provider value={{ user, setUser: handleSetUser }}>
       <ToastProvider>
-        {user ? <MainPage /> : <AuthPage />}
+        {showAuthPage ? <AuthPage /> : <MainPage />}
       </ToastProvider>
     </AppContext.Provider>
   );

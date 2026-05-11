@@ -19,7 +19,11 @@ vi.mock('./pages/MainPage', () => ({
 
 import App from './App';
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  // Reset URL between tests so /auth tests don't bleed into others.
+  window.history.replaceState({}, '', '/');
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -63,6 +67,30 @@ describe('App', () => {
     // turns guest mode off mid-session).
     expect(localStorage.getItem('blather_user')).toBeNull();
     expect(localStorage.getItem('blather_token')).toBeNull();
+  });
+
+  it('shows AuthPage when user is on /auth even if guest mode would auto-mount', async () => {
+    // Tammie 2026-05-11: clicked "Sign in to post" link (href="/auth") and
+    // got bounced right back to MainPage as guest because App didn't
+    // honour the /auth path. Now /auth wins over the guest probe.
+    window.history.replaceState({}, '', '/auth');
+    mockGetChannels.mockResolvedValue([]); // server would say "guest mode is on"
+    render(<App />);
+    await screen.findByTestId('auth-page');
+    expect(mockGetChannels).not.toHaveBeenCalled();
+  });
+
+  it('renders MainPage when on /auth but already signed in (real user)', async () => {
+    // After auth completes, AuthPage replaceState's URL back to / then
+    // calls setUser(realUser). But if React hasn't re-rendered yet and
+    // we're still on /auth, the real user must still beat the auth-page
+    // pin so we don't strand the user on AuthPage.
+    window.history.replaceState({}, '', '/auth');
+    localStorage.setItem('blather_token', 'tok');
+    localStorage.setItem('blather_user', JSON.stringify(TEST_USER));
+    mockGetChannels.mockResolvedValue([]);
+    render(<App />);
+    await screen.findByTestId('main-page');
   });
 
   it('shows loading state while validating token', () => {
