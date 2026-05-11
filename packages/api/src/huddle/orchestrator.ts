@@ -427,7 +427,12 @@ export async function startOrchestrator(params: {
   // Assign angles
   const angles = assignAngles(params.topic, orch.agents);
 
-  // Post initial message
+  // Post initial message.
+  //
+  // Tagged with meta.hidden=true so the channel UI skips it. The WS event
+  // still fires (so agents see + dispatch on the @-mentions in the
+  // bootstrap prompt fan-out below). Tammie 2026-05-11: "hide the starting
+  // prompts so the huddle starts clean with the first bot's response."
   const starterLine = params.starter ? `\n\n💡 Starter: "${params.starter}"` : "";
   const initContent = `🎙️ Huddle started! "${params.topic}" — ${params.agentNames.join(", ")} are in.${starterLine}\n\nKeep responses SHORT — 1-2 sentences max. Who's got an opening take?`;
 
@@ -435,6 +440,7 @@ export async function startOrchestrator(params: {
     channelId: params.channelId,
     userId: params.createdBy,
     content: initContent,
+    meta: { kind: "huddle-bootstrap", hidden: true },
   }).returning();
 
   await emitEvent(db, {
@@ -460,10 +466,13 @@ export async function startOrchestrator(params: {
     const angle = angles.get(agent.userId) || "share your unique perspective";
     const promptContent = buildAgentPrompt(agent, params.topic, angle, params.starter || null, orch.agents);
 
+    // Persona-priming prompt for one agent. Hidden in the UI; agents still
+    // get the WS event and dispatch on the @-mention.
     const [promptMsg] = await db.insert(messages).values({
       channelId: params.channelId,
       userId: params.createdBy,
       content: promptContent,
+      meta: { kind: "huddle-bootstrap", hidden: true },
     }).returning();
 
     await emitEvent(db, {

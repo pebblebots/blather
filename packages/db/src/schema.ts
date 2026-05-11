@@ -82,6 +82,7 @@ export const messages = pgTable('messages', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   canvas: jsonb('canvas'),
+  meta: jsonb('meta').$type<{ kind?: string; hidden?: boolean; [k: string]: unknown } | null>(),
 }, (table) => [
   unique('uq_messages_user_idempotency').on(table.userId, table.idempotencyKey),
 ]);
