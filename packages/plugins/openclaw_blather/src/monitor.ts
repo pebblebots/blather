@@ -10,10 +10,12 @@ import { BlatherClient, type BlatherUser } from "./api.js";
 import {
   shouldDeliverReplyPayload,
   createPerTurnDeliveryGuard,
+  extractRecoverableText,
   type DeliverReplyInfo,
+  type RecoverableReplyPayload,
 } from "./deliver-guard.js";
-export { shouldDeliverReplyPayload, createPerTurnDeliveryGuard };
-export type { DeliverReplyInfo };
+export { shouldDeliverReplyPayload, createPerTurnDeliveryGuard, extractRecoverableText };
+export type { DeliverReplyInfo, RecoverableReplyPayload };
 
 const RECONNECT_BASE_MS = 3_000;
 const RECONNECT_MAX_MS = 60_000;
@@ -334,20 +336,46 @@ export async function startMonitor(params: MonitorParams) {
         onError: (err, info) => log?.error(`${info.kind} reply failed: ${err}`),
       });
 
+    // T#178 drop-recovery: intercept `getReplyFromConfig` via the
+    // `replyResolver` parameter so we can capture the model's reply
+    // payloads as a side effect. If the dispatcher returns
+    // `queuedFinal: false` we can still deliver the captured text
+    // manually. This is additive and doesn't change the dispatcher's
+    // own decision-making — we just get a parallel handle on the data.
+    let capturedReplyResult:
+      | RecoverableReplyPayload
+      | RecoverableReplyPayload[]
+      | undefined;
+    const replyResolver = async (
+      resolverCtx: unknown,
+      resolverOpts?: unknown,
+      resolverConfigOverride?: unknown,
+    ) => {
+      // Lazily import the default resolver so the plugin doesn't pay
+      // the cost on every inbound. Openclaw caches the module after
+      // first load. Dynamic import keeps the plugin's own import graph
+      // clean (the plugin-sdk doesn't re-export getReplyFromConfig).
+      const mod = (await import("openclaw")) as typeof import("openclaw");
+      const result = await (mod as any).getReplyFromConfig(
+        resolverCtx,
+        resolverOpts,
+        resolverConfigOverride,
+      );
+      capturedReplyResult = result;
+      return result;
+    };
+
     const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
       ctx,
       cfg,
       dispatcher,
       replyOptions,
+      replyResolver: replyResolver as any,
     });
     markDispatchIdle();
     clearInterval(typingInterval);
 
-    // T#178 observability: log when the dispatcher reports a final was
-    // queued but the per-turn guard saw zero approved finals reach the
-    // wire (possible when the queued count is off-by-one, or the final
-    // was dropped by a downstream guard). And log the silent-drop case,
-    // where queuedFinal is false but something presumably was produced.
+    // T#178 observability + drop-recovery.
     const approved = perTurnGuard.approvedFinalCount();
     const suppressed = perTurnGuard.suppressedFinalCount();
     if (queuedFinal) {
@@ -359,14 +387,32 @@ export async function startMonitor(params: MonitorParams) {
             : ""),
       );
     } else if (approved === 0) {
-      // Silent-drop: dispatcher completed without queuing a final.
-      // Could be legitimate (NO_REPLY, suppressDelivery), or the T#178
-      // zero-final bug (happens with qwen + no-tool-call turns). We log
-      // structured so it can be grepped + correlated with upstream
-      // trajectory events without having to parse the bundle.
-      log?.debug?.(
-        `[t178-drop-check] no final queued (counts.tool=${counts.tool ?? 0} counts.block=${counts.block ?? 0})`,
-      );
+      // Dispatcher completed without queuing a final AND the per-turn
+      // guard didn't approve anything either. Three sub-cases:
+      //   1. Agent deliberately chose silence (NO_REPLY / HEARTBEAT_OK)
+      //   2. Agent produced text but dispatcher dropped it (T#178 bug)
+      //   3. Agent produced nothing (legitimate abort / compaction-only)
+      // extractRecoverableText returns null for (1) and (3); a non-null
+      // string for (2) is our recovery case.
+      const recoveredText = extractRecoverableText(capturedReplyResult);
+      if (recoveredText) {
+        try {
+          await client.sendMessage(data.channelId, recoveredText);
+          log?.warn(
+            `[t178-drop-recovery] recovered final text (len=${recoveredText.length}) ` +
+              `after dispatcher returned queuedFinal=false`,
+          );
+        } catch (err) {
+          log?.error(
+            `[t178-drop-recovery] failed to post recovered text: ${err}`,
+          );
+        }
+      } else {
+        log?.debug?.(
+          `[t178-drop-check] no final queued (counts.tool=${counts.tool ?? 0} ` +
+            `counts.block=${counts.block ?? 0}) and no recoverable text`,
+        );
+      }
     }
   }
 
