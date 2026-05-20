@@ -40,6 +40,38 @@ function guestForbidden(c: Context<Env>) {
   return c.json({ error: 'Guests cannot perform this action. Sign in to continue.' }, 403);
 }
 
+// ── Channel read-access check ────────────────────────────────────────────
+// Centralizes the access rule used by GET /:id/messages so that thread
+// replies and reaction reads use the same gating. Returns null on success,
+// or a Response on failure (404 for unknown, 403 for unauthorized).
+//
+// Fixes the 2026-05-19 disclosure IDORs on:
+//   - GET /:channelId/messages/:messageId/replies
+//   - GET /:channelId/messages/:messageId/reactions
+// which previously had zero membership/channel-type check.
+async function requireChannelReadAccess(
+  c: Context<Env>,
+  channelId: string,
+): Promise<Response | null> {
+  const db = c.get('db');
+  const userId = c.get('userId');
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
+  if (isGuest(c)) {
+    if (!guestCanSeeChannel(channel)) {
+      return c.json({ error: 'Not a member of this channel' }, 403);
+    }
+    return null;
+  }
+
+  if (channel.channelType === 'dm' || channel.channelType === 'private') {
+    const ok = await requireChannelMembership(db, userId, channelId);
+    if (!ok) return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+  return null;
+}
+
 // ── Channel ID resolution ──────────────────────────────────────────────────
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
@@ -826,6 +858,18 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   const channelId = await resolveChannel(db, c.req.param('channelId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
+
+  // Security (2026-05-19): require channel-read access, and verify the
+  // parent message actually lives in this channel. Previously this
+  // endpoint had no auth check beyond authMiddleware — any signed-in user
+  // (and guests, on guest-mode deployments) could fetch thread replies
+  // for any messageId in any channel by guessing IDs.
+  const denied = await requireChannelReadAccess(c, channelId);
+  if (denied) return denied;
+  const [parent] = await db.select({ channelId: messages.channelId }).from(messages).where(eq(messages.id, messageId)).limit(1);
+  if (!parent) return c.json({ error: 'Message not found' }, 404);
+  if (parent.channelId !== channelId) return c.json({ error: 'Message not in this channel' }, 404);
+
   const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 100);
   const after = c.req.query('after');
   const before = c.req.query('before');
@@ -1139,6 +1183,26 @@ channelRoutes.delete('/:id', async (c) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
 
+  // Security (2026-05-19): previously this endpoint allowed ANY signed-in
+  // user to delete ANY channel — public, private, or DM, regardless of
+  // membership or workspace role. That's a destructive IDOR. New rule:
+  //   - Default channels can never be deleted (matches /archive).
+  //   - Workspace owners and admins may delete any non-default channel.
+  //   - Otherwise the caller must be the channel creator AND a current
+  //     member of the channel (channel ACL is membership, see T#151).
+  if (channel.isDefault) {
+    return c.json({ error: 'Cannot delete the default channel' }, 400);
+  }
+  const [requester] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  const isWorkspaceAdmin = !!requester && (requester.role === 'admin' || requester.role === 'owner');
+  if (!isWorkspaceAdmin) {
+    const isCreator = channel.createdBy === userId;
+    const isMember = await requireChannelMembership(db, userId, channelId);
+    if (!isCreator || !isMember) {
+      return c.json({ error: 'Only the channel creator (and a current member) or a workspace admin can delete this channel' }, 403);
+    }
+  }
+
   // Emit event before deleting (channel must still exist for FK)
   await emitEvent(db, {
     channelId,
@@ -1305,7 +1369,19 @@ channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
 // Get reactions for a message
 channelRoutes.get('/:channelId/messages/:messageId/reactions', async (c) => {
   const db = c.get('db');
+  const channelId = await resolveChannel(db, c.req.param('channelId'));
+  if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
+
+  // Security (2026-05-19): require channel-read access, and verify the
+  // message actually lives in this channel. Previously this endpoint had
+  // no auth check at all — any signed-in user (and guests, on guest-mode
+  // deployments) could pull reactions for arbitrary messageIds.
+  const denied = await requireChannelReadAccess(c, channelId);
+  if (denied) return denied;
+  const [msg] = await db.select({ channelId: messages.channelId }).from(messages).where(eq(messages.id, messageId)).limit(1);
+  if (!msg) return c.json({ error: 'Message not found' }, 404);
+  if (msg.channelId !== channelId) return c.json({ error: 'Message not in this channel' }, 404);
 
   const result = await db.select().from(reactions)
     .where(eq(reactions.messageId, messageId));
