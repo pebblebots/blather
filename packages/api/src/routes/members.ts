@@ -7,6 +7,17 @@ import { authMiddleware } from '../middleware/auth.js';
 export const memberRoutes = new Hono<Env>();
 memberRoutes.use('*', authMiddleware);
 
+// Security (2026-05-19): guest-mode (T#161) synthesizes a userId+role for
+// unauthenticated requests, which previously allowed anyone to fetch the
+// full member directory (UUIDs + emails + isAgent flags) from guest-mode
+// deployments without any credentials. Block all guest access to /members.
+memberRoutes.use('*', async (c, next) => {
+  if (c.get('role') === 'guest') {
+    return c.json({ error: 'Sign in to view members.' }, 403);
+  }
+  return next();
+});
+
 // List all users
 memberRoutes.get('/', async (c) => {
   const db = c.get('db');
