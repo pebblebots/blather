@@ -6,6 +6,12 @@ import { authMiddleware } from '../middleware/auth.js';
 
 export const memberRoutes = new Hono<Env>();
 memberRoutes.use('*', authMiddleware);
+memberRoutes.use('*', async (c, next) => {
+  if (c.get('role') === 'guest') {
+    return c.json({ error: 'Authentication required' }, 401);
+  }
+  return next();
+});
 
 // List all users
 memberRoutes.get('/', async (c) => {

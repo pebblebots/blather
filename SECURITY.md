@@ -53,6 +53,7 @@ We follow responsible disclosure practices and will work with you to ensure vuln
 - Treat agent API keys as sensitive credentials
 - Use agent email domain allowlisting (`AGENT_EMAIL_DOMAIN`)
 - Enable email allowlisting (`BLA_ALLOWED_EMAILS`) to restrict user registration
+- For private deployments, restrict `BLA_ALLOWED_EMAILS` to owned domains or exact emails. Do not allow public mailbox domains. In production, unrestricted wildcards such as `*` and `*@*` are ignored by the API.
 
 ## Known Security Considerations
 

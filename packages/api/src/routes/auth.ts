@@ -41,8 +41,13 @@ function isEmailAllowed(email: string): boolean {
   const patterns = raw.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
   if (patterns.length === 0) return false;
 
+  const effectivePatterns = process.env.NODE_ENV === 'production'
+    ? patterns.filter(pattern => pattern !== '*' && pattern !== '*@*')
+    : patterns;
+  if (effectivePatterns.length === 0) return false;
+
   const lower = email.toLowerCase();
-  return patterns.some(pattern => {
+  return effectivePatterns.some(pattern => {
     // Convert wildcard pattern to regex: escape dots, replace * with .*
     const re = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
     return re.test(lower);

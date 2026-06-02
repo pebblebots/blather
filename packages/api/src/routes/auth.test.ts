@@ -345,14 +345,18 @@ describe('auth routes', () => {
 
   describe('BLA_ALLOWED_EMAILS enforcement', () => {
     let savedAllowed: string | undefined;
+    let savedNodeEnv: string | undefined;
 
     beforeEach(() => {
       savedAllowed = process.env.BLA_ALLOWED_EMAILS;
+      savedNodeEnv = process.env.NODE_ENV;
     });
 
     afterEach(() => {
       if (savedAllowed === undefined) delete process.env.BLA_ALLOWED_EMAILS;
       else process.env.BLA_ALLOWED_EMAILS = savedAllowed;
+      if (savedNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = savedNodeEnv;
     });
 
     it('POST /auth/magic returns 403 when BLA_ALLOWED_EMAILS is not set', async () => {
@@ -375,6 +379,18 @@ describe('auth routes', () => {
       });
 
       expect(response.status).toBe(200);
+    });
+
+    it('POST /auth/magic rejects unrestricted wildcard signup in production', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.BLA_ALLOWED_EMAILS = '*';
+
+      const response = await harness.request.post('/auth/magic', {
+        json: { email: 'anyone@gmail.com' },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: 'Email not allowed' });
     });
 
     it('POST /auth/magic rejects email not matching any pattern', async () => {

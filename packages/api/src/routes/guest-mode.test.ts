@@ -116,6 +116,14 @@ describe('guest mode (T#161)', () => {
     expect(res.status).toBe(403);
   });
 
+  it('flag ON + unauth GET /members: 401', async () => {
+    _setGuestModeForTesting(true);
+    await fixture();
+
+    const res = await harness.request.get('/members');
+    expect(res.status).toBe(401);
+  });
+
   it('flag ON + unauth POST /channels/:id/messages: 403 (even on #general)', async () => {
     _setGuestModeForTesting(true);
     const { generalCh } = await fixture();
