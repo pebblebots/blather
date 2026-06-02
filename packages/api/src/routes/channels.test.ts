@@ -614,6 +614,33 @@ describe('channel routes', () => {
     expect(memberships).toHaveLength(0);
   });
 
+  it('DELETE /channels/:id rejects signed-in users who are not the creator, admin, or owner', async () => {
+    const { owner } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'delete-outsider@example.com', displayName: 'Delete Outsider' });
+    const privateChannel = await harness.factories.createChannel({
+      name: 'delete-private',
+      slug: 'delete-private',
+      channelType: 'private',
+      createdBy: owner.id,
+    });
+    const message = await harness.factories.createMessage({
+      channelId: privateChannel.id,
+      userId: owner.id,
+      content: 'do not delete',
+    });
+
+    const response = await harness.request.delete<{ error: string }>(`/channels/${privateChannel.id}`, {
+      headers: harness.headers.forUser(outsider.id),
+    });
+
+    expect(response.status).toBe(403);
+
+    const [remainingChannel] = await harness.db.select().from(channels).where(eq(channels.id, privateChannel.id));
+    expect(remainingChannel?.id).toBe(privateChannel.id);
+    const [remainingMessage] = await harness.db.select().from(messages).where(eq(messages.id, message.id));
+    expect(remainingMessage?.id).toBe(message.id);
+  });
+
 describe('Canvas data retrieval', () => {
   const canvasPayload = {
     html: '<h1>Test</h1>',

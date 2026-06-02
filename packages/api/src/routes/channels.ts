@@ -1185,6 +1185,17 @@ channelRoutes.delete('/:id', async (c) => {
 
   const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
   if (!channel) return c.json({ error: 'Channel not found' }, 404);
+  if (channel.isDefault) return c.json({ error: 'Cannot delete the default channel' }, 400);
+
+  const [requester] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (channel.createdBy !== userId && requester?.role !== 'admin' && requester?.role !== 'owner') {
+    return c.json({ error: 'Only the channel creator, admins, or owners can delete this channel' }, 403);
+  }
 
   // Emit event before deleting (channel must still exist for FK)
   await emitEvent(db, {
