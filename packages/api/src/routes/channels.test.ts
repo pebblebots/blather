@@ -388,6 +388,78 @@ describe('channel routes', () => {
     expect(allowed.status).toBe(201);
   });
 
+  it('GET thread replies and reactions for private channels rejects non-members', async () => {
+    const { owner } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'private-outsider@example.com', displayName: 'Outsider' });
+    const privateChannel = await harness.factories.createChannel({
+      name: 'private-room',
+      slug: 'private-room',
+      channelType: 'private',
+      createdBy: owner.id,
+    });
+    const parent = await harness.factories.createMessage({
+      channelId: privateChannel.id,
+      userId: owner.id,
+      content: 'private parent',
+    });
+    await harness.factories.createMessage({
+      channelId: privateChannel.id,
+      userId: owner.id,
+      content: 'private reply',
+      threadId: parent.id,
+    });
+    await harness.db.insert(reactions).values({
+      messageId: parent.id,
+      userId: owner.id,
+      emoji: 'eyes',
+    });
+
+    const control = await harness.request.get<{ error: string }>(`/channels/${privateChannel.id}/messages`, {
+      headers: harness.headers.forUser(outsider.id),
+    });
+    expect(control.status).toBe(403);
+
+    const replies = await harness.request.get<{ error: string }>(
+      `/channels/${privateChannel.id}/messages/${parent.id}/replies`,
+      { headers: harness.headers.forUser(outsider.id) },
+    );
+    expect(replies.status).toBe(403);
+
+    const reactionList = await harness.request.get<{ error: string }>(
+      `/channels/${privateChannel.id}/messages/${parent.id}/reactions`,
+      { headers: harness.headers.forUser(outsider.id) },
+    );
+    expect(reactionList.status).toBe(403);
+  });
+
+  it('message-scoped reaction routes reject channel/message mismatches', async () => {
+    const { owner, member, channel } = await createFixture();
+    await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
+    const privateChannel = await harness.factories.createChannel({
+      name: 'private-mismatch',
+      slug: 'private-mismatch',
+      channelType: 'private',
+      createdBy: owner.id,
+    });
+    const privateMessage = await harness.factories.createMessage({
+      channelId: privateChannel.id,
+      userId: owner.id,
+      content: 'private message',
+    });
+
+    const addReaction = await harness.request.post<{ error: string }>(
+      `/channels/${channel.id}/messages/${privateMessage.id}/reactions`,
+      {
+        headers: harness.headers.forUser(member.id),
+        json: { emoji: 'eyes' },
+      },
+    );
+
+    expect(addReaction.status).toBe(404);
+    const storedReactions = await harness.db.select().from(reactions).where(eq(reactions.messageId, privateMessage.id));
+    expect(storedReactions).toHaveLength(0);
+  });
+
   // T#151: public channels now require channel_members membership too.
   describe('public channel membership ACL (T#151)', () => {
     it('POST /channels/:id/messages rejects non-members with 403', async () => {

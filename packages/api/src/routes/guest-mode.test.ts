@@ -12,6 +12,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { reactions } from '@blather/db';
 import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
 import { _setGuestModeForTesting, GUEST_USER_ID } from '../config/guest-mode.js';
@@ -122,6 +123,33 @@ describe('guest mode (T#161)', () => {
 
     const res = await harness.request.get('/members');
     expect(res.status).toBe(401);
+  });
+
+  it('flag ON + unauth GET private replies/reactions: 403', async () => {
+    _setGuestModeForTesting(true);
+    const { owner, privateCh } = await fixture();
+    const parent = await harness.factories.createMessage({
+      channelId: privateCh.id,
+      userId: owner.id,
+      content: 'private parent',
+    });
+    await harness.factories.createMessage({
+      channelId: privateCh.id,
+      userId: owner.id,
+      content: 'private reply',
+      threadId: parent.id,
+    });
+    await harness.db.insert(reactions).values({
+      messageId: parent.id,
+      userId: owner.id,
+      emoji: 'eyes',
+    });
+
+    const replies = await harness.request.get(`/channels/${privateCh.id}/messages/${parent.id}/replies`);
+    expect(replies.status).toBe(403);
+
+    const reactionList = await harness.request.get(`/channels/${privateCh.id}/messages/${parent.id}/reactions`);
+    expect(reactionList.status).toBe(403);
   });
 
   it('flag ON + unauth POST /channels/:id/messages: 403 (even on #general)', async () => {

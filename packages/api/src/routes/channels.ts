@@ -40,6 +40,23 @@ function guestForbidden(c: Context<Env>) {
   return c.json({ error: 'Guests cannot perform this action. Sign in to continue.' }, 403);
 }
 
+async function canReadChannel(
+  c: Context<Env>,
+  db: any,
+  userId: string,
+  channel: { id: string; slug: string | null; channelType: string },
+): Promise<boolean> {
+  if (isGuest(c)) {
+    return guestCanSeeChannel(channel);
+  }
+
+  if (channel.channelType === 'dm' || channel.channelType === 'private') {
+    return requireChannelMembership(db, userId, channel.id);
+  }
+
+  return true;
+}
+
 // ── Channel ID resolution ──────────────────────────────────────────────────
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
@@ -634,6 +651,15 @@ channelRoutes.post('/:id/messages', async (c) => {
     return c.json({ error: 'Not a member of this channel' }, 403);
   }
 
+  if (body.threadId) {
+    const [parent] = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.id, body.threadId), eq(messages.channelId, channelId)))
+      .limit(1);
+    if (!parent) return c.json({ error: 'Thread parent not found' }, 404);
+  }
+
   // Reject messages that look like raw API errors (prevents error feedback loops)
   if (looksLikeApiError(body.content)) {
     console.warn(`[error-filter] Rejected API error message from user=${userId} channel=${channelId}: ${body.content.slice(0, 200)}`);
@@ -823,6 +849,7 @@ channelRoutes.post('/:id/messages', async (c) => {
 // Get replies for a message thread
 channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   const db = c.get('db');
+  const userId = c.get('userId');
   const channelId = await resolveChannel(db, c.req.param('channelId'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
@@ -830,7 +857,21 @@ channelRoutes.get('/:channelId/messages/:messageId/replies', async (c) => {
   const after = c.req.query('after');
   const before = c.req.query('before');
 
-  const conditions: any[] = [eq(messages.threadId, messageId)];
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
+  if (!(await canReadChannel(c, db, userId, channel))) {
+    return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+
+  const [parent] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)))
+    .limit(1);
+  if (!parent) return c.json({ error: 'Message not found' }, 404);
+
+  const conditions: any[] = [eq(messages.threadId, messageId), eq(messages.channelId, channelId)];
   if (after) conditions.push(gt(messages.createdAt, new Date(after)));
   if (before) conditions.push(lt(messages.createdAt, new Date(before)));
 
@@ -936,10 +977,20 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();
 
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
   // Membership required for ALL channel types (public, private, DM). See T#151.
   if (!(await requireChannelMembership(db, userId, channelId))) {
     return c.json({ error: 'Not a member of this channel' }, 403);
   }
+
+  const [msg] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)))
+    .limit(1);
+  if (!msg) return c.json({ error: 'Message not found' }, 404);
 
   const [reaction] = await db.insert(reactions).values({
     messageId,
@@ -947,22 +998,18 @@ channelRoutes.post('/:channelId/messages/:messageId/reactions', async (c) => {
     emoji: body.emoji,
   }).returning();
 
-  // Look up channel for event emission
-  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
-  if (channel) {
-    await emitEvent(db, {
-      channelId,
+  await emitEvent(db, {
+    channelId,
+    userId,
+    type: 'reaction.added',
+    payload: {
+      id: reaction.id,
+      messageId,
       userId,
-      type: 'reaction.added',
-      payload: {
-        id: reaction.id,
-        messageId,
-        userId,
-        emoji: body.emoji,
-        createdAt: reaction.createdAt.toISOString(),
-      },
-    });
-  }
+      emoji: body.emoji,
+      createdAt: reaction.createdAt.toISOString(),
+    },
+  });
 
   // Auto-log agent reaction
   isAgentUser(db, userId).then(isAgent => { if (isAgent && channel) logAgentActivity(db, { userId, action: "reaction_added", targetChannelId: channelId, targetMessageId: messageId, metadata: { emoji: body.emoji } }); }).catch(() => {});
@@ -1273,6 +1320,21 @@ channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
   const messageId = c.req.param('messageId');
   const body = await c.req.json<{ emoji: string }>();
 
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
+  // Membership required for ALL channel types (public, private, DM). See T#151.
+  if (!(await requireChannelMembership(db, userId, channelId))) {
+    return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+
+  const [msg] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)))
+    .limit(1);
+  if (!msg) return c.json({ error: 'Message not found' }, 404);
+
   const [existing] = await db.select().from(reactions)
     .where(and(
       eq(reactions.messageId, messageId),
@@ -1284,20 +1346,17 @@ channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
 
   await db.delete(reactions).where(eq(reactions.id, existing.id));
 
-  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
-  if (channel) {
-    await emitEvent(db, {
-      channelId,
+  await emitEvent(db, {
+    channelId,
+    userId,
+    type: 'reaction.removed' as any,
+    payload: {
+      id: existing.id,
+      messageId,
       userId,
-      type: 'reaction.removed' as any,
-      payload: {
-        id: existing.id,
-        messageId,
-        userId,
-        emoji: body.emoji,
-      },
-    });
-  }
+      emoji: body.emoji,
+    },
+  });
 
   return c.json({ ok: true });
 });
@@ -1305,7 +1364,24 @@ channelRoutes.delete('/:channelId/messages/:messageId/reactions', async (c) => {
 // Get reactions for a message
 channelRoutes.get('/:channelId/messages/:messageId/reactions', async (c) => {
   const db = c.get('db');
+  const userId = c.get('userId');
+  const channelId = await resolveChannel(db, c.req.param('channelId'));
+  if (!channelId) return c.json({ error: 'Channel not found' }, 404);
   const messageId = c.req.param('messageId');
+
+  const [channel] = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1);
+  if (!channel) return c.json({ error: 'Channel not found' }, 404);
+
+  if (!(await canReadChannel(c, db, userId, channel))) {
+    return c.json({ error: 'Not a member of this channel' }, 403);
+  }
+
+  const [msg] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)))
+    .limit(1);
+  if (!msg) return c.json({ error: 'Message not found' }, 404);
 
   const result = await db.select().from(reactions)
     .where(eq(reactions.messageId, messageId));
