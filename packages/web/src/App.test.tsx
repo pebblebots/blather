@@ -39,42 +39,26 @@ const TEST_USER = {
 };
 
 describe('App', () => {
-  it('shows MainPage as guest when no token is stored AND server has guest mode on', async () => {
-    // T#161 + 2026-05-09 narrowing: when there's no token, App probes the
-    // server with /channels. If guest mode is on the server returns 200
-    // (guest-visible channels). App mounts MainPage with the synthesized
-    // GUEST_USER so the guest can read #general without signing in.
-    mockGetChannels.mockResolvedValue([]);
-    render(<App />);
-    await screen.findByTestId('main-page');
-    expect(mockGetChannels).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows AuthPage when no token AND server returns 401 (guest mode off)', async () => {
-    mockGetChannels.mockRejectedValue(new Error('401'));
+  it('shows AuthPage without probing the server when no token is stored', async () => {
+    // Guest mode is gone: an unauthenticated visitor goes straight to
+    // AuthPage and the app never probes authenticated routes while logged out.
     render(<App />);
     await screen.findByTestId('auth-page');
+    expect(mockGetChannels).not.toHaveBeenCalled();
     expect(mockClearToken).not.toHaveBeenCalled();
   });
 
-  it('does NOT persist the guest sentinel to localStorage', async () => {
-    mockGetChannels.mockResolvedValue([]);
+  it('writes nothing to localStorage for an unauthenticated visitor', async () => {
     render(<App />);
-    await screen.findByTestId('main-page');
-    // Guest sentinel must NEVER be written to localStorage so a future
-    // page-load goes back through the unauth-token branch and re-derives
-    // guest state from the server (catches the case where the server
-    // turns guest mode off mid-session).
+    await screen.findByTestId('auth-page');
     expect(localStorage.getItem('blather_user')).toBeNull();
     expect(localStorage.getItem('blather_token')).toBeNull();
   });
 
-  it('shows AuthPage when user is on /auth even if guest mode would auto-mount', async () => {
-    // Tammie 2026-05-11: clicked "Sign in to post" link (href="/auth") and
-    // got bounced right back to MainPage as guest because App didn't
-    // honour the /auth path. Now /auth wins over the guest probe.
+  it('shows AuthPage on /auth without probing the server', async () => {
+    // Magic-link verify and "sign in" both land on /auth with no token;
+    // AuthPage renders and no authenticated route is probed.
     window.history.replaceState({}, '', '/auth');
-    mockGetChannels.mockResolvedValue([]); // server would say "guest mode is on"
     render(<App />);
     await screen.findByTestId('auth-page');
     expect(mockGetChannels).not.toHaveBeenCalled();

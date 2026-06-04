@@ -124,3 +124,11 @@ While working:
   needed capturing before removing config knobs. Remaining guest identifiers
   are code-only: the `guest-mode.test.ts` regression suite and the frontend
   `guest:shared` sentinel (Phase 2).
+- 2026-06-04: Completed Phase 2 (frontend). Removed the `guest:shared` sentinel
+  and guest probe from `App.tsx` — logged-out users now go straight to
+  `AuthPage` and the app no longer probes `/channels` while unauthenticated.
+  Stripped all `isGuest` UI branches from `MainPage.tsx` (read-as-guest
+  banners, guest public-channel filter, guest-hidden Users panel). Converted
+  the four guest-behavior tests in `App.test.tsx` into negative-auth tests.
+  Full web suite passes (264/264) and `tsc --noEmit` is clean. The
+  `guest:shared` string now exists nowhere in `packages/web/src`.

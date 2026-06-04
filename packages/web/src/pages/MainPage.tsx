@@ -19,16 +19,11 @@ import { HelpModal } from '../components/HelpModal';
 import { useToast } from '../components/Toast';
 import { getDisambiguatedNames } from '../lib/chatUtils';
 
-// Legacy guest sentinel retained until the frontend guest UI is removed.
-// Backend auth no longer synthesizes this id for logged-out callers.
-const GUEST_USER_ID = 'guest:shared';
-
 export function MainPage() {
   const { user, setUser } = useApp();
   const isMobile = useIsMobile();
   const { showToast } = useToast();
-  const isGuest = user?.id === GUEST_USER_ID;
-  
+
   // Mobile-specific state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -658,24 +653,11 @@ export function MainPage() {
                 currentUserId={user?.id}
                 selectedChannelId={selectedCh}
               />
-              {isGuest ? (
-                <div style={{
-                  padding: '12px 16px',
-                  background: '#F4F4F4',
-                  borderTop: '1px solid #DDDDDD',
-                  textAlign: 'center',
-                  fontSize: 14,
-                  color: '#555555',
-                }}>
-                  👀 You’re reading as a guest. <a href="/auth" style={{ color: '#3366CC', fontWeight: 'bold' }}>Sign in to post</a>.
-                </div>
-              ) : (
-                <MessageInput
-                  onSend={handleSend}
-                  onTyping={handleTyping}
-                  disabled={!selectedCh}
-                />
-              )}
+              <MessageInput
+                onSend={handleSend}
+                onTyping={handleTyping}
+                disabled={!selectedCh}
+              />
             </>
           ) : (
             <div style={{
@@ -796,7 +778,7 @@ export function MainPage() {
                         + New
                       </button>
                     </div>
-                    {channels.filter(ch => ch.channelType !== 'dm' && (!isGuest || ch.channelType === 'public')).map((ch) => (
+                    {channels.filter(ch => ch.channelType !== 'dm').map((ch) => (
                       <div
                         key={ch.id}
                         onClick={() => {
@@ -864,7 +846,7 @@ export function MainPage() {
 
                 <div style={{ borderTop: "1px solid #DDDDDD", margin: "8px 0" }} />
                 {/* Users */}
-                {!isGuest && allMembers.length > 0 && (
+                {allMembers.length > 0 && (
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ marginBottom: '8px' }}>
                       <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Users</span>
@@ -1122,7 +1104,7 @@ export function MainPage() {
                       title="Create channel"
                     >+</button>
                   </div>
-                  {channels.filter(ch => ch.channelType !== 'dm' && (!isGuest || ch.channelType === 'public')).map((ch) => (
+                  {channels.filter(ch => ch.channelType !== 'dm').map((ch) => (
                     <div
                       key={ch.id}
                       onClick={() => { setSelectedCh(ch.id); setShowTasks(false); }}
@@ -1158,7 +1140,7 @@ export function MainPage() {
                       )}
                     </div>
                   ))}
-                  {channels.filter(ch => ch.channelType !== 'dm' && (!isGuest || ch.channelType === 'public')).length === 0 && (
+                  {channels.filter(ch => ch.channelType !== 'dm').length === 0 && (
                     <div style={{ padding: '2px 6px', fontSize: 11, color: '#999999' }}>No channels</div>
                   )}
                 </div>
@@ -1183,7 +1165,7 @@ export function MainPage() {
                 </div>
 
               {/* Users */}
-              {!isGuest && allMembers.length > 0 && (
+              {allMembers.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <hr className="mac-separator" />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, padding: '0 4px' }}>
@@ -1316,20 +1298,7 @@ export function MainPage() {
               <>
                 <MessageList messages={messages} usersMap={usersMap} displayNames={displayNames} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
-                {isGuest ? (
-                  <div style={{
-                    padding: '10px 12px',
-                    background: '#F4F4F4',
-                    borderTop: '1px solid #DDDDDD',
-                    textAlign: 'center',
-                    fontSize: 12,
-                    color: '#555555',
-                  }}>
-                    👀 You’re reading as a guest. <a href="/auth" style={{ color: '#3366CC', fontWeight: 'bold' }}>Sign in to post</a>.
-                  </div>
-                ) : (
-                  <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
-                )}
+                <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>
             ) : (
               <div className="mac-inset" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#999999', margin: 4 }}>

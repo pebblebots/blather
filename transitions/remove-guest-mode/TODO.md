@@ -46,13 +46,20 @@ it current as work proceeds.
 
 ## Phase 2: Remove Frontend Guest Experience
 
-- [ ] Remove frontend guest-user sentinel state.
-- [ ] Remove logged-out channel browsing and fishbowl UI flows.
-- [ ] Redirect logged-out users to authentication.
-- [ ] Remove guest-specific UI branches that hide controls instead of relying on
-  server authorization.
-- [ ] Verify app startup no longer probes authenticated API routes while logged
-  out except for intentional auth/session checks.
+- [x] Remove frontend guest-user sentinel state. Deleted `GUEST_USER` /
+  `GUEST_USER_ID` from `App.tsx` and `GUEST_USER_ID` / `isGuest` from
+  `MainPage.tsx`.
+- [x] Remove logged-out channel browsing and fishbowl UI flows. Removed the
+  "reading as a guest / Sign in to post" banners (mobile + desktop), the
+  guest-only public-channel filter, and the guest-hidden Users panel.
+- [x] Redirect logged-out users to authentication. `App.tsx` now renders
+  `MainPage` only for a real signed-in user; everyone else gets `AuthPage`.
+- [x] Remove guest-specific UI branches that hide controls instead of relying on
+  server authorization. All `isGuest ? ... : ...` branches deleted.
+- [x] Verify app startup no longer probes authenticated API routes while logged
+  out except for intentional auth/session checks. The unauthenticated
+  `getChannels()` probe is gone — `App.tsx` only calls it when a token exists.
+  `App.test.tsx` asserts no probe happens without a token (incl. on `/auth`).
 
 ## Phase 3: Route-Specific Hardening
 
@@ -77,6 +84,9 @@ it current as work proceeds.
 ## Phase 4: Cleanup
 
 - [ ] Remove guest-mode tests or convert them into negative authorization tests.
+  (Web `App.test.tsx` guest tests already converted to negative-auth tests in
+  Phase 2; backend `guest-mode.test.ts` is already a negative-auth suite.
+  Remaining: audit for any other guest-themed tests.)
 - [ ] Update `SECURITY.md` and any docs that still describe guest/fishbowl
   behavior.
 - [ ] Search for stale guest references across code, docs, tests, env examples,
