@@ -5,14 +5,23 @@ it current as work proceeds.
 
 ## Phase 0: Containment And Baseline
 
-- [ ] Confirm public deployments have `GUEST_MODE_VIEW_ONLY` disabled while the
-  removal is in progress.
+- [x] Confirm public deployments have `GUEST_MODE_VIEW_ONLY` disabled while the
+  removal is in progress. The knob is absent from every env/deployment file
+  (`.env`, `.env.example`, `docker-compose.yml`, `ecosystem.config.cjs.example`),
+  so it defaults to off, AND the backend module that read it was already
+  removed — the value is now inert regardless. `guest-mode.test.ts` asserts a
+  stale `GUEST_MODE_VIEW_ONLY=true` still yields 401s.
 - [x] Add regression tests proving unauthenticated callers cannot access
   sensitive routes that were exposed by guest mode.
 - [x] Add websocket regression tests proving anonymous clients cannot connect or
   receive global events.
-- [ ] Capture any deployment or environment references to guest mode before
-  removing config knobs.
+- [x] Capture any deployment or environment references to guest mode before
+  removing config knobs. Repo-wide sweep (`git grep` + non-tracked `.env`) of
+  env, compose, Dockerfile, Caddyfile, ecosystem, and doc files found NO
+  deployment/config references to guest mode. The only surviving guest
+  identifiers are the intentional `guest-mode.test.ts` regression suite and the
+  frontend `guest:shared` sentinel (Phase 2). Nothing to migrate before
+  removing knobs — none exist outside code.
 
 ## Phase 1: Remove Backend Guest Authentication
 

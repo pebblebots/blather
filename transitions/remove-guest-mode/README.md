@@ -117,3 +117,10 @@ While working:
   `channels.test.ts` / `messages.test.ts` cannot load in this environment due
   to the pre-existing missing `better-sqlite3` module imported by
   `src/tasks/db.ts` (see Parking Lot) — unrelated to this change.
+- 2026-06-04: Completed Phase 0 containment. A repo-wide sweep of env,
+  compose, Dockerfile, Caddyfile, ecosystem, and doc files found NO
+  deployment/config references to guest mode — `GUEST_MODE_VIEW_ONLY` is set
+  nowhere and is inert anyway (its backend reader was already removed). Nothing
+  needed capturing before removing config knobs. Remaining guest identifiers
+  are code-only: the `guest-mode.test.ts` regression suite and the frontend
+  `guest:shared` sentinel (Phase 2).
