@@ -7,7 +7,7 @@ it current as work proceeds.
 
 - [ ] Confirm public deployments have `GUEST_MODE_VIEW_ONLY` disabled while the
   removal is in progress.
-- [ ] Add regression tests proving unauthenticated callers cannot access
+- [x] Add regression tests proving unauthenticated callers cannot access
   sensitive routes that were exposed by guest mode.
 - [ ] Add websocket regression tests proving anonymous clients cannot connect or
   receive global events.
@@ -16,10 +16,10 @@ it current as work proceeds.
 
 ## Phase 1: Remove Backend Guest Authentication
 
-- [ ] Remove guest fallback from `packages/api/src/middleware/auth.ts`.
-- [ ] Remove `GUEST_MODE_VIEW_ONLY`, `GUEST_USER_ID`, `GUEST_ROLE`, and
+- [x] Remove guest fallback from `packages/api/src/middleware/auth.ts`.
+- [x] Remove `GUEST_MODE_VIEW_ONLY`, `GUEST_USER_ID`, `GUEST_ROLE`, and
   `isGuestModeEnabled` config paths.
-- [ ] Ensure unauthenticated API requests fail closed with `401`.
+- [x] Ensure unauthenticated API requests fail closed with `401`.
 - [ ] Require real authenticated users for websocket connections.
 - [ ] Remove guest-specific websocket event filtering once anonymous websocket
   access is impossible, or keep only filtering that is still needed for real
@@ -77,3 +77,5 @@ it current as work proceeds.
 - [ ] Decide whether Blather needs a future public/demo mode. If yes, design it
   as a separate public API with sanitized serializers and explicit threat-model
   review, not as an auth fallback.
+- [ ] Resolve current API build/typecheck blockers so transition iterations can
+  rely on `pnpm --filter @blather/api build` as a clean verification step.

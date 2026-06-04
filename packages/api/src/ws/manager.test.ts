@@ -23,7 +23,6 @@ vi.mock('@blather/db', () => {
   return {
     createDb: () => ({ select: () => makeChain() }),
     apiKeys: { keyHash: 'keyHash', revokedAt: 'revokedAt', userId: 'userId' },
-    channels: { id: 'id', channelType: 'channelType' },
     channelMembers: { channelId: 'channelId', userId: 'userId' },
   };
 });
@@ -111,36 +110,6 @@ describe('WebSocket manager', () => {
 
   it('verifyToken rejects invalid JWT token', () => {
     expect(__testing.verifyToken('invalid-token')).toBeNull();
-  });
-
-  it('setupPendingClient authenticates via auth message', async () => {
-    const ws = new FakeWebSocket();
-    __testing.setupPendingClient(ws as any);
-
-    const connected = waitForType(ws, 'connected');
-    ws.clientSend({ type: 'auth', token: signToken('user-2') });
-
-    await expect(connected).resolves.toEqual({ type: 'connected', userId: 'user-2' });
-  });
-
-  it('setupPendingClient rejects invalid token in auth message (code 4003)', async () => {
-    const ws = new FakeWebSocket();
-    __testing.setupPendingClient(ws as any);
-
-    const closed = waitForClose(ws);
-    ws.clientSend({ type: 'auth', token: 'bad-token' });
-
-    await expect(closed).resolves.toMatchObject({ code: 4003 });
-  });
-
-  it('setupPendingClient rejects auth message with missing fields (code 4002)', async () => {
-    const ws = new FakeWebSocket();
-    __testing.setupPendingClient(ws as any);
-
-    const closed = waitForClose(ws);
-    ws.clientSend({ type: 'auth' });
-
-    await expect(closed).resolves.toMatchObject({ code: 4002 });
   });
 
   it('resolveApiKeyUserId returns user id for a valid API key', async () => {

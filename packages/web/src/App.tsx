@@ -5,9 +5,8 @@ import { AuthPage } from './pages/AuthPage';
 import { MainPage } from './pages/MainPage';
 import { ToastProvider } from './components/Toast';
 
-// Guest sentinel — must match GUEST_USER_ID on the server
-// (packages/api/src/config/guest-mode.ts) and the GUEST_USER_ID const in
-// MainPage.tsx that drives the read-only UI branches.
+// Legacy guest sentinel retained until the frontend guest experience is
+// removed. The backend no longer synthesizes this user for logged-out callers.
 const GUEST_USER_ID = 'guest:shared';
 const GUEST_USER: User = {
   id: GUEST_USER_ID,
@@ -40,10 +39,8 @@ export default function App() {
       // and render AuthPage immediately. Otherwise try the guest path.
       if (wantsAuthPage) { setChecking(false); return; }
 
-      // No token — try the guest path. If the server is in GUEST_MODE_VIEW_ONLY,
-      // /channels will return 200 with the guest-visible channel set
-      // (default: just #general). If it returns 401, guest mode is off and
-      // we fall through to the auth page.
+      // No token: this legacy probe now falls through to AuthPage because the
+      // backend no longer exposes a guest channel list.
       api.getChannels()
         .then(() => { setUser(GUEST_USER); })
         .catch(() => { /* leave user null → AuthPage */ })

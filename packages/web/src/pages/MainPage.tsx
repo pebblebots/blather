@@ -19,8 +19,8 @@ import { HelpModal } from '../components/HelpModal';
 import { useToast } from '../components/Toast';
 import { getDisambiguatedNames } from '../lib/chatUtils';
 
-// T#161: virtual user id used by the API when GUEST_MODE_VIEW_ONLY is on.
-// Keep in sync with `packages/api/src/config/guest-mode.ts`.
+// Legacy guest sentinel retained until the frontend guest UI is removed.
+// Backend auth no longer synthesizes this id for logged-out callers.
 const GUEST_USER_ID = 'guest:shared';
 
 export function MainPage() {

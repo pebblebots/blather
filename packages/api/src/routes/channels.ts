@@ -20,8 +20,8 @@ import { requireChannelMembership } from '../middleware/channelAccess.js';
 import type { Context } from 'hono';
 
 // ── Guest-mode helpers (T#161, narrowed 2026-05-09) ──────────────────────
-// Guests have role='guest' set by the auth middleware when GUEST_MODE_VIEW_ONLY
-// is on.
+// Legacy guest-mode helpers. Auth middleware no longer sets role='guest';
+// remove these branches in the route cleanup phase.
 //
 // Original T#161: guests could read any public channel. 2026-05-09: narrow
 // that to a single visible channel by slug (default: 'general'), keeping
