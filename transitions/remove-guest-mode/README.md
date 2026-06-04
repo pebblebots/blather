@@ -97,11 +97,14 @@ While working:
 - 2026-06-04: Removed the backend guest-mode config module and the
   `authMiddleware` fallback that synthesized guest users. Stale
   `GUEST_MODE_VIEW_ONLY=true` no longer makes REST routes public. Websocket
-  fanout no longer has guest-specific channel bypass logic, but first-message
-  websocket authentication still remains and should be removed in a later
-  iteration if the project wants no anonymous websocket transport at all.
+  fanout no longer has guest-specific channel bypass logic. At that point,
+  first-message websocket authentication still remained.
 - 2026-06-04: Targeted API tests for guest-mode removal pass, but
   `pnpm --filter @blather/api build` currently fails on broader project issues:
   missing installed modules (`better-sqlite3`, `@supabase/supabase-js`) and
   schema/type drift around fields such as `workspaceId`, `meta`, `canvas`,
   `role`, and `deactivatedAt`.
+- 2026-06-04: Removed first-message websocket authentication. `/ws/events`
+  upgrades now require a valid `token` or `api_key` query parameter before the
+  websocket is established; anonymous upgrades receive `401` and are not added
+  to the client set.

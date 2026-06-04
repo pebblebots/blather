@@ -153,7 +153,7 @@ async function resolveApiKeyUserId(apiKeyParam: string): Promise<string | null> 
   return found?.userId ?? null;
 }
 
-export function attachWebSocket(server: Server) {
+export function attachWebSocket(server: Server): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true });
 
   // Track previous idle states to detect transitions
@@ -237,13 +237,13 @@ export function attachWebSocket(server: Server) {
         });
         return;
       }
-    } else {
-      // Auth via first message
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        setupPendingClient(ws);
-      });
     }
+
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    socket.destroy();
   });
+
+  return wss;
 }
 
 function setupAuthedClient(ws: WebSocket, userId: string) {
@@ -267,31 +267,6 @@ function setupAuthedClient(ws: WebSocket, userId: string) {
   });
 }
 
-function setupPendingClient(ws: WebSocket) {
-  const timeout = setTimeout(() => {
-    ws.close(4001, 'Auth timeout');
-  }, 10_000);
-
-  ws.once('message', (raw) => {
-    clearTimeout(timeout);
-    try {
-      const msg = JSON.parse(raw.toString());
-      if (msg.type !== 'auth' || !msg.token) {
-        ws.close(4002, 'Invalid auth message');
-        return;
-      }
-      const userId = verifyToken(msg.token);
-      if (!userId) {
-        ws.close(4003, 'Invalid token');
-        return;
-      }
-      setupAuthedClient(ws, userId);
-    } catch {
-      ws.close(4002, 'Invalid message');
-    }
-  });
-}
-
 export const __testing = {
   resetState() {
     allClients.clear();
@@ -304,7 +279,6 @@ export const __testing = {
     db = next ?? createDb();
   },
   setupAuthedClient,
-  setupPendingClient,
   verifyToken,
   resolveApiKeyUserId,
 };

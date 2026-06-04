@@ -9,7 +9,7 @@ it current as work proceeds.
   removal is in progress.
 - [x] Add regression tests proving unauthenticated callers cannot access
   sensitive routes that were exposed by guest mode.
-- [ ] Add websocket regression tests proving anonymous clients cannot connect or
+- [x] Add websocket regression tests proving anonymous clients cannot connect or
   receive global events.
 - [ ] Capture any deployment or environment references to guest mode before
   removing config knobs.
@@ -20,8 +20,8 @@ it current as work proceeds.
 - [x] Remove `GUEST_MODE_VIEW_ONLY`, `GUEST_USER_ID`, `GUEST_ROLE`, and
   `isGuestModeEnabled` config paths.
 - [x] Ensure unauthenticated API requests fail closed with `401`.
-- [ ] Require real authenticated users for websocket connections.
-- [ ] Remove guest-specific websocket event filtering once anonymous websocket
+- [x] Require real authenticated users for websocket connections.
+- [x] Remove guest-specific websocket event filtering once anonymous websocket
   access is impossible, or keep only filtering that is still needed for real
   user channel authorization.
 - [ ] Audit and remove guest-specific helpers such as guest-visible channel

@@ -27,7 +27,7 @@ vi.mock('@blather/db', () => {
   };
 });
 
-import { __testing, getPresence, publishEvent, publishEphemeralEvent } from './manager.js';
+import { __testing, attachWebSocket, getPresence, publishEvent, publishEphemeralEvent } from './manager.js';
 import { JWT_SECRET } from '../config.js';
 
 function signToken(userId: string): string {
@@ -61,6 +61,20 @@ class FakeWebSocket extends EventEmitter {
 
   terminate() {
     this.close(1006, 'terminated');
+  }
+}
+
+class FakeUpgradeSocket extends EventEmitter {
+  written: string[] = [];
+  destroyed = false;
+
+  write(data: string) {
+    this.written.push(data);
+  }
+
+  destroy() {
+    this.destroyed = true;
+    this.emit('close');
   }
 }
 
@@ -110,6 +124,35 @@ describe('WebSocket manager', () => {
 
   it('verifyToken rejects invalid JWT token', () => {
     expect(__testing.verifyToken('invalid-token')).toBeNull();
+  });
+
+  it('rejects anonymous websocket upgrades before any client can receive global events', async () => {
+    const server = new EventEmitter();
+    const wss = attachWebSocket(server as any);
+    const socket = new FakeUpgradeSocket();
+
+    try {
+      server.emit(
+        'upgrade',
+        { url: '/ws/events', headers: { host: 'localhost' } },
+        socket,
+        Buffer.alloc(0),
+      );
+
+      expect(socket.destroyed).toBe(true);
+      expect(socket.written.join('')).toContain('401 Unauthorized');
+      expect(getPresence()).toEqual([]);
+
+      const writeCount = socket.written.length;
+      await publishEvent({
+        type: 'member.joined',
+        data: { id: 'user-leak', email: 'leak@example.com' },
+      });
+
+      expect(socket.written).toHaveLength(writeCount);
+    } finally {
+      wss.close();
+    }
   });
 
   it('resolveApiKeyUserId returns user id for a valid API key', async () => {
