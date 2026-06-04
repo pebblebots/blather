@@ -108,3 +108,12 @@ While working:
   upgrades now require a valid `token` or `api_key` query parameter before the
   websocket is established; anonymous upgrades receive `401` and are not added
   to the client set.
+- 2026-06-04: Removed all dead guest-mode route branches now that auth
+  middleware never sets `role='guest'`. Deleted the `Env.role?: 'guest'` marker
+  (`app.ts`), the guest helpers and ~16 `isGuest(c)` branches (`channels.ts`),
+  the guest write-block middleware + `GUEST_VISIBLE_SLUGS` search branch
+  (`messages.ts`), and the guest 401 middleware (`members.ts`). The
+  `guest-mode.test.ts` regression suite still passes (3/3). Note: broader
+  `channels.test.ts` / `messages.test.ts` cannot load in this environment due
+  to the pre-existing missing `better-sqlite3` module imported by
+  `src/tasks/db.ts` (see Parking Lot) — unrelated to this change.

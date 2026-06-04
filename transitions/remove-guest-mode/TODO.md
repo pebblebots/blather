@@ -24,8 +24,13 @@ it current as work proceeds.
 - [x] Remove guest-specific websocket event filtering once anonymous websocket
   access is impossible, or keep only filtering that is still needed for real
   user channel authorization.
-- [ ] Audit and remove guest-specific helpers such as guest-visible channel
-  allowlists.
+- [x] Audit and remove guest-specific helpers such as guest-visible channel
+  allowlists. Removed `GUEST_VISIBLE_SLUGS`, `isGuest`, `guestCanSeeChannel`,
+  and `guestForbidden` from `channels.ts`, the guest write-block + search
+  branch in `messages.ts`, the guest 401 middleware in `members.ts`, and the
+  deprecated `role?: 'guest'` marker from the `Env` type in `app.ts`. All
+  `c.get('role') === 'guest'` branches were dead because auth middleware no
+  longer sets `role`.
 - [ ] Ensure all mutating routes require a real authenticated user.
 - [ ] Ensure route-level authorization still checks membership or ownership
   where needed, not just authentication.

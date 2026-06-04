@@ -21,10 +21,6 @@ export type Env = {
   Variables: {
     userId: string;
     db: Db;
-    // Deprecated guest-mode marker retained until route-level guest branches
-    // are removed. Auth middleware no longer sets this for unauthenticated
-    // requests.
-    role?: 'guest';
   };
 };
 

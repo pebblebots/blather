@@ -3,20 +3,9 @@ import { eq, and, ilike, gt, lt, sql, inArray, type SQL } from "drizzle-orm";
 import { messages, channels, channelMembers, users } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { GUEST_VISIBLE_SLUGS } from "./channels.js";
 
 export const messageRoutes = new Hono<Env>();
 messageRoutes.use("*", authMiddleware);
-
-// T#161: block writes for guests. Currently /messages has no POST routes,
-// but guard the Hono group so any future POST/PATCH/DELETE inherits the
-// 403 without silently allowing writes.
-messageRoutes.use("*", async (c, next) => {
-  if (c.get("role") === "guest" && c.req.method !== "GET") {
-    return c.json({ error: "Guests cannot perform this action. Sign in to continue." }, 403);
-  }
-  return next();
-});
 
 // GET /messages/search
 messageRoutes.get("/search", async (c) => {
@@ -36,8 +25,6 @@ messageRoutes.get("/search", async (c) => {
 
   // Get channels the user can access:
   // All public channels + private/dm channels the user is a member of.
-  // T#161 + 2026-05-09 narrowing: guests see only channels whose slug is
-  // in GUEST_VISIBLE_SLUGS (default ['general']).
   const allChannels = await db
     .select({ id: channels.id, slug: channels.slug, channelType: channels.channelType })
     .from(channels);
@@ -46,36 +33,22 @@ messageRoutes.get("/search", async (c) => {
     .filter((ch) => ch.channelType === "public")
     .map((ch) => ch.id);
 
-  const isGuest = c.get("role") === "guest";
+  const privateMemberships = await db
+    .select({ channelId: channelMembers.channelId })
+    .from(channelMembers)
+    .where(eq(channelMembers.userId, userId));
 
-  let accessibleChannelIds: string[];
-  if (isGuest) {
-    accessibleChannelIds = allChannels
-      .filter(
-        (ch) =>
-          ch.channelType === "public" &&
-          ch.slug !== null &&
-          GUEST_VISIBLE_SLUGS.has(ch.slug),
-      )
-      .map((ch) => ch.id);
-  } else {
-    const privateMemberships = await db
-      .select({ channelId: channelMembers.channelId })
-      .from(channelMembers)
-      .where(eq(channelMembers.userId, userId));
+  const privateMemberChannelIds = privateMemberships.map((m) => m.channelId);
 
-    const privateMemberChannelIds = privateMemberships.map((m) => m.channelId);
+  const privateAccessibleIds = allChannels
+    .filter(
+      (ch) =>
+        (ch.channelType === "private" || ch.channelType === "dm") &&
+        privateMemberChannelIds.includes(ch.id)
+    )
+    .map((ch) => ch.id);
 
-    const privateAccessibleIds = allChannels
-      .filter(
-        (ch) =>
-          (ch.channelType === "private" || ch.channelType === "dm") &&
-          privateMemberChannelIds.includes(ch.id)
-      )
-      .map((ch) => ch.id);
-
-    accessibleChannelIds = [...publicChannelIds, ...privateAccessibleIds];
-  }
+  const accessibleChannelIds = [...publicChannelIds, ...privateAccessibleIds];
 
   if (accessibleChannelIds.length === 0) {
     return c.json([]);
