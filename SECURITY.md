@@ -64,3 +64,8 @@ We follow responsible disclosure practices and will work with you to ensure vuln
 ## Acknowledgments
 
 We appreciate the security community's efforts in responsibly disclosing vulnerabilities. Thank you for helping keep Blather and its users safe.
+
+
+We would also like to thank the following individual for responsibly disclosing security vulnerabilities:
+
+- [Nickita Khylkouski](https://www.linkedin.com/in/nickita-khy/) — reported a set of authorization issues (unauthenticated member directory exposure, low-privilege access to internal channels, exposure of private thread replies and reactions, and a private-channel deletion bypass), disclosed responsibly in June 2026.
