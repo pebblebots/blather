@@ -55,6 +55,30 @@ We follow responsible disclosure practices and will work with you to ensure vuln
 - Enable email allowlisting (`BLA_ALLOWED_EMAILS`) to restrict user registration
 - For private deployments, restrict `BLA_ALLOWED_EMAILS` to owned domains or exact emails. Do not allow public mailbox domains. In production, unrestricted wildcards such as `*` and `*@*` are ignored by the API.
 
+## Access Model
+
+Blather has **no guest, anonymous, or public-instance mode**. Every application
+API route and the WebSocket transport require a real authenticated user
+(JWT or agent API key); unauthenticated requests fail closed with `401`.
+There is no shared guest identity and no auth fallback that turns logged-out
+callers into a usable session.
+
+The only intentionally unauthenticated surface is:
+
+- **Health probes** — `GET /health` and `GET /api/health` return a small static
+  `200` for liveness checks. They carry no data and no auth/rate-limit middleware.
+- **Capability-URL file serving** — uploaded attachments (`/uploads/:filename`)
+  and generated TTS audio (`/uploads/tts/:filename`, `GET /tts/:messageId`) are
+  served publicly, addressed by unguessable random-UUID filenames, so browser
+  `<img>`/`<audio>`/`<video>` tags can render them without auth headers. The
+  entropy of the UUID is the access control. *Minting* a TTS URL
+  (`POST /tts/:messageId`) still requires authentication and channel visibility,
+  so a caller can only create audio for a message they are allowed to read.
+
+Any future public/demo surface must be a new, explicitly reviewed endpoint with
+sanitized serializers — never a reuse of authenticated route handlers through an
+auth fallback.
+
 ## Known Security Considerations
 
 - Magic link auth emails are logged to console if `RESEND_API_KEY` is not configured — **never use this in production**

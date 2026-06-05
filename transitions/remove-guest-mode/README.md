@@ -177,3 +177,16 @@ While working:
   only set your own status); cross-user visibility is the intended presence
   surface, left as-is. Suite green: types 7, cli 23, web 264, api 331 = 625,
   0 failures.
+- 2026-06-04: Phase 3 confirmation pass + Phase 4 cleanup. Verified `/metrics`,
+  `/deals`, `/tasks`, `/incidents` all require auth (global `authMiddleware`)
+  with 401 regression coverage in `guest-mode.test.ts` — transition goal met.
+  Decided NOT to add role-gating to `/metrics`/`/deals`: they're agent/API
+  surfaces (not used by web) and first-class AI agents authenticate as role
+  `member`, so owner/admin gating would break them; fine-grained business-data
+  authz is parked as a separate product decision. Phase 4: the stale-guest-
+  reference sweep is CLEAN (only the intentional `App.test.tsx` comment and the
+  `guest-mode.test.ts` suite remain); added an affirmative "Access Model"
+  section to `SECURITY.md` documenting auth-everywhere + the intentional public
+  surface (health probes, capability-URL file serving); no `lint` script exists
+  (typecheck is via `pnpm build`). Also surfaced (out of scope) three orphaned,
+  non-guest backup files tracked in git — see Parking Lot.
