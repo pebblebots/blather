@@ -5,4 +5,4 @@
 --     should fire WS events to agents but NOT show up in the channel UI.
 --
 -- Generic schema so future system-message kinds don't need their own column.
-ALTER TABLE messages ADD COLUMN meta JSONB;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS meta JSONB;

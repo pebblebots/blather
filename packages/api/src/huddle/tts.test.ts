@@ -10,12 +10,12 @@ import { describe, it, expect } from "vitest";
 import { HUDDLE_TTS_SPEED } from "./tts.js";
 
 describe("HUDDLE_TTS_SPEED", () => {
-  it("is 1.2 — the max allowed by our ElevenLabs tier", () => {
-    // Our account tier (Agents Platform) caps `speed` at [0.7, 1.2].
-    // 1.25 and 1.3 were tested and both returned
-    // 400 invalid_voice_settings. If ElevenLabs expands the cap upstream,
-    // bump this value AND update the comment in tts.ts.
-    expect(HUDDLE_TTS_SPEED).toBe(1.2);
+  it("is 1.1 — the tuned huddle playback speed", () => {
+    // Dropped from 1.2 to 1.1 in #35 for a gentler speedup. Our account tier
+    // (Agents Platform) caps `speed` at [0.7, 1.2]; 1.25 and 1.3 were tested
+    // and both returned 400 invalid_voice_settings. If this value changes,
+    // update the comment in tts.ts to match.
+    expect(HUDDLE_TTS_SPEED).toBe(1.1);
   });
 
   it("stays within the Agents Platform allowed range", () => {
