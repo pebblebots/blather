@@ -103,3 +103,10 @@ it current as work proceeds.
   review, not as an auth fallback.
 - [ ] Resolve current API build/typecheck blockers so transition iterations can
   rely on `pnpm --filter @blather/api build` as a clean verification step.
+  Partially understood (2026-06-04): the local `better-sqlite3` failure is a
+  native-build issue on the host Node 24 (CI uses Node 22 with prebuilds, so it
+  is unaffected). To run the API suite locally, use a CI-equivalent container:
+  `postgres:16` + `node:22-bookworm` with `DATABASE_URL` pointing at the pg
+  container, then `pnpm install && pnpm build && db migrate && pnpm test`.
+  Note: vite's web build shells out to `git rev-parse` so the copy needs a
+  `.git`. The separate CI `meta`-column failures are now fixed (journal 0016).
