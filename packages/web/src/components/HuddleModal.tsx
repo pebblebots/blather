@@ -115,7 +115,7 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
 
   // Fetch huddle details + message history on mount
   useEffect(() => {
-    api.getHuddle(huddleId)
+    const loadDetails = () => api.getHuddle(huddleId)
       .then(data => {
         if (data.participants) setParticipants(data.participants);
         if (data.startedAt) startTime.current = new Date(data.startedAt).getTime();
@@ -148,8 +148,10 @@ export function HuddleModal({ huddleId, topic, createdBy, currentUserId, usersMa
       })
       .catch(() => {});
 
-    // Join as listener
-    api.joinHuddle(huddleId).catch(() => {});
+    // Join as listener FIRST, then load membership-gated details + message
+    // history. The huddle detail and channel-message endpoints now require
+    // membership, so fetching them before the join completes would 403.
+    api.joinHuddle(huddleId).catch(() => {}).finally(loadDetails);
 
     // Cleanup on unmount
     return () => killAudio();

@@ -181,6 +181,43 @@ describe('huddle routes', () => {
     expect(res.status).toBe(404);
   });
 
+  it('GET /huddles/:id returns 403 for a non-member', async () => {
+    const { human, agent1 } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'outsider@example.com', displayName: 'Outsider', isAgent: false });
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { topic: 'Members only', agentIds: [agent1.id] },
+    });
+
+    const res = await harness.request.get(`/huddles/${createRes.body.id}`, {
+      headers: harness.headers.forUser(outsider.id),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /huddles/:id returns 200 once the caller has joined', async () => {
+    const { human, agent1 } = await createFixture();
+    const joiner = await harness.factories.createUser({ email: 'late@example.com', displayName: 'Late', isAgent: false });
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { topic: 'Join then read', agentIds: [agent1.id] },
+    });
+
+    await harness.request.post(`/huddles/${createRes.body.id}/join`, {
+      headers: harness.headers.forUser(joiner.id),
+    });
+
+    const res = await harness.request.get<any>(`/huddles/${createRes.body.id}`, {
+      headers: harness.headers.forUser(joiner.id),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.topic).toBe('Join then read');
+  });
+
   // ── Join huddle ──
 
   it('POST /huddles/:id/join adds a new listener', async () => {
@@ -260,6 +297,45 @@ describe('huddle routes', () => {
     });
 
     expect(res.status).toBe(404);
+  });
+
+  it('POST /huddles/:id/speak returns 403 for a non-member', async () => {
+    const { human, agent1 } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'intruder@example.com', displayName: 'Intruder', isAgent: false });
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { topic: 'No outsiders', agentIds: [agent1.id] },
+    });
+
+    const res = await harness.request.post(`/huddles/${createRes.body.id}/speak`, {
+      headers: harness.headers.forUser(outsider.id),
+      json: { content: 'I should not be able to post here' },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /huddles/:id/speak succeeds after the caller joins', async () => {
+    const { human, agent1 } = await createFixture();
+    const joiner = await harness.factories.createUser({ email: 'speaker@example.com', displayName: 'Speaker', isAgent: false });
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { topic: 'Join then speak', agentIds: [agent1.id] },
+    });
+
+    await harness.request.post(`/huddles/${createRes.body.id}/join`, {
+      headers: harness.headers.forUser(joiner.id),
+    });
+
+    const res = await harness.request.post<any>(`/huddles/${createRes.body.id}/speak`, {
+      headers: harness.headers.forUser(joiner.id),
+      json: { content: 'Now I can speak' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
   });
 
   // ── End huddle ──

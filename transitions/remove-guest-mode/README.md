@@ -156,3 +156,14 @@ While working:
   huddle's private channel without checking the caller joined. Deferred: the
   right fix depends on whether open-join is the intended design (huddles use a
   private channel but `POST /:id/join` is open to any authenticated user).
+- 2026-06-04: RESOLVED the above. User chose member-gating. `GET /huddles/:id`
+  and `POST /huddles/:id/speak` now require channel membership; the speak gap
+  (anyone could inject messages into a huddle's private channel) is closed.
+  `GET /huddles` stays open for sidebar discovery — huddle message CONTENT was
+  already protected by the `GET /channels/:id/messages` membership check, so the
+  list only reveals topics/status. Frontend `HuddleModal` now joins before
+  loading the gated detail/history (also fixes a pre-existing silent race).
+  Also: user confirmed unguessable-UUID capability URLs are sufficient entropy
+  for public `/uploads` file serving — accepted as-is, no change. Full suite
+  green in the CI-equivalent container: types 7, cli 23, web 264, api 329 =
+  623, 0 failures.

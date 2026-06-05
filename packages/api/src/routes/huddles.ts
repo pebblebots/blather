@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { huddles, huddleParticipants, users, channels, channelMembers } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { requireChannelMembership } from "../middleware/channelAccess.js";
 import { startOrchestrator, endHuddle } from "../huddle/orchestrator.js";
 import { generateTTS } from "../huddle/tts.js";
 import { publishEvent } from "../ws/manager.js";
@@ -115,10 +116,17 @@ huddleRoutes.get("/", async (c) => {
 // GET /huddles/:id
 huddleRoutes.get("/:id", async (c) => {
   const db = c.get("db");
+  const userId = c.get("userId");
   const huddleId = c.req.param("id");
 
   const [huddle] = await db.select().from(huddles).where(eq(huddles.id, huddleId)).limit(1);
   if (!huddle) return c.json({ error: "Huddle not found" }, 404);
+
+  // Huddle details (participant list, channel) are member-only. Discovery of
+  // active huddles happens via GET /huddles; joining grants membership.
+  if (!(await requireChannelMembership(db, userId, huddle.channelId))) {
+    return c.json({ error: "Not a member of this huddle" }, 403);
+  }
 
   const participants = await db.select({
     userId: huddleParticipants.userId,
@@ -175,6 +183,12 @@ huddleRoutes.post("/:id/speak", async (c) => {
 
   const [huddle] = await db.select().from(huddles).where(eq(huddles.id, huddleId)).limit(1);
   if (!huddle) return c.json({ error: "Huddle not found" }, 404);
+
+  // Posting into the huddle's private channel requires membership — join first.
+  if (!(await requireChannelMembership(db, userId, huddle.channelId))) {
+    return c.json({ error: "Not a member of this huddle" }, 403);
+  }
+
   if (huddle.status !== "active") return c.json({ error: "Huddle is not active" }, 400);
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);

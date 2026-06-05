@@ -72,13 +72,17 @@ it current as work proceeds.
   activity unless explicitly authorized.
 - [ ] `/status` and `/channels/presence`: require real auth and consider
   visibility filtering even among authenticated users.
-- [ ] `/huddles`: require real auth and add channel membership checks. Auth is
-  required (global `authMiddleware`), but AUTHORIZATION gaps remain (found
-  2026-06-04): `GET /huddles` lists every huddle and `GET /huddles/:id` returns
-  any huddle's topic/channel/participants regardless of membership; and
-  `POST /huddles/:id/speak` posts into the huddle's private channel WITHOUT
-  verifying the caller is a participant/member. These hinge on whether
-  open-join is intended — needs a product-intent decision before fixing.
+- [x] `/huddles`: require real auth and add channel membership checks. DONE
+  (2026-06-04, user chose member-gating): `GET /huddles/:id` and
+  `POST /huddles/:id/speak` now require channel membership (403 otherwise);
+  `POST /:id/speak` no longer lets non-members inject messages into a huddle's
+  private channel. The frontend `HuddleModal` was reordered to join FIRST, then
+  load the now-gated detail + message history (also fixes a pre-existing silent
+  race on the channel-messages fetch). `GET /huddles` (list) is intentionally
+  LEFT OPEN as the discovery surface for the sidebar — huddle conversation
+  CONTENT is already protected by the existing `GET /channels/:id/messages`
+  membership check, so the list only exposes topics/status (intended). Tests:
+  non-member 403 + post-join 200 for both detail and speak.
 - [x] `/tts`: require real auth and add channel/message visibility checks before
   generation or cache access. DONE (2026-06-04): `POST /tts/:messageId` now
   fetches the message and checks `canViewChannel` (public, or member of
@@ -86,13 +90,13 @@ it current as work proceeds.
   users from minting a TTS capability URL for messages they can't see. The GET
   serving paths (`/tts/:messageId`, `/uploads/tts/:filename`) remain public by
   design — see `/uploads` capability-URL note below.
-- [ ] `/uploads`: require real auth for uploads and review whether public file
-  serving is still acceptable. Uploads POST already requires auth. File SERVING
-  (`/uploads/:filename`, `/uploads/tts/:filename`) is intentionally public via
-  unguessable-UUID capability URLs so `<img>`/`<audio>`/`<video>` render
-  without auth headers. Locking this down means signed URLs or cookie auth — a
-  threat-model/architecture decision, not a small change. Flag for explicit
-  review; do not half-fix one serving path and leave the parallel one open.
+- [x] `/uploads`: require real auth for uploads and review whether public file
+  serving is still acceptable. DECISION (2026-06-04): user confirmed the
+  unguessable-UUID capability URL provides sufficient entropy — public file
+  serving (`/uploads/:filename`, `/uploads/tts/:filename`) is ACCEPTED as-is so
+  `<img>`/`<audio>`/`<video>` render without auth headers. Uploads POST already
+  requires auth. No change. (Note: `POST /tts/:messageId` is now gated so only
+  someone who can see a message can MINT its capability URL in the first place.)
 - [ ] `/auth/api-keys`: explicitly require a real authenticated user.
 - [x] `/channels/:id/members`: avoid returning email unless the caller has a
   legitimate authenticated need for it. DECISION (2026-06-04): user accepted
