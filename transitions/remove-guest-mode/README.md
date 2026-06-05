@@ -167,3 +167,13 @@ While working:
   for public `/uploads` file serving — accepted as-is, no change. Full suite
   green in the CI-equivalent container: types 7, cli 23, web 264, api 329 =
   623, 0 failures.
+- 2026-06-04: Hardened `/activity` (spoofing) and audited the remaining cheap
+  Phase 3 routes. `POST /activity` was inserting the client-supplied
+  `agentUserId` verbatim while ignoring the authenticated caller — any authed
+  user could forge activity for any agent. Now attributed to the authenticated
+  `userId`; a mismatched `agentUserId` is rejected 403. Verified `/auth/api-keys`
+  already attributes keys to the authenticated user (no change). Reviewed
+  `/status` + `/channels/presence`: auth-required, no spoofing path (you can
+  only set your own status); cross-user visibility is the intended presence
+  surface, left as-is. Suite green: types 7, cli 23, web 264, api 331 = 625,
+  0 failures.

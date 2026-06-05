@@ -101,6 +101,40 @@ describe('activity routes', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST /activity rejects logging activity for another user (spoofing)', async () => {
+    const { agent } = await createFixture();
+    const victim = await harness.factories.createUser({ email: 'victim@system.blather', displayName: 'Victim', isAgent: true });
+
+    const res = await logActivity(agent.id, {
+      agentUserId: victim.id,
+      action: 'message_sent',
+    });
+
+    expect(res.status).toBe(403);
+
+    // Nothing should have been logged under the victim's id.
+    const victimActivity = await harness.request.get<any[]>('/activity', {
+      headers: harness.headers.forUser(agent.id),
+      query: { agentId: victim.id, since: LONG_AGO },
+    });
+    expect(victimActivity.body).toHaveLength(0);
+  });
+
+  it('POST /activity attributes the entry to the authenticated caller', async () => {
+    const { agent } = await createFixture();
+
+    // No agentUserId supplied — should attribute to the caller.
+    const res = await logActivity(agent.id, { action: 'search_performed' });
+    expect(res.status).toBe(201);
+
+    const mine = await harness.request.get<any[]>('/activity', {
+      headers: harness.headers.forUser(agent.id),
+      query: { agentId: agent.id, since: LONG_AGO },
+    });
+    expect(mine.body).toHaveLength(1);
+    expect(mine.body![0].agent_user_id).toBe(agent.id);
+  });
+
   // -- Query activity --
 
   it('GET /activity returns 400 without agentId', async () => {

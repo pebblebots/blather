@@ -126,15 +126,22 @@ activityRoutes.post("/", async (c) => {
     metadata?: ActivityMetadata;
   }>();
   const { agentUserId, sessionKey, action, targetChannelId, targetMessageId, metadata } = body;
-  if (!agentUserId || !action) {
-    return c.json({ error: "agentUserId and action are required" }, 400);
+  if (!action) {
+    return c.json({ error: "action is required" }, 400);
+  }
+
+  // Activity is always attributed to the authenticated caller. A client that
+  // supplies agentUserId for another user is attempting to spoof activity —
+  // reject it rather than silently mislabel the entry.
+  if (agentUserId && agentUserId !== userId) {
+    return c.json({ error: "Cannot log activity on behalf of another user" }, 403);
   }
 
   const [row] = await db
     .insert(agentActivityLog)
     .values(
       activityInsertValues({
-        userId: agentUserId,
+        userId,
         sessionKey,
         action,
         targetChannelId,

@@ -68,10 +68,24 @@ it current as work proceeds.
 - [ ] `/deals`: require real auth and preserve internal-only handling.
 - [ ] `/tasks`: require real auth for reads, writes, comments, and deletes.
 - [ ] `/incidents`: require real auth for reads and mutations.
-- [ ] `/activity`: require real auth and prevent spoofing arbitrary agent
-  activity unless explicitly authorized.
-- [ ] `/status` and `/channels/presence`: require real auth and consider
-  visibility filtering even among authenticated users.
+- [x] `/activity`: require real auth and prevent spoofing arbitrary agent
+  activity unless explicitly authorized. DONE (2026-06-04): `POST /activity`
+  ignored the authenticated caller and inserted the client-supplied
+  `agentUserId` verbatim, so any authed caller could log activity attributed to
+  any other agent. Now entries are attributed to the authenticated `userId`;
+  a supplied `agentUserId` that differs from the caller is rejected 403.
+  Tests: spoof attempt 403 (and nothing logged under the victim) + attribution
+  to caller when agentUserId omitted.
+- [x] `/status` and `/channels/presence`: require real auth and consider
+  visibility filtering even among authenticated users. REVIEWED (2026-06-04):
+  both require auth (`statusRoutes`/`channelRoutes` use `authMiddleware`).
+  `PUT /status` sets only the caller's own status (`userId` from context).
+  `GET /status` and `GET /channels/presence` return all agent statuses /
+  connected-user presence to any authenticated user — this is the intended
+  cross-workspace transparency/presence surface, consistent with the accepted
+  member-visibility decision. No spoofing path (you can't set another user's
+  status). Left as intended; revisit only if per-channel presence scoping is
+  later required.
 - [x] `/huddles`: require real auth and add channel membership checks. DONE
   (2026-06-04, user chose member-gating): `GET /huddles/:id` and
   `POST /huddles/:id/speak` now require channel membership (403 otherwise);
@@ -97,7 +111,10 @@ it current as work proceeds.
   `<img>`/`<audio>`/`<video>` render without auth headers. Uploads POST already
   requires auth. No change. (Note: `POST /tts/:messageId` is now gated so only
   someone who can see a message can MINT its capability URL in the first place.)
-- [ ] `/auth/api-keys`: explicitly require a real authenticated user.
+- [x] `/auth/api-keys`: explicitly require a real authenticated user. VERIFIED
+  (2026-06-04): `POST /auth/api-keys` already mounts `authMiddleware` and
+  attributes the new key to the authenticated `userId` (the only
+  client-controlled field is `name`). No change needed.
 - [x] `/channels/:id/members`: avoid returning email unless the caller has a
   legitimate authenticated need for it. DECISION (2026-06-04): user accepted
   authenticated-member email visibility as legitimate (coworker tool). The
