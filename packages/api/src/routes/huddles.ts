@@ -122,8 +122,10 @@ huddleRoutes.get("/:id", async (c) => {
   const [huddle] = await db.select().from(huddles).where(eq(huddles.id, huddleId)).limit(1);
   if (!huddle) return c.json({ error: "Huddle not found" }, 404);
 
-  // Huddle details (participant list, channel) are member-only. Discovery of
-  // active huddles happens via GET /huddles; joining grants membership.
+  // Huddle details (participant list, channel) are member-only. Huddles are
+  // invite-only: a user is added to the huddle channel (at creation or via
+  // channel invite), then joins the huddle. Discovery of active huddles
+  // happens via GET /huddles.
   if (!(await requireChannelMembership(db, userId, huddle.channelId))) {
     return c.json({ error: "Not a member of this huddle" }, 403);
   }
@@ -153,16 +155,24 @@ huddleRoutes.post("/:id/join", async (c) => {
   if (!huddle) return c.json({ error: "Huddle not found" }, 404);
   if (huddle.status !== "active") return c.json({ error: "Huddle is not active" }, 400);
 
+  // Huddles are invite-only: the caller must already be a member of the
+  // huddle's private channel (added at creation, or invited via
+  // POST /channels/:id/members). Join must NOT itself grant channel
+  // membership — inserting here would let any authenticated user add
+  // themselves to a private channel and read it via the channels API.
+  if (!(await requireChannelMembership(db, userId, huddle.channelId))) {
+    return c.json({ error: "Not a member of this huddle" }, 403);
+  }
+
   // Check already a participant
   const [existing] = await db.select().from(huddleParticipants)
     .where(and(eq(huddleParticipants.huddleId, huddleId), eq(huddleParticipants.userId, userId)))
     .limit(1);
   if (existing) return c.json({ error: "Already a participant" }, 409);
 
-  // Add as listener
+  // Add as listener. The caller is already a channel member (checked above),
+  // so no channel_members write is needed.
   await db.insert(huddleParticipants).values({ huddleId, userId, role: "listener" });
-  // Ignore duplicate-key error if already a channel member
-  await db.insert(channelMembers).values({ channelId: huddle.channelId, userId }).onConflictDoNothing();
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 

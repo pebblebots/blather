@@ -197,13 +197,19 @@ describe('huddle routes', () => {
     expect(res.status).toBe(403);
   });
 
-  it('GET /huddles/:id returns 200 once the caller has joined', async () => {
+  it('GET /huddles/:id returns 200 once the caller has been invited and joined', async () => {
     const { human, agent1 } = await createFixture();
     const joiner = await harness.factories.createUser({ email: 'late@example.com', displayName: 'Late', isAgent: false });
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
       json: { topic: 'Join then read', agentIds: [agent1.id] },
+    });
+
+    // Invite-only: creator adds the joiner to the huddle channel first.
+    await harness.request.post(`/channels/${createRes.body.channel.id}/members`, {
+      headers: harness.headers.forUser(human.id),
+      json: { userId: joiner.id },
     });
 
     await harness.request.post(`/huddles/${createRes.body.id}/join`, {
@@ -220,13 +226,19 @@ describe('huddle routes', () => {
 
   // ── Join huddle ──
 
-  it('POST /huddles/:id/join adds a new listener', async () => {
+  it('POST /huddles/:id/join adds an invited member as a listener', async () => {
     const { human, agent1 } = await createFixture();
     const joiner = await harness.factories.createUser({ email: 'joiner@example.com', displayName: 'Joiner', isAgent: false });
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
       json: { topic: 'Join test', agentIds: [agent1.id] },
+    });
+
+    // Invite-only: creator adds the joiner to the huddle channel first.
+    await harness.request.post(`/channels/${createRes.body.channel.id}/members`, {
+      headers: harness.headers.forUser(human.id),
+      json: { userId: joiner.id },
     });
 
     const res = await harness.request.post(`/huddles/${createRes.body.id}/join`, {
@@ -240,6 +252,36 @@ describe('huddle routes', () => {
       headers: harness.headers.forUser(human.id),
     });
     expect(detailRes.body.participants).toHaveLength(3);
+  });
+
+  it('POST /huddles/:id/join rejects a non-member and does not grant channel access', async () => {
+    const { human, agent1 } = await createFixture();
+    const outsider = await harness.factories.createUser({ email: 'gatecrasher@example.com', displayName: 'Gatecrasher', isAgent: false });
+
+    const createRes = await harness.request.post<any>('/huddles', {
+      headers: harness.headers.forUser(human.id),
+      json: { topic: 'Invite only', agentIds: [agent1.id] },
+    });
+    const channelId = createRes.body.channel.id;
+
+    // Un-invited outsider cannot join.
+    const joinRes = await harness.request.post<{ error: string }>(`/huddles/${createRes.body.id}/join`, {
+      headers: harness.headers.forUser(outsider.id),
+    });
+    expect(joinRes.status).toBe(403);
+
+    // Join must not have self-granted channel membership: the outsider still
+    // cannot read the huddle's private channel.
+    const readRes = await harness.request.get<{ error: string }>(`/channels/${channelId}/messages`, {
+      headers: harness.headers.forUser(outsider.id),
+    });
+    expect(readRes.status).toBe(403);
+
+    // And they are not a participant.
+    const detailRes = await harness.request.get<any>(`/huddles/${createRes.body.id}`, {
+      headers: harness.headers.forUser(human.id),
+    });
+    expect(detailRes.body.participants).toHaveLength(2);
   });
 
   it('POST /huddles/:id/join returns 404 for nonexistent huddle', async () => {
@@ -316,13 +358,19 @@ describe('huddle routes', () => {
     expect(res.status).toBe(403);
   });
 
-  it('POST /huddles/:id/speak succeeds after the caller joins', async () => {
+  it('POST /huddles/:id/speak succeeds after the caller is invited and joins', async () => {
     const { human, agent1 } = await createFixture();
     const joiner = await harness.factories.createUser({ email: 'speaker@example.com', displayName: 'Speaker', isAgent: false });
 
     const createRes = await harness.request.post<any>('/huddles', {
       headers: harness.headers.forUser(human.id),
       json: { topic: 'Join then speak', agentIds: [agent1.id] },
+    });
+
+    // Invite-only: creator adds the joiner to the huddle channel first.
+    await harness.request.post(`/channels/${createRes.body.channel.id}/members`, {
+      headers: harness.headers.forUser(human.id),
+      json: { userId: joiner.id },
     });
 
     await harness.request.post(`/huddles/${createRes.body.id}/join`, {
