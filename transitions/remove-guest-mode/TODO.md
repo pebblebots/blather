@@ -72,14 +72,34 @@ it current as work proceeds.
   activity unless explicitly authorized.
 - [ ] `/status` and `/channels/presence`: require real auth and consider
   visibility filtering even among authenticated users.
-- [ ] `/huddles`: require real auth and add channel membership checks.
-- [ ] `/tts`: require real auth and add channel/message visibility checks before
-  generation or cache access.
+- [ ] `/huddles`: require real auth and add channel membership checks. Auth is
+  required (global `authMiddleware`), but AUTHORIZATION gaps remain (found
+  2026-06-04): `GET /huddles` lists every huddle and `GET /huddles/:id` returns
+  any huddle's topic/channel/participants regardless of membership; and
+  `POST /huddles/:id/speak` posts into the huddle's private channel WITHOUT
+  verifying the caller is a participant/member. These hinge on whether
+  open-join is intended — needs a product-intent decision before fixing.
+- [x] `/tts`: require real auth and add channel/message visibility checks before
+  generation or cache access. DONE (2026-06-04): `POST /tts/:messageId` now
+  fetches the message and checks `canViewChannel` (public, or member of
+  private/DM) BEFORE the cache short-circuit or any OpenAI call. Stops authed
+  users from minting a TTS capability URL for messages they can't see. The GET
+  serving paths (`/tts/:messageId`, `/uploads/tts/:filename`) remain public by
+  design — see `/uploads` capability-URL note below.
 - [ ] `/uploads`: require real auth for uploads and review whether public file
-  serving is still acceptable.
+  serving is still acceptable. Uploads POST already requires auth. File SERVING
+  (`/uploads/:filename`, `/uploads/tts/:filename`) is intentionally public via
+  unguessable-UUID capability URLs so `<img>`/`<audio>`/`<video>` render
+  without auth headers. Locking this down means signed URLs or cookie auth — a
+  threat-model/architecture decision, not a small change. Flag for explicit
+  review; do not half-fix one serving path and leave the parallel one open.
 - [ ] `/auth/api-keys`: explicitly require a real authenticated user.
-- [ ] `/channels/:id/members`: avoid returning email unless the caller has a
-  legitimate authenticated need for it.
+- [x] `/channels/:id/members`: avoid returning email unless the caller has a
+  legitimate authenticated need for it. DECISION (2026-06-04): user accepted
+  authenticated-member email visibility as legitimate (coworker tool). The
+  frontend legitimately uses member emails for display-name disambiguation
+  (`chatUtils.ts`) and TaskPanel tooltips. Acute leak is closed (no guest/
+  unauth path reaches these). Treated as the intentional surface; no change.
 
 ## Phase 4: Cleanup
 

@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
-import { messages, users } from "@blather/db";
+import { messages, users, channels } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { requireChannelMembership } from "../middleware/channelAccess.js";
 import { existsSync, mkdirSync, createReadStream, statSync } from "fs";
 import { writeFile } from "fs/promises";
 import { join } from "path";
@@ -14,19 +15,43 @@ if (!existsSync(TTS_DIR)) mkdirSync(TTS_DIR, { recursive: true });
 
 export const ttsRoutes = new Hono<Env>();
 
+// Can the caller view the channel a message lives in? Public channels are
+// readable by any authenticated user; private/DM channels require membership.
+async function canViewChannel(db: any, userId: string, channelId: string | null): Promise<boolean> {
+  if (!channelId) return false;
+  const [channel] = await db
+    .select({ channelType: channels.channelType })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+  if (!channel) return false;
+  if (channel.channelType === "private" || channel.channelType === "dm") {
+    return requireChannelMembership(db, userId, channelId);
+  }
+  return true;
+}
+
 ttsRoutes.post("/:messageId", authMiddleware, async (c) => {
   const { messageId } = c.req.param();
   const db = c.get("db");
+  const userId = c.get("userId");
 
-  // Check cache
+  // Fetch the message and authorize visibility BEFORE doing any work or
+  // returning a cached URL. Without this, any authenticated user could mint a
+  // TTS capability URL (and trigger an OpenAI call) for a message in a private
+  // channel or DM they are not a member of.
+  const [msg] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
+  if (!msg) return c.json({ error: "Message not found" }, 404);
+
+  if (!(await canViewChannel(db, userId, msg.channelId))) {
+    return c.json({ error: "Not a member of this channel" }, 403);
+  }
+
+  // Check cache (after authorization)
   const outPath = join(TTS_DIR, `${messageId}.mp3`);
   if (existsSync(outPath)) {
     return c.json({ audioUrl: `/uploads/tts/${messageId}.mp3` });
   }
-
-  // Fetch message
-  const [msg] = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
-  if (!msg) return c.json({ error: "Message not found" }, 404);
 
   // Get author voice
   let voice = 'echo';

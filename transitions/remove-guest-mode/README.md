@@ -132,3 +132,27 @@ While working:
   the four guest-behavior tests in `App.test.tsx` into negative-auth tests.
   Full web suite passes (264/264) and `tsc --noEmit` is clean. The
   `guest:shared` string now exists nowhere in `packages/web/src`.
+- 2026-06-04: Started Phase 3 (route hardening), focused on email exposure and
+  TTS. DECISION (user): authenticated-member email visibility is legitimate —
+  the frontend needs member emails for display-name disambiguation and TaskPanel
+  tooltips, and no guest/unauth path reaches those endpoints anymore. So
+  `/members`, `/channels/:id/members`, and the `member.joined` WS event keep
+  email; this is the accepted intentional surface. Hardened `/tts`:
+  `POST /tts/:messageId` now authorizes channel visibility (public, or member of
+  private/DM) BEFORE the cache short-circuit or any OpenAI call, so an authed
+  user can't mint a TTS capability URL for a message they can't see. Added 403
+  non-member + private-member-cache tests. Full suite green in the CI-equivalent
+  container (types 7, cli 23, web 264, api 325 = 619, 0 failures).
+- 2026-06-04: SECURITY GOTCHA for future agents — file serving under `/uploads`
+  (attachments and `/uploads/tts/*.mp3`) is intentionally PUBLIC via
+  unguessable-UUID capability URLs so browser media tags render without auth
+  headers. The duplicate `GET /tts/:messageId` serving path is likewise public
+  (tests assert this). Do NOT bolt auth onto one serving path in isolation —
+  it gives false assurance while the parallel path stays open. Properly closing
+  this needs signed URLs or cookie auth, which is a threat-model decision.
+- 2026-06-04: NEW FINDING — `/huddles` has authorization gaps independent of
+  guest mode: `GET /huddles` and `GET /huddles/:id` expose any huddle
+  regardless of membership, and `POST /huddles/:id/speak` writes into a
+  huddle's private channel without checking the caller joined. Deferred: the
+  right fix depends on whether open-join is the intended design (huddles use a
+  private channel but `POST /:id/join` is open to any authenticated user).

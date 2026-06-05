@@ -96,6 +96,38 @@ describe('tts routes', () => {
     expect(res.body).toMatchObject({ error: 'Message not found' });
   });
 
+  it('returns 403 when the caller cannot see the message channel', async () => {
+    // A message in a private channel the caller is not a member of must not be
+    // synthesizable — otherwise any authenticated user could mint a TTS
+    // capability URL for private content.
+    const author = await harness.factories.createUser({ email: 'author@test.com', displayName: 'Author' });
+    const privateChannel = await harness.factories.createChannel({ name: 'secret', channelType: 'private', createdBy: author.id });
+    const msg = await harness.factories.createMessage({ channelId: privateChannel.id, userId: author.id, content: 'secret stuff' });
+
+    const outsider = await harness.factories.createUser({ email: 'outsider@test.com', displayName: 'Outsider' });
+    const res = await harness.request.post(`/tts/${msg.id}`, {
+      headers: harness.headers.forUser(outsider.id),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('allows a private-channel member to generate (cache hit)', async () => {
+    const { existsSync } = await import('fs');
+    vi.mocked(existsSync).mockImplementation((p: any) => String(p).endsWith('.mp3'));
+
+    const author = await harness.factories.createUser({ email: 'member@test.com', displayName: 'Member' });
+    const privateChannel = await harness.factories.createChannel({ name: 'secret2', channelType: 'private', createdBy: author.id });
+    const msg = await harness.factories.createMessage({ channelId: privateChannel.id, userId: author.id, content: 'members only' });
+
+    const res = await harness.request.post<any>(`/tts/${msg.id}`, {
+      headers: harness.headers.forUser(author.id),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.audioUrl).toBe(`/uploads/tts/${msg.id}.mp3`);
+  });
+
   it('returns 400 for empty message content', async () => {
     const fixture = await createFixture();
     const msg = await createMessage(fixture, '   ');
