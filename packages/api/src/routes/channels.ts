@@ -1053,11 +1053,15 @@ channelRoutes.patch('/:id/mute', async (c) => {
   const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
-  await db.insert(channelMembers).values({ channelId, userId, muted: true })
-    .onConflictDoNothing();
-  await db.update(channelMembers)
+  // Mute is a member-only preference. It must NOT create membership: inserting
+  // here would let any authenticated caller add themselves to channel_members —
+  // the universal ACL — and thereby read any private/DM channel. Require an
+  // existing membership row and UPDATE only.
+  const updated = await db.update(channelMembers)
     .set({ muted: true })
-    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)));
+    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+    .returning({ userId: channelMembers.userId });
+  if (updated.length === 0) return c.json({ error: 'Not a member of this channel' }, 403);
 
   return c.json({ ok: true, muted: true });
 });
@@ -1069,9 +1073,11 @@ channelRoutes.patch('/:id/unmute', async (c) => {
   const channelId = await resolveChannel(db, c.req.param('id'));
   if (!channelId) return c.json({ error: 'Channel not found' }, 404);
 
-  await db.update(channelMembers)
+  const updated = await db.update(channelMembers)
     .set({ muted: false })
-    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)));
+    .where(and(eq(channelMembers.channelId, channelId), eq(channelMembers.userId, userId)))
+    .returning({ userId: channelMembers.userId });
+  if (updated.length === 0) return c.json({ error: 'Not a member of this channel' }, 403);
 
   return c.json({ ok: true, muted: false });
 });

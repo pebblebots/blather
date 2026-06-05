@@ -473,6 +473,57 @@ describe('channel routes', () => {
       expect(response.status).toBe(403);
     });
 
+    it('PATCH /:id/mute does not grant private-channel membership to a non-member', async () => {
+      const { owner } = await createFixture();
+      const outsider = await harness.factories.createUser({ email: 'mute-outsider@example.com', displayName: 'Outsider' });
+      const privateChannel = await harness.factories.createChannel({
+        name: 'mute-private',
+        slug: 'mute-private',
+        channelType: 'private',
+        createdBy: owner.id,
+      });
+      await harness.factories.createMessage({
+        channelId: privateChannel.id,
+        userId: owner.id,
+        content: 'private secret',
+      });
+
+      // Muting must NOT create a membership row (the bypass: insert-on-mute
+      // would make the outsider a member of the private channel).
+      const muteRes = await harness.request.patch<{ error: string }>(`/channels/${privateChannel.id}/mute`, {
+        headers: harness.headers.forUser(outsider.id),
+      });
+      expect(muteRes.status).toBe(403);
+
+      // No channel_members row should exist for the outsider.
+      const rows = await harness.db.select().from(channelMembers)
+        .where(and(eq(channelMembers.channelId, privateChannel.id), eq(channelMembers.userId, outsider.id)));
+      expect(rows).toHaveLength(0);
+
+      // And the outsider still cannot read the private channel.
+      const readRes = await harness.request.get<{ error: string }>(`/channels/${privateChannel.id}/messages`, {
+        headers: harness.headers.forUser(outsider.id),
+      });
+      expect(readRes.status).toBe(403);
+    });
+
+    it('PATCH /:id/mute and /unmute succeed for an actual member', async () => {
+      const { member, channel } = await createFixture();
+      await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
+
+      const muteRes = await harness.request.patch<{ muted: boolean }>(`/channels/${channel.id}/mute`, {
+        headers: harness.headers.forUser(member.id),
+      });
+      expect(muteRes.status).toBe(200);
+      expect(muteRes.body?.muted).toBe(true);
+
+      const unmuteRes = await harness.request.patch<{ muted: boolean }>(`/channels/${channel.id}/unmute`, {
+        headers: harness.headers.forUser(member.id),
+      });
+      expect(unmuteRes.status).toBe(200);
+      expect(unmuteRes.body?.muted).toBe(false);
+    });
+
     it('POST /channels/:id/messages allows members', async () => {
       const { member, channel } = await createFixture();
       await harness.db.insert(channelMembers).values({ channelId: channel.id, userId: member.id });
