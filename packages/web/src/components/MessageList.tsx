@@ -160,9 +160,10 @@ interface Props {
   onOpenThread?: (message: Msg) => void;
   highlightMessageId?: string | null;
   onToggleReaction?: (messageId: string, emoji: string, hasReacted: boolean) => void;
+  onPermalinkClick?: (channelId: string, messageId: string) => void;
 }
 
-export function MessageList({ messages, usersMap, displayNames, currentUserId, channelId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onToggleReaction }: Props) {
+export function MessageList({ messages, usersMap, displayNames, currentUserId, channelId, onLoadOlder, isLoadingOlder, hasMoreOlder, onEditMessage, onDeleteMessage, onOpenThread, highlightMessageId, onToggleReaction, onPermalinkClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef<number>(0);
   const isRestoringScroll = useRef(false);
@@ -362,7 +363,20 @@ export function MessageList({ messages, usersMap, displayNames, currentUserId, c
             onMouseEnter={() => setHoveredMsg(msg.id)}
             onMouseLeave={() => setHoveredMsg(null)}
           >
-            <span style={{ color: "#999999" }}>[{formatTimestamp(msg.createdAt)}]</span>
+            <a
+              href={channelId ? `/c/${channelId}/m/${msg.id}` : `#msg-${msg.id}`}
+              onClick={(e) => {
+                // Only intercept plain left-clicks; let ⌘/ctrl/middle-click open a new tab.
+                if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                if (!channelId || !onPermalinkClick) return;
+                e.preventDefault();
+                onPermalinkClick(channelId, msg.id);
+              }}
+              title="Copy link (right-click) or click to jump"
+              style={{ color: "#999999", textDecoration: "none" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "underline"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.textDecoration = "none"; }}
+            >[{formatTimestamp(msg.createdAt)}]</a>
             {" "}
             <span style={{ fontWeight: "bold", color: nickColor }}>&lt;{displayNames?.get(msg.userId) || user.displayName}&gt;</span>
             {" "}

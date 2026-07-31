@@ -64,6 +64,18 @@ export function MainPage() {
       if (next) localStorage.setItem('blather_last_channel', next);
       // Auto-close sidebar on mobile when channel is selected
       if (isMobile) setIsSidebarOpen(false);
+      // Reflect the current channel into the URL so the address bar
+      // matches what the user is viewing. We only push /c/<channelId>
+      // for plain channel selection; permalink jumps (/c/<ch>/m/<msg>)
+      // are handled by jumpToMessage below.
+      if (typeof window !== 'undefined' && next && next !== prev) {
+        const curr = window.location.pathname;
+        const desired = `/c/${next}`;
+        // Don't clobber a /c/<ch>/m/<msg> permalink for the same channel.
+        if (curr !== desired && !curr.startsWith(`${desired}/m/`)) {
+          try { window.history.pushState({}, '', desired); } catch {}
+        }
+      }
       return next;
     });
   };
@@ -80,6 +92,7 @@ export function MainPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const skipChannelLoadRef = useRef(false);
+  const initialPermalinkRef = useRef<{ channelId: string; messageId: string } | null>(null);
   const [activeHuddle, setActiveHuddle] = useState<any>(null);
   const [showNewHuddle, setShowNewHuddle] = useState(false);
   const [showHuddle, setShowHuddle] = useState(false);
@@ -99,10 +112,47 @@ export function MainPage() {
 
   // Mobile tab handlers
 
+  // Parse permalink from URL on mount (before channel list loads) or from
+  // sessionStorage (post-auth return). Priority: URL > sessionStorage > last-channel.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let path = window.location.pathname;
+    // If AuthPage stashed a return path, honor it once.
+    try {
+      const stashed = sessionStorage.getItem('blather_return_to');
+      if (stashed && path === '/') {
+        path = stashed;
+        sessionStorage.removeItem('blather_return_to');
+        window.history.replaceState({}, '', path);
+      }
+    } catch {}
+    // /c/<channelId>/m/<messageId>  or  /c/<channelId>
+    const m = path.match(/^\/c\/([^\/]+)(?:\/m\/([^\/?#]+))?/);
+    if (m) {
+      const chId = m[1];
+      const msgId = m[2];
+      if (msgId) {
+        initialPermalinkRef.current = { channelId: chId, messageId: msgId };
+      } else {
+        initialPermalinkRef.current = { channelId: chId, messageId: '' };
+      }
+    }
+  }, []);
+
   useEffect(() => {
     api.getChannels().then((chs) => {
       setChannels(chs);
       if (chs.length > 0) {
+        // Prefer the initial permalink if it targets a channel we can see.
+        const permalink = initialPermalinkRef.current;
+        if (permalink && chs.find((c: any) => c.id === permalink.channelId)) {
+          setSelectedCh(permalink.channelId);
+          if (permalink.messageId) {
+            // Defer message-jump until after the channel loads its messages.
+            // A follow-up effect below fires once selectedCh matches.
+          }
+          return;
+        }
         const saved = localStorage.getItem('blather_last_channel');
         const match = saved && chs.find((c: any) => c.id === saved);
         setSelectedCh(match ? saved : chs[0].id);
@@ -169,6 +219,53 @@ export function MainPage() {
     }).catch(() => {});
   }, [selectedCh]);
 
+  // Jump-to-message: switch channel (if needed), load a window of messages
+  // around the target, then flash-highlight for 4s. Reused by SearchPanel,
+  // ThreadPanel jumps, permalink clicks, and initial URL routing.
+  const jumpToMessage = useCallback((channelId: string, messageId: string) => {
+    // Update URL to the permalink form so back/forward works.
+    if (typeof window !== 'undefined') {
+      const desired = `/c/${channelId}/m/${messageId}`;
+      if (window.location.pathname !== desired) {
+        try { window.history.pushState({}, '', desired); } catch {}
+      }
+    }
+    api.getMessagesAround(channelId, messageId, 50).then((msgs) => {
+      const sorted = msgs;
+      setUsersMap((prev) => {
+        const next = new Map(prev);
+        let changed = false;
+        for (const m of msgs) {
+          if (m.user && !next.has(m.userId)) { next.set(m.userId, { displayName: m.user.displayName, isAgent: m.user.isAgent }); changed = true; }
+        }
+        return changed ? next : prev;
+      });
+      setMessages(sorted);
+      setHasMoreOlder(true);
+      skipChannelLoadRef.current = true;
+      setSelectedCh(channelId);
+      // Delay highlight until after React renders the new messages
+      setTimeout(() => {
+        setHighlightMessageId(messageId);
+        setTimeout(() => setHighlightMessageId(null), 4000);
+      }, 100);
+    }).catch(() => {
+      // Message not reachable (deleted, no access, etc). Fall back to just
+      // switching to the channel so the user isn't stranded.
+      setSelectedCh(channelId);
+    });
+  }, []);
+
+  // Fire the initial permalink jump once channels + messages have loaded.
+  useEffect(() => {
+    const permalink = initialPermalinkRef.current;
+    if (!permalink || !permalink.messageId) return;
+    if (selectedCh !== permalink.channelId) return;
+    // Consume the ref so we don't re-fire on later channel switches.
+    initialPermalinkRef.current = null;
+    jumpToMessage(permalink.channelId, permalink.messageId);
+  }, [selectedCh, jumpToMessage]);
+
   const loadOlderMessages = useCallback(async () => {
     if (!selectedCh || isLoadingOlder || !hasMoreOlder || messages.length === 0) return;
     setIsLoadingOlder(true);
@@ -221,6 +318,25 @@ export function MainPage() {
   // Use refs for values needed in WS callback to avoid reconnecting on every selection change
   const selectedChRef = useRef(selectedCh);
   selectedChRef.current = selectedCh;
+
+  // Back/forward navigation: sync selectedCh + highlight to the URL.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPop = () => {
+      const path = window.location.pathname;
+      const m = path.match(/^\/c\/([^\/]+)(?:\/m\/([^\/?#]+))?/);
+      if (!m) return;
+      const chId = m[1];
+      const msgId = m[2];
+      if (msgId) {
+        jumpToMessage(chId, msgId);
+      } else if (chId !== selectedChRef.current) {
+        setSelectedCh(chId);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [jumpToMessage]);
   const userRef = useRef(user);
   userRef.current = user;
 
@@ -646,6 +762,7 @@ export function MainPage() {
                 onOpenThread={handleOpenThread}
                 highlightMessageId={highlightMessageId}
                 onToggleReaction={handleToggleReaction}
+                onPermalinkClick={jumpToMessage}
               />
               <TypingIndicator
                 typingUsers={typingUsers}
@@ -1007,27 +1124,7 @@ export function MainPage() {
             onNavigate={(channelId, messageId) => {
               setShowTasks(false);
               setShowSearch(false);
-              api.getMessagesAround(channelId, messageId, 50).then((msgs) => {
-                const sorted = msgs;
-                setUsersMap((prev) => {
-                  const next = new Map(prev);
-                  let changed = false;
-                  for (const m of msgs) {
-                    if (m.user && !next.has(m.userId)) { next.set(m.userId, { displayName: m.user.displayName, isAgent: m.user.isAgent }); changed = true; }
-                  }
-                  return changed ? next : prev;
-                });
-                setMessages(sorted);
-                setHasMoreOlder(true);
-                skipChannelLoadRef.current = true;
-                setSelectedCh(channelId);
-                setTimeout(() => {
-                  setHighlightMessageId(messageId);
-                  setTimeout(() => setHighlightMessageId(null), 4000);
-                }, 100);
-              }).catch(() => {
-                setSelectedCh(channelId);
-              });
+              jumpToMessage(channelId, messageId);
             }}
           />
         )}
@@ -1296,7 +1393,7 @@ export function MainPage() {
               <TaskPanel members={allMembers} disambiguatedNames={displayNames} />
             ) : selectedCh ? (
               <>
-                <MessageList messages={messages} usersMap={usersMap} displayNames={displayNames} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} />
+                <MessageList messages={messages} usersMap={usersMap} displayNames={displayNames} currentUserId={user?.id} channelId={selectedCh ?? undefined} onLoadOlder={loadOlderMessages} isLoadingOlder={isLoadingOlder} hasMoreOlder={hasMoreOlder} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onOpenThread={handleOpenThread} highlightMessageId={highlightMessageId} onToggleReaction={handleToggleReaction} onPermalinkClick={jumpToMessage} />
                 <TypingIndicator typingUsers={typingUsers} usersMap={usersMap} currentUserId={user?.id} selectedChannelId={selectedCh} />
                 <MessageInput onSend={handleSend} onTyping={handleTyping} disabled={!selectedCh} />
               </>
@@ -1366,29 +1463,7 @@ export function MainPage() {
           onNavigate={(channelId, messageId) => {
             setShowTasks(false);
             setShowSearch(false);
-            // Fetch messages around the target
-            api.getMessagesAround(channelId, messageId, 50).then((msgs) => {
-              const sorted = msgs;
-              setUsersMap((prev) => {
-                const next = new Map(prev);
-                let changed = false;
-                for (const m of msgs) {
-                  if (m.user && !next.has(m.userId)) { next.set(m.userId, { displayName: m.user.displayName, isAgent: m.user.isAgent }); changed = true; }
-                }
-                return changed ? next : prev;
-              });
-              setMessages(sorted);
-              setHasMoreOlder(true);
-              skipChannelLoadRef.current = true;
-              setSelectedCh(channelId);
-              // Delay highlight until after React renders the new messages
-              setTimeout(() => {
-                setHighlightMessageId(messageId);
-                setTimeout(() => setHighlightMessageId(null), 4000);
-              }, 100);
-            }).catch(() => {
-              setSelectedCh(channelId);
-            });
+            jumpToMessage(channelId, messageId);
           }}
         />
       )}
