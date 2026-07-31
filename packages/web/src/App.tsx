@@ -12,9 +12,19 @@ export default function App() {
   useEffect(() => {
     const token = localStorage.getItem('blather_token');
 
-    // No token → unauthenticated. The app requires a real signed-in user, so
-    // fall through to AuthPage (which also handles /auth/verify magic links).
-    if (!token) { setChecking(false); return; }
+    // No token → unauthenticated. If the user arrived on a permalink
+    // (e.g. /c/<channelId>/m/<messageId>) stash the current URL so
+    // AuthPage can restore it after magic-link verify.
+    if (!token) {
+      if (typeof window !== 'undefined') {
+        const p = window.location.pathname;
+        if (p.startsWith('/c/')) {
+          try { sessionStorage.setItem('blather_return_to', p + window.location.search + window.location.hash); } catch {}
+        }
+      }
+      setChecking(false);
+      return;
+    }
 
     // Have a token — validate it by fetching channels (authenticated via the
     // bearer / X-API-Key header). On success, restore the stored user record;
