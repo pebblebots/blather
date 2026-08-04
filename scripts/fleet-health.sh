@@ -13,6 +13,32 @@ API_KEY="${BLATHER_API_KEY:?BLATHER_API_KEY environment variable is required}"
 FAILURES=()
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
+
+# --- Snooze support ---
+# Touch /home/code/blather/snooze/<host>.until with a YYYY-MM-DDTHH:MM:SSZ to suppress
+# that host's checks until then. Posts ONE notice when starting a snooze window.
+SNOOZE_DIR="/home/code/blather/snooze"
+mkdir -p "$SNOOZE_DIR"
+snoozed() {
+  local host="$1"
+  local f="$SNOOZE_DIR/$host.until"
+  [ -f "$f" ] || return 1
+  local until_ts="$(cat "$f" 2>/dev/null)"
+  [ -z "$until_ts" ] && return 1
+  local until_s now_s
+  until_s=$(date -d "$until_ts" +%s 2>/dev/null) || return 1
+  now_s=$(date -u +%s)
+  if [ "$now_s" -lt "$until_s" ]; then
+    log "SNOOZED: $host (until $until_ts)"
+    return 0
+  else
+    # expired — remove and resume
+    rm -f "$f"
+    log "SNOOZE EXPIRED: $host (resuming checks)"
+    return 1
+  fi
+}
+
 log() { echo "[$TIMESTAMP] $1" >> "$LOG_FILE"; }
 fail() { FAILURES+=("$1"); log "FAIL: $1"; }
 ok() { log "OK: $1"; }
@@ -40,10 +66,10 @@ check_vm() {
 # localhost
 if echo OK &>/dev/null; then ok "VM code-boffin (localhost)"; fi
 
-check_vm portia-wrangler vagata us-central1-a
+snoozed portia-wrangler || check_vm portia-wrangler vagata us-central1-a
 check_vm aura-farmer-clawdbot admin us-central1-a
-check_vm irma admin us-central1-a
-check_vm diligence-baby vagata us-central1-c
+snoozed irma || check_vm irma admin us-central1-a
+snoozed diligence-baby || check_vm diligence-baby vagata us-central1-c
 
 check_vm sourcy-mcfunnel vagata us-west4-a
 
@@ -62,10 +88,10 @@ check_gateway() {
 }
 
 # Gateway checks (3 retries, 5s between)
-check_gateway portia-wrangler vagata us-central1-a
+snoozed portia-wrangler || check_gateway portia-wrangler vagata us-central1-a
 check_gateway aura-farmer-clawdbot admin us-central1-a
-check_gateway irma admin us-central1-a
-check_gateway diligence-baby vagata us-central1-c
+snoozed irma || check_gateway irma admin us-central1-a
+snoozed diligence-baby || check_gateway diligence-baby vagata us-central1-c
 check_gateway sourcy-mcfunnel admin us-west4-a
 
 # --- 2. Services on dev box ---
