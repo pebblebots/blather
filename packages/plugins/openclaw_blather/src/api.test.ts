@@ -76,6 +76,30 @@ describe("BlatherClient", () => {
     expect(result).toEqual(msg);
   });
 
+  it("sendMessage forwards threadId when provided (T#205)", async () => {
+    const msg = { id: "m2", channelId: "ch1", userId: "u1", content: "reply", threadId: "parent-1", createdAt: "2025-01-01T00:00:00Z" };
+    mockFetch.mockResolvedValue(jsonResponse(msg));
+
+    await client.sendMessage("ch1", "reply", { threadId: "parent-1" });
+    const opts = mockFetch.mock.calls[0][1];
+    expect(JSON.parse(opts.body)).toEqual({ content: "reply", threadId: "parent-1" });
+  });
+
+  it("sendMessage omits threadId when nullish (T#205)", async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ id: "m3", channelId: "ch1", userId: "u1", content: "top-level", createdAt: "2025-01-01T00:00:00Z" }));
+
+    await client.sendMessage("ch1", "top-level", { threadId: null });
+    const opts = mockFetch.mock.calls[0][1];
+    expect(JSON.parse(opts.body)).toEqual({ content: "top-level" });
+    expect(JSON.parse(opts.body)).not.toHaveProperty("threadId");
+
+    mockFetch.mockClear();
+    mockFetch.mockResolvedValue(jsonResponse({ id: "m4", channelId: "ch1", userId: "u1", content: "still top-level", createdAt: "2025-01-01T00:00:00Z" }));
+    await client.sendMessage("ch1", "still top-level", { threadId: undefined });
+    const opts2 = mockFetch.mock.calls[0][1];
+    expect(JSON.parse(opts2.body)).toEqual({ content: "still top-level" });
+  });
+
   it("sendTyping posts to the typing endpoint", async () => {
     mockFetch.mockResolvedValue(jsonResponse(null, 200));
     await client.sendTyping("ch1");

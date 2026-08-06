@@ -70,7 +70,13 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
     chunker: (text, limit) => getRuntime().channel.text.chunkMarkdownText(text, limit),
     chunkerMode: "markdown",
     textChunkLimit: 4000,
-    sendText: async ({ to, text, accountId }) => {
+    sendText: async ({ to, text, accountId, threadId }) => {
+      // OpenClaw core already resolves the inbound message's threadId (when the
+      // triggering event was a Blather thread reply) into ChannelOutboundContext.
+      // Forward it to the API so agent replies land as thread replies rather
+      // than top-level channel messages. Coerce numbers to string for the API.
+      const threadIdStr =
+        threadId == null ? undefined : String(threadId).trim() || undefined;
       const cfg = await getRuntime().config.loadConfig();
       const acct = resolveAccount(cfg, accountId);
       const client = new BlatherClient(acct.apiUrl, acct.apiKey);
@@ -95,11 +101,12 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(targetId);
       if (isUuid) {
         try {
-          const msg = await client.sendMessage(targetId, text);
+          const msg = await client.sendMessage(targetId, text, { threadId: threadIdStr });
           return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
         } catch (err: any) {
           if (!err.message?.includes("404")) throw err;
-          // UUID wasn't a channel ID — treat as user ID and create/look up DM channel
+          // UUID wasn't a channel ID — treat as user ID and create/look up DM channel.
+          // DMs don't have threads in the Blather model, so drop the threadId here.
           const dmChannel = await client.getOrCreateDM(targetId);
           const msg = await client.sendMessage(dmChannel.id, text);
           return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
@@ -120,7 +127,7 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
       } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(targetId)) {
         // Bare UUID — could be channel or user ID. Try sending; if 404, try as user DM.
         try {
-          const msg = await client.sendMessage(targetId, text);
+          const msg = await client.sendMessage(targetId, text, { threadId: threadIdStr });
           return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
         } catch (e: any) {
           if (e?.message?.includes("404")) {
@@ -132,7 +139,7 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
         }
       }
 
-      const msg = await client.sendMessage(targetId, text);
+      const msg = await client.sendMessage(targetId, text, { threadId: threadIdStr });
       return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
     },
   },

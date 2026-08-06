@@ -140,10 +140,19 @@ export class BlatherClient {
     return (await this.request("/channels")).json();
   }
 
-  async sendMessage(channelId: string, content: string): Promise<BlatherMessage> {
+  async sendMessage(
+    channelId: string,
+    content: string,
+    opts?: { threadId?: string | null },
+  ): Promise<BlatherMessage> {
+    const body: Record<string, unknown> = { content };
+    // Blather API accepts an optional `threadId` on POST /channels/:id/messages.
+    // When present, the server validates the parent message belongs to the same
+    // channel and stores the new message as a thread reply.
+    if (opts?.threadId) body.threadId = opts.threadId;
     const res = await this.request(`/channels/${channelId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(body),
     });
     return res.json();
   }
