@@ -76,6 +76,15 @@ describe("BlatherClient", () => {
     expect(result).toEqual(msg);
   });
 
+  it("sendMessage includes threadId when replying in a thread", async () => {
+    const msg = { id: "m2", channelId: "ch1", userId: "u1", content: "reply", threadId: "m1", createdAt: "2025-01-01T00:00:00Z" };
+    mockFetch.mockResolvedValue(jsonResponse(msg));
+
+    await client.sendMessage("ch1", "reply", { threadId: "m1" });
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(JSON.parse(opts.body)).toEqual({ content: "reply", threadId: "m1" });
+  });
+
   it("sendTyping posts to the typing endpoint", async () => {
     mockFetch.mockResolvedValue(jsonResponse(null, 200));
     await client.sendTyping("ch1");

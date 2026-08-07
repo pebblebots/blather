@@ -329,7 +329,15 @@ export async function startMonitor(params: MonitorParams) {
             }
             return;
           }
-          await client.sendMessage(data.channelId, decision.text);
+          const payloadReplyToId =
+            typeof payload === "object" && payload !== null
+              ? (payload as { replyToId?: string }).replyToId
+              : undefined;
+          await client.sendMessage(data.channelId, decision.text, {
+            // Preserve an existing inbound thread, or an explicit
+            // [[reply_to_current]] target on a top-level message.
+            threadId: data.threadId ?? payloadReplyToId ?? undefined,
+          });
         },
         onError: (err, info) => log?.error(`${info.kind} reply failed: ${err}`),
       });

@@ -23,7 +23,7 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
   capabilities: {
     chatTypes: ["direct", "group"],
     reactions: false,
-    threads: false,
+    threads: true,
     media: false,
   },
   reload: { configPrefixes: ["channels.blather"] },
@@ -70,7 +70,7 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
     chunker: (text, limit) => getRuntime().channel.text.chunkMarkdownText(text, limit),
     chunkerMode: "markdown",
     textChunkLimit: 4000,
-    sendText: async ({ to, text, accountId }) => {
+    sendText: async ({ to, text, accountId, threadId, replyToId }) => {
       const cfg = await getRuntime().config.loadConfig();
       const acct = resolveAccount(cfg, accountId);
       const client = new BlatherClient(acct.apiUrl, acct.apiKey);
@@ -95,13 +95,13 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(targetId);
       if (isUuid) {
         try {
-          const msg = await client.sendMessage(targetId, text);
+          const msg = await client.sendMessage(targetId, text, { threadId: threadId != null ? String(threadId) : replyToId ?? undefined });
           return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
         } catch (err: any) {
           if (!err.message?.includes("404")) throw err;
           // UUID wasn't a channel ID — treat as user ID and create/look up DM channel
           const dmChannel = await client.getOrCreateDM(targetId);
-          const msg = await client.sendMessage(dmChannel.id, text);
+          const msg = await client.sendMessage(dmChannel.id, text, { threadId: threadId != null ? String(threadId) : replyToId ?? undefined });
           return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
         }
       }
@@ -120,7 +120,7 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
       } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(targetId)) {
         // Bare UUID — could be channel or user ID. Try sending; if 404, try as user DM.
         try {
-          const msg = await client.sendMessage(targetId, text);
+          const msg = await client.sendMessage(targetId, text, { threadId: threadId != null ? String(threadId) : replyToId ?? undefined });
           return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
         } catch (e: any) {
           if (e?.message?.includes("404")) {
@@ -132,7 +132,7 @@ export const blatherPlugin: ChannelPlugin<ResolvedAccount> = {
         }
       }
 
-      const msg = await client.sendMessage(targetId, text);
+      const msg = await client.sendMessage(targetId, text, { threadId: threadId != null ? String(threadId) : replyToId ?? undefined });
       return { channel: "blather", messageId: msg.id, channelId: msg.channelId };
     },
   },
