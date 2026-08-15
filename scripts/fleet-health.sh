@@ -12,6 +12,10 @@ ALERT_URL="https://blather.pbd.bot/api/channels/023a4be8-d738-4531-a126-4d2af1ca
 API_KEY="${BLATHER_API_KEY:?BLATHER_API_KEY environment variable is required}"
 FAILURES=()
 TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+START_S=$(date +%s)
+SCRIPT_VERSION="$(git -C "$HOME/blather" rev-parse --short HEAD 2>/dev/null || stat -c %Y "$0" 2>/dev/null || echo unknown)"
+LAST_GOOD_FILE="$LOG_DIR/fleet-health.last-good"
+LAST_GOOD="$(cat "$LAST_GOOD_FILE" 2>/dev/null || echo never)"
 
 
 # --- Snooze support ---
@@ -37,6 +41,17 @@ snoozed() {
     log "SNOOZE EXPIRED: $host (resuming checks)"
     return 1
   fi
+}
+
+snooze_state() {
+  local out="" f host ts
+  for f in "$SNOOZE_DIR"/*.until; do
+    [ -f "$f" ] || { echo "none"; return; }
+    host="${f##*/}"; host="${host%.until}"
+    ts="$(cat "$f" 2>/dev/null)"
+    out+="${host}->${ts} "
+  done
+  [ -n "$out" ] && echo "$out" || echo "none"
 }
 
 log() { echo "[$TIMESTAMP] $1" >> "$LOG_FILE"; }
@@ -146,13 +161,17 @@ fi
 # --- 3. Alert on failures ---
 if [ ${#FAILURES[@]} -gt 0 ]; then
   summary=$(printf '• %s\\n' "${FAILURES[@]}")
-  payload=$(jq -n --arg content "🚨 Fleet Alert (${TIMESTAMP}):\n${summary}" '{content: $content}')
+  snooze_info="$(snooze_state)"
+  duration_s=$(( $(date +%s) - START_S ))
+  content="🚨 Fleet Alert (${TIMESTAMP})\nscript: ${SCRIPT_VERSION}\nlast-good: ${LAST_GOOD}\nsnoozed: ${snooze_info}\nduration: ${duration_s}s\n${summary}"
+  payload=$(jq -n --arg content "$content" '{content: $content}')
   curl -sf -X POST "$ALERT_URL" \
     -H "X-API-Key: $API_KEY" \
     -H "Content-Type: application/json" \
     -d "$payload" > /dev/null 2>&1 || true
   log "ALERT SENT: ${#FAILURES[@]} failures"
 else
+  date -u '+%Y-%m-%d %H:%M:%S UTC' > "$LAST_GOOD_FILE"
   log "All checks passed"
 fi
 
