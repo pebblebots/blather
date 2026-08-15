@@ -16,6 +16,7 @@ START_S=$(date +%s)
 SCRIPT_VERSION="$(git -C "$HOME/blather" rev-parse --short HEAD 2>/dev/null || stat -c %Y "$0" 2>/dev/null || echo unknown)"
 LAST_GOOD_FILE="$LOG_DIR/fleet-health.last-good"
 LAST_GOOD="$(cat "$LAST_GOOD_FILE" 2>/dev/null || echo never)"
+CONSEC_FILE="$LOG_DIR/fleet-health.consecutive"
 
 
 # --- Snooze support ---
@@ -65,14 +66,19 @@ ok() { log "OK: $1"; }
 # for a single-shot probe timeout). Matches check_gateway's pattern below.
 check_vm() {
   local name="$1" user="$2" zone="$3"
-  local attempts=3 delay=5
+  local attempts=5 delay=10
+  local i start_ms elapsed
   for i in $(seq 1 $attempts); do
+    start_ms=$(date +%s%3N)
     if gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022 \
       --command="echo OK" --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" \
       &>/dev/null; then
-      ok "VM $name"
+      elapsed=$(( $(date +%s%3N) - start_ms ))
+      ok "VM $name (attempt $i, ${elapsed}ms)"
       return
     fi
+    elapsed=$(( $(date +%s%3N) - start_ms ))
+    log "VM $name attempt $i: unreachable (${elapsed}ms)"
     [ $i -lt $attempts ] && sleep $delay
   done
   fail "VM $name unreachable (${zone}) after $attempts attempts"
@@ -91,12 +97,19 @@ check_vm sourcy-mcfunnel vagata us-west4-a
 # Check gateway health (with retry)
 check_gateway() {
   local name="$1" user="$2" zone="$3"
-  local attempts=3 delay=5
+  local attempts=5 delay=10
+  local i start_ms elapsed code
   for i in $(seq 1 $attempts); do
-    if gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022       --command="curl -sf --max-time 10 http://localhost:18789/ >/dev/null 2>&1"       --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no"       &>/dev/null; then
-      ok "Gateway $name"
+    start_ms=$(date +%s%3N)
+    code=$(gcloud compute ssh "${user}@${name}" --zone="$zone" --project=clawds-487022 \
+      --command="curl -sS -o /dev/null -w '%{http_code}' --max-time 10 http://localhost:18789/ 2>/dev/null || true" \
+      --ssh-flag="-o ConnectTimeout=5" --ssh-flag="-o StrictHostKeyChecking=no" 2>/dev/null || echo "ssh-fail")
+    elapsed=$(( $(date +%s%3N) - start_ms ))
+    if [ "$code" = "200" ]; then
+      ok "Gateway $name (attempt $i, HTTP 200, ${elapsed}ms)"
       return
     fi
+    log "Gateway $name attempt $i: HTTP ${code}, ${elapsed}ms"
     [ $i -lt $attempts ] && sleep $delay
   done
   fail "Gateway $name not responding (after $attempts attempts)"
@@ -158,19 +171,38 @@ else
   ok "Memory ${mem_avail}MB available"
 fi
 
-# --- 3. Alert on failures ---
+# --- 3. Alert on failures (2 consecutive failed ticks before paging) ---
 if [ ${#FAILURES[@]} -gt 0 ]; then
-  summary=$(printf '• %s\\n' "${FAILURES[@]}")
+  summary=$(printf '• %s
+' "${FAILURES[@]}")
   snooze_info="$(snooze_state)"
   duration_s=$(( $(date +%s) - START_S ))
-  content="🚨 Fleet Alert (${TIMESTAMP})\nscript: ${SCRIPT_VERSION}\nlast-good: ${LAST_GOOD}\nsnoozed: ${snooze_info}\nduration: ${duration_s}s\n${summary}"
-  payload=$(jq -n --arg content "$content" '{content: $content}')
-  curl -sf -X POST "$ALERT_URL" \
-    -H "X-API-Key: $API_KEY" \
-    -H "Content-Type: application/json" \
-    -d "$payload" > /dev/null 2>&1 || true
-  log "ALERT SENT: ${#FAILURES[@]} failures"
+
+  # consecutive-failed-tick gate (T#203): page only after 2 consecutive failing runs (~30 min)
+  consec=0
+  [ -f "$CONSEC_FILE" ] && consec=$(cat "$CONSEC_FILE" 2>/dev/null)
+  consec=$(( consec + 1 ))
+  echo "$consec" > "$CONSEC_FILE"
+
+  if [ "$consec" -lt 2 ]; then
+    log "HOLD: ${#FAILURES[@]} failure(s) on tick ${consec}/2 — not paging yet"
+  else
+    content="🚨 Fleet Alert (${TIMESTAMP})
+script: ${SCRIPT_VERSION}
+last-good: ${LAST_GOOD}
+snoozed: ${snooze_info}
+duration: ${duration_s}s
+consecutive-fails: ${consec}
+${summary}"
+    payload=$(jq -n --arg content "$content" '{content: $content}')
+    curl -sf -X POST "$ALERT_URL" \
+      -H "X-API-Key: $API_KEY" \
+      -H "Content-Type: application/json" \
+      -d "$payload" > /dev/null 2>&1 || true
+    log "ALERT SENT: ${#FAILURES[@]} failures (tick ${consec})"
+  fi
 else
+  rm -f "$CONSEC_FILE"
   date -u '+%Y-%m-%d %H:%M:%S UTC' > "$LAST_GOOD_FILE"
   log "All checks passed"
 fi
