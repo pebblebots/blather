@@ -55,6 +55,32 @@ snooze_state() {
   [ -n "$out" ] && echo "$out" || echo "none"
 }
 
+
+# --- Snooze support ---
+# Touch /home/code/blather/snooze/<host>.until with a YYYY-MM-DDTHH:MM:SSZ to suppress
+# that host's checks until then. Posts ONE notice when starting a snooze window.
+SNOOZE_DIR="/home/code/blather/snooze"
+mkdir -p "$SNOOZE_DIR"
+snoozed() {
+  local host="$1"
+  local f="$SNOOZE_DIR/$host.until"
+  [ -f "$f" ] || return 1
+  local until_ts="$(cat "$f" 2>/dev/null)"
+  [ -z "$until_ts" ] && return 1
+  local until_s now_s
+  until_s=$(date -d "$until_ts" +%s 2>/dev/null) || return 1
+  now_s=$(date -u +%s)
+  if [ "$now_s" -lt "$until_s" ]; then
+    log "SNOOZED: $host (until $until_ts)"
+    return 0
+  else
+    # expired — remove and resume
+    rm -f "$f"
+    log "SNOOZE EXPIRED: $host (resuming checks)"
+    return 1
+  fi
+}
+
 log() { echo "[$TIMESTAMP] $1" >> "$LOG_FILE"; }
 fail() { FAILURES+=("$1"); log "FAIL: $1"; }
 ok() { log "OK: $1"; }
