@@ -102,6 +102,41 @@ export interface PerTurnDeliveryGuard {
   suppressedFinalCount: () => number;
 }
 
+// ---------------------------------------------------------------------------
+// T#192 — Mode E audit tagger.
+//
+// "I ran the search" is a claim about an agent's own runtime state, not a
+// fact we should infer from fluent prose. The gateway exposes host-authoritative
+// before_tool_call events, so keep that evidence separate from the text and
+// merely tag suspicious final replies when no tool call occurred in the turn.
+//
+// This is intentionally audit-only. English heuristics are useful for a human
+// review queue, but never safe enough to cancel a real reply: agents may be
+// describing prior work, quoting another person, or using a phrase in a
+// hypothetical. Enforcement can be considered only after production evidence.
+// ---------------------------------------------------------------------------
+
+export type ModeEClaimAudit = {
+  flagged: boolean;
+  evidence: string;
+};
+
+const MODE_E_TOOL_CLAIM = /\b(?:i(?:'|’)m|i am|i(?:'|’)ve|i have)\s+(?:on it|checking|looking(?:\s+into)?|investigating|searching|running|pulling|digging|verifying|working on)\b/i;
+
+/**
+ * Return an audit tag for a final reply that asserts active tool work without
+ * a host-observed tool call in the same turn. This never blocks delivery.
+ */
+export function auditModeEClaim(text: string, observedToolCalls: number): ModeEClaimAudit {
+  if (!MODE_E_TOOL_CLAIM.test(text)) {
+    return { flagged: false, evidence: "no_tool_work_claim" };
+  }
+  if (observedToolCalls > 0) {
+    return { flagged: false, evidence: `observed_tool_calls:${observedToolCalls}` };
+  }
+  return { flagged: true, evidence: "tool_work_claim_without_observed_tool_call" };
+}
+
 /**
  * Create a per-turn delivery guard. Caller must create a fresh guard per
  * `dispatchReplyFromConfig` call (i.e. per inbound message) so counters

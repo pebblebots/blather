@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   shouldDeliverReplyPayload,
   createPerTurnDeliveryGuard,
+  auditModeEClaim,
   type DeliverReplyInfo,
 } from "./deliver-guard.js";
 
@@ -215,6 +216,29 @@ describe("deliver guard edge cases", () => {
 // stateful wrapper that approves only the first final per turn and
 // suppresses the rest.
 // ---------------------------------------------------------------------------
+describe("Mode E audit tagger T#192", () => {
+  it("flags a present-tense tool-work claim with no host-observed tool call", () => {
+    expect(auditModeEClaim("I’m checking the deploy logs now.", 0)).toEqual({
+      flagged: true,
+      evidence: "tool_work_claim_without_observed_tool_call",
+    });
+  });
+
+  it("does not flag the same claim when the turn observed a tool call", () => {
+    expect(auditModeEClaim("I'm investigating the error now.", 2)).toEqual({
+      flagged: false,
+      evidence: "observed_tool_calls:2",
+    });
+  });
+
+  it("does not flag non-claims or prior-work descriptions", () => {
+    expect(auditModeEClaim("I checked that yesterday; the deploy is still red.", 0)).toEqual({
+      flagged: false,
+      evidence: "no_tool_work_claim",
+    });
+  });
+});
+
 describe("per-turn delivery guard T#178 (cascade break)", () => {
   it("approves the first final and suppresses duplicates", () => {
     const guard = createPerTurnDeliveryGuard();
