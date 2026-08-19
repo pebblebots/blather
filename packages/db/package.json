@@ -8,6 +8,7 @@
     "build": "tsc",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
+    "migrate:baseline": "tsx scripts/baseline-migrations.ts",
     "studio": "drizzle-kit studio",
     "test": "vitest run"
   },
