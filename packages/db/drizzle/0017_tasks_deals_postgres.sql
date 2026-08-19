@@ -5,7 +5,11 @@ ALTER TABLE "tasks" ADD COLUMN "completion_artifact" text;--> statement-breakpoi
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_claimed_by_id_users_id_fk" FOREIGN KEY ("claimed_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 UPDATE "tasks" SET "source_channel_id" = NULL WHERE "source_channel_id" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "channels" WHERE "channels"."id" = "tasks"."source_channel_id");--> statement-breakpoint
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_source_channel_id_channels_id_fk" FOREIGN KEY ("source_channel_id") REFERENCES "public"."channels"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "task_comments" DROP CONSTRAINT "task_comments_user_id_users_id_fk";--> statement-breakpoint
+-- Legacy production used PostgreSQL's default constraint name, while fresh
+-- Drizzle databases use the generated name below. Drop either shape before
+-- installing the canonical cascade behavior.
+ALTER TABLE "task_comments" DROP CONSTRAINT IF EXISTS "task_comments_user_id_users_id_fk";--> statement-breakpoint
+ALTER TABLE "task_comments" DROP CONSTRAINT IF EXISTS "task_comments_user_id_fkey";--> statement-breakpoint
 ALTER TABLE "task_comments" ADD CONSTRAINT "task_comments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 
 -- Replace the MAX(short_id) trigger strategy with a concurrency-safe sequence.
