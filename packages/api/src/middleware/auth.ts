@@ -1,7 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import jwt from 'jsonwebtoken';
 import { eq, and, isNull } from 'drizzle-orm';
-import { apiKeys } from '@blather/db';
+import { apiKeys, users } from '@blather/db';
 import { createHash } from 'crypto';
 import type { Env } from '../app.js';
 import type { Db } from '@blather/db';
@@ -29,6 +29,35 @@ function verifyBearerToken(authHeader: string | undefined): string | null {
   }
 }
 
+/** Resolve a user id only when the account still exists and is active. */
+export async function resolveActiveUserId(db: Db, userId: string): Promise<string | null> {
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, userId), isNull(users.deactivatedAt)))
+    .limit(1);
+  return user?.id ?? null;
+}
+
+/** Resolve an unrevoked API key only when its owning account is active. */
+export async function resolveActiveApiKey(
+  db: Db,
+  key: string,
+): Promise<{ id: string; userId: string } | null> {
+  const hash = hashApiKey(key);
+  const [found] = await db
+    .select({ id: apiKeys.id, userId: apiKeys.userId })
+    .from(apiKeys)
+    .innerJoin(users, eq(users.id, apiKeys.userId))
+    .where(and(
+      eq(apiKeys.keyHash, hash),
+      isNull(apiKeys.revokedAt),
+      isNull(users.deactivatedAt),
+    ))
+    .limit(1);
+  return found ?? null;
+}
+
 export function logAuthFailure(
   c: Context,
   reason: string,
@@ -39,10 +68,7 @@ export function logAuthFailure(
 }
 
 async function tryApiKey(db: Db, key: string): Promise<string | null> {
-  const hash = hashApiKey(key);
-  const [found] = await db.select().from(apiKeys).where(
-    and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
-  ).limit(1);
+  const found = await resolveActiveApiKey(db, key);
   if (!found) return null;
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, found.id));
   return found.userId;
@@ -55,7 +81,12 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   // 1. Try Bearer as JWT
   const bearerUserId = verifyBearerToken(authHeader);
   if (bearerUserId) {
-    c.set('userId', bearerUserId);
+    const activeUserId = await resolveActiveUserId(db, bearerUserId);
+    if (!activeUserId) {
+      logAuthFailure(c, 'inactive_or_unknown_user');
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+    c.set('userId', activeUserId);
     return next();
   }
 

@@ -10,6 +10,7 @@ vi.mock('@blather/db', () => {
   const makeChain = (): any => {
     const self: any = {};
     self.from = () => self;
+    self.innerJoin = () => self;
     self.where = () => self;
     self.limit = () => self;
     self.then = (resolve: any, reject?: any) => {
@@ -22,12 +23,13 @@ vi.mock('@blather/db', () => {
 
   return {
     createDb: () => ({ select: () => makeChain() }),
-    apiKeys: { keyHash: 'keyHash', revokedAt: 'revokedAt', userId: 'userId' },
+    apiKeys: { id: 'id', keyHash: 'keyHash', revokedAt: 'revokedAt', userId: 'userId' },
+    users: { id: 'id', deactivatedAt: 'deactivatedAt' },
     channelMembers: { channelId: 'channelId', userId: 'userId' },
   };
 });
 
-import { __testing, attachWebSocket, getPresence, publishEvent, publishEphemeralEvent } from './manager.js';
+import { __testing, attachWebSocket, disconnectUser, getPresence, publishEvent, publishEphemeralEvent } from './manager.js';
 import { JWT_SECRET } from '../config.js';
 
 function signToken(userId: string): string {
@@ -126,6 +128,16 @@ describe('WebSocket manager', () => {
     expect(__testing.verifyToken('invalid-token')).toBeNull();
   });
 
+  it('resolveJwtUserId returns null for a deactivated JWT user', async () => {
+    dbQueryResults = [[]];
+    await expect(__testing.resolveJwtUserId(signToken('inactive-jwt-user'))).resolves.toBeNull();
+  });
+
+  it('resolveJwtUserId returns the user id for an active JWT user', async () => {
+    dbQueryResults = [[{ id: 'active-jwt-user' }]];
+    await expect(__testing.resolveJwtUserId(signToken('active-jwt-user'))).resolves.toBe('active-jwt-user');
+  });
+
   it('rejects anonymous websocket upgrades before any client can receive global events', async () => {
     const server = new EventEmitter();
     const wss = attachWebSocket(server as any);
@@ -165,6 +177,55 @@ describe('WebSocket manager', () => {
     await expect(__testing.resolveApiKeyUserId('blather_bad')).resolves.toBeNull();
   });
 
+  it('resolveApiKeyUserId returns null when the API key owner is deactivated', async () => {
+    dbQueryResults = [[]];
+    await expect(__testing.resolveApiKeyUserId('blather_inactive')).resolves.toBeNull();
+  });
+
+  it('rejects a websocket JWT upgrade when the user is deactivated', async () => {
+    const server = new EventEmitter();
+    const wss = attachWebSocket(server as any);
+    const socket = new FakeUpgradeSocket();
+    dbQueryResults = [[]];
+
+    try {
+      server.emit(
+        'upgrade',
+        { url: `/ws/events?token=${signToken('inactive-ws-user')}`, headers: { host: 'localhost' } },
+        socket,
+        Buffer.alloc(0),
+      );
+
+      await vi.waitFor(() => expect(socket.destroyed).toBe(true));
+      expect(socket.written.join('')).toContain('401 Unauthorized');
+      expect(getPresence()).toEqual([]);
+    } finally {
+      wss.close();
+    }
+  });
+
+  it('rejects a websocket API-key upgrade when the owner is deactivated', async () => {
+    const server = new EventEmitter();
+    const wss = attachWebSocket(server as any);
+    const socket = new FakeUpgradeSocket();
+    dbQueryResults = [[]];
+
+    try {
+      server.emit(
+        'upgrade',
+        { url: '/ws/events?api_key=blather_inactive', headers: { host: 'localhost' } },
+        socket,
+        Buffer.alloc(0),
+      );
+
+      await vi.waitFor(() => expect(socket.destroyed).toBe(true));
+      expect(socket.written.join('')).toContain('401 Unauthorized');
+      expect(getPresence()).toEqual([]);
+    } finally {
+      wss.close();
+    }
+  });
+
   it('tracks online presence for connected user', () => {
     createAuthedClient('user-p1');
     expect(getPresence()).toEqual([{ userId: 'user-p1', status: 'online' }]);
@@ -174,6 +235,43 @@ describe('WebSocket manager', () => {
     const ws = createAuthedClient('user-p2');
     ws.close();
     expect(getPresence()).toEqual([]);
+  });
+
+  it('disconnectUser immediately closes all user sockets and broadcasts offline once', async () => {
+    const observer = createAuthedClient('observer');
+    const first = createAuthedClient('deactivated-user');
+    const second = createAuthedClient('deactivated-user');
+    observer.sent = [];
+
+    const firstClose = waitForClose(first);
+    const secondClose = waitForClose(second);
+    expect(disconnectUser('deactivated-user')).toBe(2);
+
+    await expect(Promise.all([firstClose, secondClose])).resolves.toEqual([
+      { code: 4003, reason: 'Account deactivated' },
+      { code: 4003, reason: 'Account deactivated' },
+    ]);
+    expect(getPresence()).toEqual([{ userId: 'observer', status: 'online' }]);
+    expect(observer.sent.filter(message =>
+      message.type === 'presence.changed'
+      && message.data.userId === 'deactivated-user'
+      && message.data.status === 'offline'
+    )).toHaveLength(1);
+  });
+
+  it('disconnectUser is idempotent and does not duplicate offline broadcasts', () => {
+    const observer = createAuthedClient('observer');
+    createAuthedClient('deactivated-user');
+    observer.sent = [];
+
+    expect(disconnectUser('deactivated-user')).toBe(1);
+    expect(disconnectUser('deactivated-user')).toBe(0);
+
+    expect(observer.sent.filter(message =>
+      message.type === 'presence.changed'
+      && message.data.userId === 'deactivated-user'
+      && message.data.status === 'offline'
+    )).toHaveLength(1);
   });
 
   it('returns empty presence when no clients connected', () => {

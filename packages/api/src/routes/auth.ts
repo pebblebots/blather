@@ -198,6 +198,11 @@ authRoutes.post('/magic/verify', authVerifyLimiter(rateLimitStore), async (c) =>
     }).returning();
   }
 
+  if (user.deactivatedAt) {
+    logAuthFailure(c, 'account_deactivated', { email: magic.email });
+    return c.json({ error: 'Account deactivated' }, 403);
+  }
+
   // Auto-join domain workspaces
   await autoJoinDefaultChannels(db, user.id);
 
@@ -243,6 +248,11 @@ authRoutes.post('/magic/verify-code', authVerifyLimiter(rateLimitStore), async (
     }).returning();
   }
 
+  if (user.deactivatedAt) {
+    logAuthFailure(c, 'account_deactivated', { email: magic.email });
+    return c.json({ error: 'Account deactivated' }, 403);
+  }
+
   // Auto-join domain workspaces
   await autoJoinDefaultChannels(db, user.id);
 
@@ -264,6 +274,11 @@ authRoutes.post('/login', async (c) => {
   if (!user || !user.passwordHash || !(await bcrypt.compare(body.password, user.passwordHash))) {
     logAuthFailure(c, 'invalid_credentials', { email: body.email });
     return c.json({ error: 'Invalid credentials' }, 401);
+  }
+
+  if (user.deactivatedAt) {
+    logAuthFailure(c, 'account_deactivated', { email: body.email });
+    return c.json({ error: 'Account deactivated' }, 403);
   }
 
   const token = signToken(user.id);

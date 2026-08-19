@@ -2,11 +2,11 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Server } from 'http';
 import jwt from 'jsonwebtoken';
-import { createHash } from 'crypto';
-import { eq, and, isNull } from 'drizzle-orm';
-import { apiKeys, channelMembers } from '@blather/db';
+import { eq } from 'drizzle-orm';
+import { channelMembers } from '@blather/db';
 import { createDb } from "@blather/db";
 import { JWT_SECRET } from '../config.js';
+import { resolveActiveApiKey, resolveActiveUserId } from '../middleware/auth.js';
 
 let db: ReturnType<typeof createDb> = createDb();
 
@@ -36,12 +36,27 @@ function addClient(client: AuthedClient) {
 }
 
 function removeClient(client: AuthedClient) {
-  allClients.delete(client);
+  // Socket close/error handlers can both fire, and administrative disconnects
+  // remove the client before closing its socket. Only the first removal should
+  // affect presence or emit an offline transition.
+  if (!allClients.delete(client)) return;
   // Check if user still has other connections
   const stillConnected = [...allClients].some(c => c.userId === client.userId);
   if (!stillConnected) {
     broadcastPresence(client.userId, 'offline');
   }
+}
+
+/** Immediately disconnect every live socket for a user, returning the count closed. */
+export function disconnectUser(userId: string): number {
+  const clients = [...allClients].filter(client => client.userId === userId);
+  for (const client of clients) {
+    // Remove first so no events can be delivered while the close handshake is
+    // pending. The close/error handlers are safe no-ops after this removal.
+    removeClient(client);
+    client.ws.close(4003, 'Account deactivated');
+  }
+  return clients.length;
 }
 
 /** Broadcast presence change to all clients (no DB write) */
@@ -146,11 +161,14 @@ function verifyToken(token: string): string | null {
 }
 
 async function resolveApiKeyUserId(apiKeyParam: string): Promise<string | null> {
-  const hash = createHash('sha256').update(apiKeyParam).digest('hex');
-  const [found] = await db.select().from(apiKeys).where(
-    and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt))
-  ).limit(1);
+  const found = await resolveActiveApiKey(db, apiKeyParam);
   return found?.userId ?? null;
+}
+
+async function resolveJwtUserId(token: string): Promise<string | null> {
+  const userId = verifyToken(token);
+  if (!userId) return null;
+  return resolveActiveUserId(db, userId);
 }
 
 export function attachWebSocket(server: Server): WebSocketServer {
@@ -209,14 +227,18 @@ export function attachWebSocket(server: Server): WebSocketServer {
     if (token || apiKeyParam) {
       // JWT auth
       if (token) {
-        const userId = verifyToken(token);
-        if (!userId) {
-          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        resolveJwtUserId(token).then((userId) => {
+          if (!userId) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destroy();
+            return;
+          }
+          wss.handleUpgrade(req, socket, head, (ws) => {
+            setupAuthedClient(ws, userId);
+          });
+        }).catch(() => {
+          socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
           socket.destroy();
-          return;
-        }
-        wss.handleUpgrade(req, socket, head, (ws) => {
-          setupAuthedClient(ws, userId);
         });
         return;
       }
@@ -280,5 +302,6 @@ export const __testing = {
   },
   setupAuthedClient,
   verifyToken,
+  resolveJwtUserId,
   resolveApiKeyUserId,
 };

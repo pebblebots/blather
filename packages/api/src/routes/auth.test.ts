@@ -150,6 +150,23 @@ describe('auth routes', () => {
     expect(response.body).toEqual({ error: 'Invalid or expired token' });
   });
 
+  it('POST /auth/magic/verify rejects a deactivated user', async () => {
+    const user = await harness.factories.createUser({ email: 'inactive-magic@example.com' });
+    await harness.db.update(users).set({ deactivatedAt: new Date() }).where(eq(users.id, user.id));
+    await harness.db.insert(magicTokens).values({
+      email: user.email,
+      token: 'inactive-user-token',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const response = await harness.request.post('/auth/magic/verify', {
+      json: { token: 'inactive-user-token' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: 'Account deactivated' });
+  });
+
 
   // ── Magic Code ──
 
@@ -260,6 +277,24 @@ describe('auth routes', () => {
     expect(response.body).toEqual({ error: 'Invalid or expired code' });
   });
 
+  it('POST /auth/magic/verify-code rejects a deactivated user', async () => {
+    const user = await harness.factories.createUser({ email: 'inactive-code@example.com' });
+    await harness.db.update(users).set({ deactivatedAt: new Date() }).where(eq(users.id, user.id));
+    await harness.db.insert(magicTokens).values({
+      email: user.email,
+      token: 'inactive-code-token',
+      code: '123456',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const response = await harness.request.post('/auth/magic/verify-code', {
+      json: { email: user.email, code: '123456' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: 'Account deactivated' });
+  });
+
   // ── Legacy Login ──
 
   it('POST /auth/login succeeds with correct credentials', async () => {
@@ -293,6 +328,23 @@ describe('auth routes', () => {
 
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ error: 'Invalid credentials' });
+  });
+
+  it('POST /auth/login rejects correct credentials for a deactivated user', async () => {
+    const hash = await (await import('bcrypt')).default.hash('correct-horse', 10);
+    const user = await harness.factories.createUser({
+      email: 'inactive-login@example.com',
+      passwordHash: hash,
+      displayName: 'Inactive Login User',
+    });
+    await harness.db.update(users).set({ deactivatedAt: new Date() }).where(eq(users.id, user.id));
+
+    const response = await harness.request.post('/auth/login', {
+      json: { email: user.email, password: 'correct-horse' },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: 'Account deactivated' });
   });
 
   // ── API Keys ──
