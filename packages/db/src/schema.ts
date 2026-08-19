@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique, integer, date, decimal, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, jsonb, pgEnum, unique, integer, date, decimal, index, serial } from 'drizzle-orm/pg-core';
 
 export const userRoleEnum = pgEnum('user_role', ['owner', 'admin', 'member']);
 export const channelTypeEnum = pgEnum('channel_type', ['public', 'private', 'dm']);
@@ -117,6 +117,86 @@ export const channelReads = pgTable('channel_reads', {
 }, (t) => ({
   unq: unique().on(t.channelId, t.userId),
 }));
+
+// ── Tasks ──
+
+export const taskPriorityEnum = pgEnum('task_priority', ['urgent', 'normal', 'low']);
+export const taskStatusEnum = pgEnum('task_status', ['queued', 'in_progress', 'done']);
+
+export const tasks = pgTable('tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: text('title').notNull(),
+  description: text('description'),
+  priority: taskPriorityEnum('priority').notNull().default('normal'),
+  status: taskStatusEnum('status').notNull().default('queued'),
+  assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+  claimedById: uuid('claimed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  creatorId: uuid('creator_id').references(() => users.id, { onDelete: 'set null' }),
+  shortId: serial('short_id').notNull().unique(),
+  sourceChannelId: uuid('source_channel_id').references(() => channels.id, { onDelete: 'set null' }),
+  completionArtifact: text('completion_artifact'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('tasks_status_idx').on(t.status),
+  index('tasks_assignee_id_idx').on(t.assigneeId),
+]);
+
+export const taskComments = pgTable('task_comments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('task_comments_task_id_created_at_idx').on(t.taskId, t.createdAt),
+]);
+
+// ── Deals ──
+
+export const dealStageEnum = pgEnum('deal_stage', ['sourcing', 'dd', 'pass', 'move', 'portfolio']);
+export const dealStatusEnum = pgEnum('deal_status', ['active', 'watchlist', 'zombie', 'inactive', 'exited']);
+
+export const deals = pgTable('deals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  company: text('company'),
+  stage: dealStageEnum('stage').notNull().default('sourcing'),
+  thesis: text('thesis'),
+  contacts: text('contacts'),
+  sourceAgentId: text('source_agent_id'),
+  sourceChannelId: text('source_channel_id'),
+  round: text('round'),
+  amount: text('amount'),
+  leadInvestor: text('lead_investor'),
+  notes: text('notes'),
+  shortId: serial('short_id').notNull().unique(),
+  externalId: text('external_id'),
+  externalSource: text('external_source'),
+  updatedByAgentId: text('updated_by_agent_id'),
+  status: dealStatusEnum('status').notNull().default('active'),
+  nextMeetingAt: text('next_meeting_at'),
+  archived: boolean('archived').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('deals_stage_idx').on(t.stage),
+  index('deals_status_idx').on(t.status),
+  index('deals_created_at_idx').on(t.createdAt),
+]);
+
+export const dealChanges = pgTable('deal_changes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  dealId: uuid('deal_id').notNull(),
+  agentId: text('agent_id'),
+  field: text('field').notNull(),
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  changeType: text('change_type').notNull().default('update'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('deal_changes_deal_id_created_at_idx').on(t.dealId, t.createdAt),
+]);
 
 
 // ── Incident Severity & Status Enums ──

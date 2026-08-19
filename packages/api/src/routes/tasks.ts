@@ -39,6 +39,7 @@ function validatePriority(p: string): TaskPriority | null {
 
 // List tasks
 taskRoutes.get('/', async (c) => {
+  const db = c.get('db');
   const status = c.req.query('status');
   const priority = c.req.query('priority');
   const assignee = c.req.query('assigneeId');
@@ -52,7 +53,7 @@ taskRoutes.get('/', async (c) => {
     if (!validated) return c.json({ error: 'Invalid priority: ' + priority + '. Valid: ' + VALID_PRIORITIES.join(', ') }, 400);
   }
 
-  const result = listTasks({
+  const result = await listTasks(db, {
     status: status ? normalizeStatus(status)! : undefined,
     priority: priority ? validatePriority(priority)! : undefined,
     assigneeId: assignee,
@@ -81,7 +82,7 @@ taskRoutes.post('/', async (c) => {
     return c.json({ error: 'Invalid priority: ' + body.priority + '. Valid: ' + VALID_PRIORITIES.join(', ') }, 400);
   }
 
-  const task = createTask({
+  const task = await createTask(db, {
     title: body.title,
     description: body.description ?? null,
     priority: body.priority ?? 'normal',
@@ -103,6 +104,7 @@ taskRoutes.post('/', async (c) => {
 
 // Get single task (by UUID, numeric shortId, or T#N)
 taskRoutes.get('/:id', async (c) => {
+  const db = c.get('db');
   const raw = c.req.param('id');
   let task = null;
 
@@ -110,11 +112,11 @@ taskRoutes.get('/:id', async (c) => {
   const shortMatch = raw.match(/^T?#?(\d+)$/i);
   if (shortMatch) {
     const n = Number(shortMatch[1]);
-    if (Number.isFinite(n)) task = getTaskByShortId(n);
+    if (Number.isFinite(n)) task = await getTaskByShortId(db, n);
   }
 
   // Fall back to UUID lookup
-  if (!task) task = getTask(raw);
+  if (!task) task = await getTask(db, raw);
 
   if (!task) return c.json({ error: 'Task not found' }, 404);
   return c.json(task);
@@ -135,7 +137,7 @@ taskRoutes.patch('/:id', async (c) => {
   }>();
 
   // Fetch current task for status comparison
-  const existing = getTask(id);
+  const existing = await getTask(db, id);
   if (!existing) return c.json({ error: 'Task not found' }, 404);
 
   const updates: {
@@ -166,7 +168,7 @@ taskRoutes.patch('/:id', async (c) => {
 
   // Check claim conflict before updating — return rich 409 with claimer info
   if (updates.status === 'in_progress') {
-    const conflict = getTaskClaimConflict(id, userId);
+    const conflict = await getTaskClaimConflict(db, id, userId);
     if (conflict) {
       let claimedByName: string | null = null;
       try {
@@ -186,10 +188,10 @@ taskRoutes.patch('/:id', async (c) => {
 
   let task;
   try {
-    task = updateTask(id, updates, userId);
+    task = await updateTask(db, id, updates, userId);
   } catch (e) {
     if (e instanceof TaskClaimConflictError) {
-      return c.json({ error: 'Task already claimed', claimedById: (e as any).message }, 409);
+      return c.json({ error: 'Task already claimed', claimedById: e.claimedById }, 409);
     }
     throw e;
   }
@@ -222,8 +224,9 @@ taskRoutes.patch('/:id', async (c) => {
 
 // Delete task
 taskRoutes.delete('/:id', async (c) => {
+  const db = c.get('db');
   const id = c.req.param('id');
-  const deleted = deleteTask(id);
+  const deleted = await deleteTask(db, id);
   if (!deleted) return c.json({ error: 'Task not found' }, 404);
   return c.json({ ok: true });
 });
@@ -235,7 +238,7 @@ taskRoutes.get('/:taskId/comments', async (c) => {
   const db = c.get('db');
   const taskId = c.req.param('taskId');
 
-  const comments = listComments(taskId);
+  const comments = await listComments(db, taskId);
 
   // Look up user display names from Postgres
   const userIds = [...new Set(comments.map(cm => cm.userId))];
@@ -260,6 +263,7 @@ taskRoutes.get('/:taskId/comments', async (c) => {
 
 // Add comment
 taskRoutes.post('/:taskId/comments', async (c) => {
+  const db = c.get('db');
   const userId = c.get('userId');
   const taskId = c.req.param('taskId');
   const body = await c.req.json<{ content: string }>();
@@ -269,22 +273,23 @@ taskRoutes.post('/:taskId/comments', async (c) => {
   }
 
   // Verify task exists
-  const task = getTask(taskId);
+  const task = await getTask(db, taskId);
   if (!task) return c.json({ error: 'Task not found' }, 404);
 
-  const comment = addComment(taskId, userId, body.content.trim());
+  const comment = await addComment(db, taskId, userId, body.content.trim());
   return c.json(comment, 201);
 });
 
 // Delete comment (only by author)
 taskRoutes.delete('/:taskId/comments/:commentId', async (c) => {
+  const db = c.get('db');
   const userId = c.get('userId');
   const commentId = c.req.param('commentId');
 
-  const comment = getComment(commentId);
+  const comment = await getComment(db, commentId);
   if (!comment) return c.json({ error: 'Comment not found' }, 404);
   if (comment.userId !== userId) return c.json({ error: 'Not authorized' }, 403);
 
-  deleteComment(commentId);
+  await deleteComment(db, commentId);
   return c.json({ ok: true });
 });

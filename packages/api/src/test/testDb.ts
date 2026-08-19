@@ -10,7 +10,6 @@ import {
   users,
 } from '@blather/db';
 import * as schema from '@blather/db';
-import { clearTaskDbForTesting } from '../tasks/db.js';
 
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../../db/drizzle', import.meta.url));
 const TEST_DATABASE_LABEL = 'pglite://memory';
@@ -71,6 +70,10 @@ function uniqueSuffix(): string {
 
 async function truncateAllTables(sql: PGlite): Promise<void> {
   const tableNames = [
+    'deal_changes',
+    'deals',
+    'task_comments',
+    'tasks',
     'agent_activity_log',
     'portfolio_metrics',
     'huddle_participants',
@@ -168,7 +171,6 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
     factories: createTestFactories(db),
     reset: async () => {
       await truncateAllTables(sql);
-      clearTaskDbForTesting();
     },
     close: async () => {
       await sql.close();

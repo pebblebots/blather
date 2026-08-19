@@ -114,7 +114,7 @@ export async function handleTasksCommand(db: Db, channelId: string, content: str
 }
 
 async function cmdList(db: Db, channelId: string, threadId?: string | null) {
-  const rows = listOpenTasksWithCommentCount();
+  const rows = await listOpenTasksWithCommentCount(db);
 
   if (rows.length === 0) {
     await postBotMessage(db, channelId, '✅ No open tasks! All clear.', threadId);
@@ -152,7 +152,7 @@ async function cmdAdd(db: Db, channelId: string, args: string[], threadId?: stri
   }
 
   const uid = await ensureBotUser(db);
-  const task = createTask({
+  const task = await createTask(db, {
     title,
     priority,
     creatorId: uid,
@@ -194,9 +194,9 @@ async function cmdDone(db: Db, channelId: string, query: string, threadId?: stri
     }
   }
 
-  let task = resolveTask(taskQuery);
+  let task = await resolveTask(db, taskQuery);
   if (!task) {
-    task = findTaskByTitle(taskQuery, { excludeStatus: 'done' });
+    task = await findTaskByTitle(db, taskQuery, { excludeStatus: 'done' });
   }
 
   if (!task) {
@@ -210,7 +210,7 @@ async function cmdDone(db: Db, channelId: string, query: string, threadId?: stri
     updates.completionArtifact = completionArtifact;
   }
   
-  const updated = updateTask(task.id, updates, userId);
+  const updated = await updateTask(db, task.id, updates, userId);
   if (!updated) return;
 
   const sid = formatTaskId(updated);
@@ -229,9 +229,9 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
     return;
   }
 
-  let task = resolveTask(query.trim());
+  let task = await resolveTask(db, query.trim());
   if (!task) {
-    task = findTaskByTitle(query, { requiredStatus: 'queued' });
+    task = await findTaskByTitle(db, query, { requiredStatus: 'queued' });
   }
 
   if (!task) {
@@ -241,7 +241,7 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
 
   // Check for claim conflict before starting
   if (userId) {
-    const conflict = getTaskClaimConflict(task.id, userId);
+    const conflict = await getTaskClaimConflict(db, task.id, userId);
     if (conflict) {
       const sid = formatTaskId(task);
       let claimerName = conflict.claimedById;
@@ -257,7 +257,7 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
   const prevStatus = task.status;
   let updated;
   try {
-    updated = updateTask(task.id, { status: 'in_progress', assigneeId: userId ?? null }, userId);
+    updated = await updateTask(db, task.id, { status: 'in_progress', assigneeId: userId ?? null }, userId);
   } catch (e) {
     if (e instanceof TaskClaimConflictError) {
       const sid = formatTaskId(task);
@@ -279,7 +279,7 @@ async function cmdComment(db: Db, channelId: string, args: string[], threadId?: 
     return;
   }
 
-  const task = resolveTask(args[0]);
+  const task = await resolveTask(db, args[0]);
   if (!task) {
     await postBotMessage(db, channelId, `❌ No task found matching "${args[0]}"`, threadId);
     return;
@@ -292,7 +292,7 @@ async function cmdComment(db: Db, channelId: string, args: string[], threadId?: 
   }
 
   const commentUserId = userId ?? await ensureBotUser(db);
-  addComment(task.id, commentUserId, commentText);
+  await addComment(db, task.id, commentUserId, commentText);
 
   const sid = formatTaskId(task);
   await postBotMessage(db, channelId, `💬 Comment added to **${task.title}** \`${sid}\``, threadId);

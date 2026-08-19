@@ -4,7 +4,6 @@ import { authMiddleware } from '../middleware/auth.js';
 import {
   listDeals,
   createDeal,
-  getDeal,
   updateDeal,
   deleteDeal,
   resolveDeal,
@@ -20,6 +19,7 @@ const VALID_STATUSES: DealStatus[] = ['active', 'watchlist', 'zombie', 'exited',
 
 // List deals
 dealRoutes.get('/', async (c) => {
+  const db = c.get('db');
   const stage = c.req.query('stage');
   const status = c.req.query('status');
   const name = c.req.query('name');
@@ -33,7 +33,7 @@ dealRoutes.get('/', async (c) => {
     return c.json({ error: 'Invalid status: ' + status }, 400);
   }
 
-  const result = listDeals({
+  const result = await listDeals(db, {
     stage: stage as DealStage | undefined,
     status: status as DealStatus | undefined,
     name: name || undefined,
@@ -45,14 +45,15 @@ dealRoutes.get('/', async (c) => {
 
 // Get deal change history
 dealRoutes.get('/:id/changes', async (c) => {
+  const db = c.get('db');
   const id = c.req.param('id');
-  const deal = resolveDeal(id);
+  const deal = await resolveDeal(db, id);
   if (!deal) return c.json({ error: 'Deal not found' }, 404);
 
   const agent_id = c.req.query('agent_id');
   const field = c.req.query('field');
 
-  const changes = getDealChanges(deal.id, {
+  const changes = await getDealChanges(db, deal.id, {
     agent_id: agent_id || undefined,
     field: field || undefined,
   });
@@ -61,14 +62,16 @@ dealRoutes.get('/:id/changes', async (c) => {
 
 // Get single deal (by UUID or D#N short ID)
 dealRoutes.get('/:id', async (c) => {
+  const db = c.get('db');
   const id = c.req.param('id');
-  const deal = resolveDeal(id);
+  const deal = await resolveDeal(db, id);
   if (!deal) return c.json({ error: 'Deal not found' }, 404);
   return c.json(deal);
 });
 
 // Create deal
 dealRoutes.post('/', async (c) => {
+  const db = c.get('db');
   const body = await c.req.json<{
     name: string;
     company?: string;
@@ -101,7 +104,7 @@ dealRoutes.post('/', async (c) => {
     return c.json({ error: 'Invalid status: ' + body.status }, 400);
   }
 
-  const deal = createDeal({
+  const deal = await createDeal(db, {
     name: body.name,
     company: body.company ?? null,
     stage: body.stage ?? 'sourcing',
@@ -126,8 +129,9 @@ dealRoutes.post('/', async (c) => {
 
 // Update deal (partial)
 dealRoutes.patch('/:id', async (c) => {
+  const db = c.get('db');
   const id = c.req.param('id');
-  const existing = resolveDeal(id);
+  const existing = await resolveDeal(db, id);
   if (!existing) return c.json({ error: 'Deal not found' }, 404);
 
   const body = await c.req.json<{
@@ -158,7 +162,7 @@ dealRoutes.patch('/:id', async (c) => {
     return c.json({ error: 'Invalid status: ' + body.status }, 400);
   }
 
-  const deal = updateDeal(existing.id, body);
+  const deal = await updateDeal(db, existing.id, body);
   if (!deal) return c.json({ error: 'Deal not found' }, 404);
 
   return c.json(deal);
@@ -166,9 +170,10 @@ dealRoutes.patch('/:id', async (c) => {
 
 // Delete deal
 dealRoutes.delete('/:id', async (c) => {
+  const db = c.get('db');
   const id = c.req.param('id');
-  const resolved = resolveDeal(id);
-  const deleted = resolved ? deleteDeal(resolved.id) : false;
+  const resolved = await resolveDeal(db, id);
+  const deleted = resolved ? await deleteDeal(db, resolved.id) : false;
   if (!deleted) return c.json({ error: 'Deal not found' }, 404);
   return c.json({ ok: true });
 });

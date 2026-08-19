@@ -339,6 +339,27 @@ describe('task routes', () => {
     expect(res.status).toBe(200);
   });
 
+  it('atomically allows only one of two concurrent claimants', async () => {
+    const { owner, member } = await createFixture();
+    const createRes = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Concurrent claim' },
+    });
+
+    const claims = await Promise.all([
+      harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+        headers: harness.headers.forUser(owner.id),
+        json: { status: 'in_progress' },
+      }),
+      harness.request.patch<any>(`/tasks/${createRes.body.id}`, {
+        headers: harness.headers.forUser(member.id),
+        json: { status: 'in_progress' },
+      }),
+    ]);
+
+    expect(claims.map((response) => response.status).sort()).toEqual([200, 409]);
+  });
+
   it('PATCH /tasks/:id clears claimedById when status goes to done', async () => {
     const { owner } = await createFixture();
 

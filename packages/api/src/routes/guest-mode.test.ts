@@ -11,20 +11,6 @@ import { createApiTestHarness } from '../test/apiHarness.js';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
 import { __testing as wsTesting } from '../ws/manager.js';
 
-vi.mock('../tasks/db.js', () => ({
-  clearTaskDbForTesting: () => {},
-  getTaskDb: () => {
-    throw new Error('Task DB should not be reached by unauthenticated guest-mode removal tests');
-  },
-}));
-
-vi.mock('../deals/db.js', () => ({
-  clearDealDbForTesting: () => {},
-  getDealDb: () => {
-    throw new Error('Deal DB should not be reached by unauthenticated guest-mode removal tests');
-  },
-}));
-
 vi.mock('../storage.js', () => ({
   ATTACHMENT_BUCKET: 'attachments',
   supabase: null,

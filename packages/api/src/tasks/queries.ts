@@ -1,4 +1,5 @@
-import { getTaskDb } from './db.js';
+import { and, asc, desc, eq, getTableColumns, ilike, isNull, ne, or, sql } from 'drizzle-orm';
+import { taskComments, tasks, type Db } from '@blather/db';
 
 export type TaskPriority = 'urgent' | 'normal' | 'low';
 export type TaskStatus = 'queued' | 'in_progress' | 'done';
@@ -12,7 +13,7 @@ export interface Task {
   assigneeId: string | null;
   claimedById: string | null;
   creatorId: string | null;
-  shortId: number | null;
+  shortId: number;
   sourceChannelId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -20,7 +21,7 @@ export interface Task {
 }
 
 export class TaskClaimConflictError extends Error {
-  constructor(claimedById: string) {
+  constructor(readonly claimedById: string) {
     super(`Task already claimed by ${claimedById}`);
     this.name = 'TaskClaimConflictError';
   }
@@ -38,97 +39,72 @@ export interface TaskWithCommentCount extends Task {
   commentsCount: number;
 }
 
-export function listTasks(filters?: {
+function mapTask(row: typeof tasks.$inferSelect): Task {
+  return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+}
+
+function mapComment(row: typeof taskComments.$inferSelect): TaskComment {
+  return { ...row, createdAt: row.createdAt.toISOString() };
+}
+
+export async function listTasks(db: Db, filters?: {
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string;
-}): Task[] {
-  const db = getTaskDb();
-  const conditions: string[] = [];
-  const params: Record<string, string> = {};
-
-  if (filters?.status) {
-    conditions.push('status = @status');
-    params.status = filters.status;
-  }
-  if (filters?.priority) {
-    conditions.push('priority = @priority');
-    params.priority = filters.priority;
-  }
-  if (filters?.assigneeId) {
-    conditions.push('assigneeId = @assigneeId');
-    params.assigneeId = filters.assigneeId;
-  }
-
-  if (conditions.length === 0) {
-    return db.prepare('SELECT * FROM tasks ORDER BY createdAt DESC').all() as Task[];
-  }
-
-  return db
-    .prepare(`SELECT * FROM tasks WHERE ${conditions.join(' AND ')} ORDER BY createdAt DESC`)
-    .all(params) as Task[];
+}): Promise<Task[]> {
+  const conditions = [];
+  if (filters?.status) conditions.push(eq(tasks.status, filters.status));
+  if (filters?.priority) conditions.push(eq(tasks.priority, filters.priority));
+  if (filters?.assigneeId) conditions.push(eq(tasks.assigneeId, filters.assigneeId));
+  const rows = await db.select().from(tasks).where(and(...conditions)).orderBy(desc(tasks.createdAt));
+  return rows.map(mapTask);
 }
 
-export function listOpenTasksWithCommentCount(): TaskWithCommentCount[] {
-  const db = getTaskDb();
-  return db
-    .prepare(`
-      SELECT t.*,
-        COALESCE(c.cnt, 0) AS commentsCount
-      FROM tasks t
-      LEFT JOIN (SELECT taskId, count(*) AS cnt FROM task_comments GROUP BY taskId) c ON c.taskId = t.id
-      WHERE t.status != 'done'
-      ORDER BY
-        CASE WHEN t.priority = 'urgent' THEN 0 WHEN t.priority = 'normal' THEN 1 ELSE 2 END,
-        t.createdAt DESC
-    `)
-    .all() as TaskWithCommentCount[];
+export async function listOpenTasksWithCommentCount(db: Db): Promise<TaskWithCommentCount[]> {
+  const rows = await db.select({
+    ...getTableColumns(tasks),
+    commentsCount: sql<number>`(
+      SELECT count(*)::int FROM ${taskComments}
+      WHERE ${taskComments.taskId} = ${tasks.id}
+    )`.mapWith(Number),
+  }).from(tasks).where(ne(tasks.status, 'done')).orderBy(
+    sql`CASE ${tasks.priority} WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END`,
+    desc(tasks.createdAt),
+  );
+  return rows.map((row) => ({ ...mapTask(row), commentsCount: row.commentsCount }));
 }
 
-export function getTask(id: string): Task | null {
-  return getTaskDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Task | null;
-}
-export function getTaskByShortId(shortId: number): Task | null {
-  return getTaskDb().prepare('SELECT * FROM tasks WHERE shortId = ?').get(shortId) as Task | null;
+export async function getTask(db: Db, id: string): Promise<Task | null> {
+  const [row] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+  return row ? mapTask(row) : null;
 }
 
+export async function getTaskByShortId(db: Db, shortId: number): Promise<Task | null> {
+  const [row] = await db.select().from(tasks).where(eq(tasks.shortId, shortId)).limit(1);
+  return row ? mapTask(row) : null;
+}
 
-export function createTask(data: {
+export async function createTask(db: Db, data: {
   title: string;
   description?: string | null;
   priority?: TaskPriority;
   assigneeId?: string | null;
   creatorId?: string | null;
   sourceChannelId?: string | null;
-}): Task {
-  const db = getTaskDb();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-
-  const seq = db.prepare('INSERT INTO task_short_id_seq DEFAULT VALUES').run();
-  const shortId = Number(seq.lastInsertRowid);
-
-  db.prepare(`
-    INSERT INTO tasks (id, title, description, priority, status, assigneeId, creatorId, shortId, sourceChannelId, createdAt, updatedAt, completionArtifact)
-    VALUES (@id, @title, @description, @priority, 'queued', @assigneeId, @creatorId, @shortId, @sourceChannelId, @createdAt, @updatedAt, @completionArtifact)
-  `).run({
-    id,
+}): Promise<Task> {
+  const [row] = await db.insert(tasks).values({
     title: data.title,
     description: data.description ?? null,
     priority: data.priority ?? 'normal',
     assigneeId: data.assigneeId ?? null,
     creatorId: data.creatorId ?? null,
-    shortId,
     sourceChannelId: data.sourceChannelId ?? null,
-    createdAt: now,
-    updatedAt: now,
-    completionArtifact: null,
-  });
-
-  return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Task;
+  }).returning();
+  return mapTask(row);
 }
 
-export function updateTask(
+export async function updateTask(
+  db: Db,
   id: string,
   data: {
     title?: string;
@@ -139,107 +115,87 @@ export function updateTask(
     completionArtifact?: string | null;
   },
   userId?: string,
-): Task | null {
-  const db = getTaskDb();
-  const now = new Date().toISOString();
+): Promise<Task | null> {
+  const values: Partial<typeof tasks.$inferInsert> = { updatedAt: new Date() };
+  if (data.title !== undefined) values.title = data.title;
+  if (data.description !== undefined) values.description = data.description;
+  if (data.priority !== undefined) values.priority = data.priority;
+  if (data.status !== undefined) values.status = data.status;
+  if (data.assigneeId !== undefined) values.assigneeId = data.assigneeId;
+  if (data.completionArtifact !== undefined) values.completionArtifact = data.completionArtifact;
 
-  // Claim enforcement on status transitions
   if (data.status === 'in_progress' && userId) {
-    const existing = db.prepare('SELECT claimedById FROM tasks WHERE id = ?').get(id) as { claimedById: string | null } | undefined;
-    if (existing?.claimedById && existing.claimedById !== userId) {
-      throw new TaskClaimConflictError(existing.claimedById);
-    }
+    values.claimedById = userId;
+    const [updated] = await db.update(tasks).set(values).where(and(
+      eq(tasks.id, id),
+      or(isNull(tasks.claimedById), eq(tasks.claimedById, userId)),
+    )).returning();
+    if (updated) return mapTask(updated);
+
+    const [existing] = await db.select({ claimedById: tasks.claimedById }).from(tasks).where(eq(tasks.id, id)).limit(1);
+    if (existing?.claimedById && existing.claimedById !== userId) throw new TaskClaimConflictError(existing.claimedById);
+    return null;
   }
 
-  const setClauses: string[] = ['updatedAt = @updatedAt'];
-  const params: Record<string, unknown> = { id, updatedAt: now };
-
-  if (data.title !== undefined) { setClauses.push('title = @title'); params.title = data.title; }
-  if (data.description !== undefined) { setClauses.push('description = @description'); params.description = data.description; }
-  if (data.priority !== undefined) { setClauses.push('priority = @priority'); params.priority = data.priority; }
-  if (data.status !== undefined) { setClauses.push('status = @status'); params.status = data.status; }
-  if (data.assigneeId !== undefined) { setClauses.push('assigneeId = @assigneeId'); params.assigneeId = data.assigneeId; }
-  if (data.completionArtifact !== undefined) { setClauses.push('completionArtifact = @completionArtifact'); params.completionArtifact = data.completionArtifact; }
-
-  // Set claimedById when transitioning to in_progress, clear when going to queued or done
-  if (data.status === 'in_progress' && userId) {
-    setClauses.push('claimedById = @claimedById');
-    params.claimedById = userId;
-  } else if (data.status === 'queued' || data.status === 'done') {
-    setClauses.push('claimedById = @claimedById');
-    params.claimedById = null;
-  }
-
-  db.prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = @id`).run(params);
-  return db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Task | null;
+  if (data.status === 'queued' || data.status === 'done') values.claimedById = null;
+  const [updated] = await db.update(tasks).set(values).where(eq(tasks.id, id)).returning();
+  return updated ? mapTask(updated) : null;
 }
 
-export function getTaskClaimConflict(id: string, requestingUserId: string): { claimedById: string } | null {
-  const task = getTask(id);
-  if (!task) return null;
-  if (task.status === 'in_progress' && task.claimedById && task.claimedById !== requestingUserId) {
+export async function getTaskClaimConflict(
+  db: Db,
+  id: string,
+  requestingUserId: string,
+): Promise<{ claimedById: string } | null> {
+  const [task] = await db.select({ status: tasks.status, claimedById: tasks.claimedById })
+    .from(tasks).where(eq(tasks.id, id)).limit(1);
+  if (task?.status === 'in_progress' && task.claimedById && task.claimedById !== requestingUserId) {
     return { claimedById: task.claimedById };
   }
   return null;
 }
 
-export function deleteTask(id: string): boolean {
-  const result = getTaskDb().prepare('DELETE FROM tasks WHERE id = ?').run(id);
-  return result.changes > 0;
+export async function deleteTask(db: Db, id: string): Promise<boolean> {
+  const deleted = await db.delete(tasks).where(eq(tasks.id, id)).returning({ id: tasks.id });
+  return deleted.length > 0;
 }
 
-export function resolveTask(token: string): Task | null {
-  const db = getTaskDb();
+export async function resolveTask(db: Db, token: string): Promise<Task | null> {
   const shortMatch = token.match(/^T#?(\d+)$/i) ?? token.match(/^(\d+)$/);
-  if (shortMatch) {
-    const n = parseInt(shortMatch[1], 10);
-    return db.prepare('SELECT * FROM tasks WHERE shortId = ?').get(n) as Task | null;
-  }
-  return db.prepare('SELECT * FROM tasks WHERE id LIKE ?').get(token + '%') as Task | null;
+  if (shortMatch) return getTaskByShortId(db, Number.parseInt(shortMatch[1], 10));
+  const [row] = await db.select().from(tasks)
+    .where(sql`${tasks.id}::text LIKE ${`${token}%`}`)
+    .orderBy(asc(tasks.createdAt)).limit(1);
+  return row ? mapTask(row) : null;
 }
 
-export function findTaskByTitle(
+export async function findTaskByTitle(
+  db: Db,
   query: string,
   opts?: { excludeStatus?: TaskStatus; requiredStatus?: TaskStatus },
-): Task | null {
-  const db = getTaskDb();
-  const like = `%${query.toLowerCase()}%`;
-
-  if (opts?.requiredStatus) {
-    return db
-      .prepare('SELECT * FROM tasks WHERE status = ? AND lower(title) LIKE ? LIMIT 1')
-      .get(opts.requiredStatus, like) as Task | null;
-  }
-  if (opts?.excludeStatus) {
-    return db
-      .prepare('SELECT * FROM tasks WHERE status != ? AND lower(title) LIKE ? LIMIT 1')
-      .get(opts.excludeStatus, like) as Task | null;
-  }
-  return db.prepare('SELECT * FROM tasks WHERE lower(title) LIKE ? LIMIT 1').get(like) as Task | null;
+): Promise<Task | null> {
+  const conditions = [ilike(tasks.title, `%${query}%`)];
+  if (opts?.requiredStatus) conditions.push(eq(tasks.status, opts.requiredStatus));
+  if (opts?.excludeStatus) conditions.push(ne(tasks.status, opts.excludeStatus));
+  const [row] = await db.select().from(tasks).where(and(...conditions)).orderBy(desc(tasks.createdAt)).limit(1);
+  return row ? mapTask(row) : null;
 }
 
-export function listComments(taskId: string): TaskComment[] {
-  return getTaskDb()
-    .prepare('SELECT * FROM task_comments WHERE taskId = ? ORDER BY createdAt ASC')
-    .all(taskId) as TaskComment[];
+export async function listComments(db: Db, taskId: string): Promise<TaskComment[]> {
+  const rows = await db.select().from(taskComments).where(eq(taskComments.taskId, taskId)).orderBy(asc(taskComments.createdAt));
+  return rows.map(mapComment);
 }
 
-export function addComment(taskId: string, userId: string, content: string): TaskComment {
-  const db = getTaskDb();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  db.prepare(
-    'INSERT INTO task_comments (id, taskId, userId, content, createdAt) VALUES (?, ?, ?, ?, ?)',
-  ).run(id, taskId, userId, content, now);
-  return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id) as TaskComment;
+export async function addComment(db: Db, taskId: string, userId: string, content: string): Promise<TaskComment> {
+  const [row] = await db.insert(taskComments).values({ taskId, userId, content }).returning();
+  return mapComment(row);
 }
 
-export function getComment(commentId: string): TaskComment | null {
-  return getTaskDb()
-    .prepare('SELECT * FROM task_comments WHERE id = ?')
-    .get(commentId) as TaskComment | null;
+export async function getComment(db: Db, commentId: string): Promise<TaskComment | null> {
+  const [row] = await db.select().from(taskComments).where(eq(taskComments.id, commentId)).limit(1);
+  return row ? mapComment(row) : null;
 }
 
-export function deleteComment(commentId: string): void {
-  getTaskDb().prepare('DELETE FROM task_comments WHERE id = ?').run(commentId);
+export async function deleteComment(db: Db, commentId: string): Promise<void> {
+  await db.delete(taskComments).where(eq(taskComments.id, commentId));
 }
