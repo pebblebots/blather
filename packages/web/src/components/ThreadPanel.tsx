@@ -22,9 +22,11 @@ interface Props {
   currentUserId?: string;
   onClose: () => void;
   newReplyFromWs?: ThreadMessage;
+  width?: number;
+  onResizeMouseDown?: (e: React.MouseEvent) => void;
 }
 
-export function ThreadPanel({ channelId, parentMessage, usersMap, displayNames, currentUserId, onClose, newReplyFromWs }: Props) {
+export function ThreadPanel({ channelId, parentMessage, usersMap, displayNames, currentUserId, onClose, newReplyFromWs, width = 320, onResizeMouseDown }: Props) {
   const { showToast } = useToast();
   const [replies, setReplies] = useState<ThreadMessage[]>([]);
   const [text, setText] = useState('');
@@ -93,13 +95,23 @@ export function ThreadPanel({ channelId, parentMessage, usersMap, displayNames, 
 
   return (
     <div style={{
-      width: 320,
+      width,
       display: 'flex',
       flexDirection: 'column',
       borderLeft: '1px solid #999999',
       background: '#FFFFFF',
       flexShrink: 0,
+      position: 'relative',
     }}>
+      {onResizeMouseDown && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize thread panel"
+          onMouseDown={onResizeMouseDown}
+          style={{ position: 'absolute', alignSelf: 'stretch', width: 7, marginLeft: -4, cursor: 'col-resize', zIndex: 10 }}
+        />
+      )}
       {/* Title bar */}
       <div className="mac-titlebar" style={{ fontSize: 11 }}>
         <div

@@ -30,6 +30,11 @@ export function MainPage() {
     const saved = localStorage.getItem('blather:sidebarWidth');
     return saved ? parseInt(saved, 10) : 210;
   });
+  const [threadWidth, setThreadWidth] = useState(() => {
+    const saved = localStorage.getItem('blather:threadWidth');
+    const value = saved ? parseInt(saved, 10) : 420;
+    return Number.isFinite(value) ? Math.min(720, Math.max(280, value)) : 420;
+  });
   const isDraggingRef = useRef(false);
   const dragStartXRef = useRef(0);
   const dragStartWidthRef = useRef(210);
@@ -55,6 +60,23 @@ export function MainPage() {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   }, [sidebarWidth]);
+
+  const onThreadResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = threadWidth;
+    const onMouseMove = (ev: MouseEvent) => {
+      const next = Math.min(720, Math.max(280, startWidth + startX - ev.clientX));
+      setThreadWidth(next);
+      localStorage.setItem('blather:threadWidth', String(next));
+    };
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [threadWidth]);
   
   const [channels, setChannels] = useState<any[]>([]);
   const [selectedCh, _setSelectedCh] = useState<string | null>(null);
@@ -1413,6 +1435,8 @@ export function MainPage() {
               currentUserId={user?.id}
               onClose={() => setThreadMessage(null)}
               newReplyFromWs={threadNewReply}
+              width={threadWidth}
+              onResizeMouseDown={onThreadResizeMouseDown}
             />
           )}
         </div>
