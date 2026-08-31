@@ -10,9 +10,15 @@ import { BlatherClient, type BlatherUser } from "./api.js";
 import {
   shouldDeliverReplyPayload,
   createPerTurnDeliveryGuard,
+  auditModeEClaim,
   type DeliverReplyInfo,
 } from "./deliver-guard.js";
-export { shouldDeliverReplyPayload, createPerTurnDeliveryGuard };
+import {
+  beginModeEAudit,
+  endModeEAudit,
+  observedModeEToolCalls,
+} from "./mode-e-audit.js";
+export { shouldDeliverReplyPayload, createPerTurnDeliveryGuard, auditModeEClaim };
 export type { DeliverReplyInfo };
 
 const RECONNECT_BASE_MS = 3_000;
@@ -296,6 +302,10 @@ export async function startMonitor(params: MonitorParams) {
     // T#178: fresh per-turn idempotency guard. Any finals beyond the first
     // are logged and suppressed here, breaking the cascade at source.
     const perTurnGuard = createPerTurnDeliveryGuard();
+    // T#192: start an audit ledger for this channel turn. The plugin-level
+    // before_tool_call hook records host-authoritative tool events into it;
+    // final delivery only tags suspicious claims and never blocks a reply.
+    beginModeEAudit(ctx.SessionKey);
     const { dispatcher, replyOptions, markDispatchIdle } =
       core.channel.reply.createReplyDispatcherWithTyping({
         ...replyPrefix,
@@ -329,6 +339,17 @@ export async function startMonitor(params: MonitorParams) {
             }
             return;
           }
+          if (info?.kind === "final") {
+            const audit = auditModeEClaim(
+              decision.text,
+              observedModeEToolCalls(ctx.SessionKey),
+            );
+            if (audit.flagged) {
+              log?.warn?.(
+                `[t192-mode-e] ${audit.evidence} channel=${data.channelId} session=${ctx.SessionKey ?? "unknown"}`,
+              );
+            }
+          }
           const payloadReplyToId =
             typeof payload === "object" && payload !== null
               ? (payload as { replyToId?: string }).replyToId
@@ -350,6 +371,7 @@ export async function startMonitor(params: MonitorParams) {
     });
     markDispatchIdle();
     clearInterval(typingInterval);
+    endModeEAudit(ctx.SessionKey);
 
     // T#178 observability: log when the dispatcher reports a final was
     // queued but the per-turn guard saw zero approved finals reach the
