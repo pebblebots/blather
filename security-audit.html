@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blather — Security Audit</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --crit: #f85149;
+    --high: #ff9e64;
+    --med: #e3b341;
+    --low: #58a6ff;
+    --good: #3fb950;
+    --code-bg: #0b0f14;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  #stage {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .slide {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4vh 8vw 10vh;
+    max-width: 1100px;
+    margin: 0 auto;
+    width: 100%;
+    animation: fade .35s ease;
+  }
+  .slide.active { display: flex; }
+  @keyframes fade {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.2rem;
+  }
+  h1 { font-size: 3.4rem; line-height: 1.05; letter-spacing: -0.02em; }
+  h2 { font-size: 2.2rem; line-height: 1.12; letter-spacing: -0.01em; margin-bottom: 0.5rem; }
+  .sub { color: var(--muted); font-size: 1.25rem; margin-top: 1.4rem; line-height: 1.5; max-width: 46ch; }
+  p { font-size: 1.15rem; line-height: 1.6; color: var(--fg); }
+  .lead { margin-top: 1rem; }
+  .muted { color: var(--muted); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    margin-bottom: 1.4rem;
+    align-self: flex-start;
+  }
+  .badge .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .sev-crit { color: var(--crit); }
+  .sev-high { color: var(--high); }
+  .sev-med  { color: var(--med); }
+  .sev-low  { color: var(--low); }
+  .sev-good { color: var(--good); }
+
+  .file {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    color: var(--accent);
+    margin: 0.4rem 0 1.2rem;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    margin: 1rem 0;
+  }
+  code { font-family: var(--mono); }
+  pre .c { color: var(--muted); }
+  pre .k { color: #ff7b72; }
+  pre .s { color: #a5d6ff; }
+  pre .fn { color: #d2a8ff; }
+  pre .hl { color: var(--crit); font-weight: 600; }
+
+  .row { display: flex; gap: 1rem; align-items: flex-start; margin-top: 0.8rem; }
+  .label {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    min-width: 86px;
+    padding-top: 0.15rem;
+  }
+  .row p { font-size: 1.08rem; }
+  .fix {
+    margin-top: 1.2rem;
+    border-left: 3px solid var(--good);
+    background: rgba(63,185,80,0.07);
+    padding: 0.9rem 1.2rem;
+    border-radius: 0 8px 8px 0;
+  }
+  .fix .label { color: var(--good); }
+
+  /* summary table */
+  table { width: 100%; border-collapse: collapse; margin-top: 1.4rem; font-size: 1.02rem; }
+  th, td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--border); }
+  th { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  td.sev { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+  tr td:last-child { color: var(--muted); font-family: var(--mono); font-size: 0.88rem; }
+
+  ul.clean { list-style: none; margin-top: 1.2rem; }
+  ul.clean li { padding: 0.55rem 0 0.55rem 2rem; position: relative; font-size: 1.1rem; line-height: 1.5; border-bottom: 1px solid var(--border); }
+  ul.clean li::before { content: "✓"; position: absolute; left: 0; color: var(--good); font-weight: 700; }
+  ul.clean li.x::before { content: "✕"; color: var(--high); }
+  ul.clean li b { color: var(--fg); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 2rem; margin-top: 1.5rem; }
+  .stat { border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.3rem; background: var(--panel); }
+  .stat .n { font-size: 2.6rem; font-weight: 700; font-family: var(--mono); line-height: 1; }
+  .stat .t { color: var(--muted); margin-top: 0.4rem; font-size: 0.95rem; }
+
+  /* chrome */
+  #bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); transition: width .3s ease; z-index: 20; }
+  #hud {
+    position: fixed; bottom: 1.4rem; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: center; gap: 1.5rem;
+    font-family: var(--mono); font-size: 0.82rem; color: var(--muted); z-index: 20;
+  }
+  #hud .keys span { border: 1px solid var(--border); border-radius: 5px; padding: 0.1rem 0.45rem; margin: 0 0.15rem; color: var(--fg); }
+  #counter { position: fixed; top: 1.2rem; right: 1.6rem; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); z-index: 20; }
+  #dots { display: flex; gap: 7px; }
+  #dots .d { width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: pointer; transition: all .2s; }
+  #dots .d.on { background: var(--accent); transform: scale(1.3); }
+  .hint { font-family: var(--mono); font-size: 0.9rem; color: var(--muted); margin-top: 2rem; }
+  .arrow-hit { position: fixed; top:0; bottom:0; width: 12vw; z-index: 10; cursor: pointer; }
+  #prevHit { left: 0; } #nextHit { right: 0; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="counter"></div>
+<div id="stage"></div>
+<div id="prevHit" class="arrow-hit" onclick="go(-1)"></div>
+<div id="nextHit" class="arrow-hit" onclick="go(1)"></div>
+<div id="hud">
+  <div id="dots"></div>
+  <div class="keys">Nav <span>←</span><span>→</span> · <span>Space</span> next · <span>F</span> fullscreen · <span>G</span> grid</div>
+</div>
+
+<script>
+const slides = [
+  // 0 — title
+  `<div class="kicker">Security Audit · Blather API</div>
+   <h1>Security Audit<br>Findings</h1>
+   <p class="sub">Routes, auth middleware, WebSocket transport, file serving, crypto &amp; rate limiting — verified against source. <span style="color:var(--fg)">2 critical-class private-channel bypasses found.</span></p>
+   <p class="hint">Press → or Space to begin</p>`,
+
+  // 1 — headline
+  `<div class="kicker">The Headline</div>
+   <h2>The June private-channel fix has two un-fixed siblings.</h2>
+   <p class="lead">The remediated Khylkouski disclosures restored private-channel confidentiality. But two endpoints share the <b>same bug class</b> through different doors: an authenticated non-member can silently insert themselves into <code>channel_members</code> — the universal ACL — and then read everything via the normal API.</p>
+   <div class="grid2">
+     <div class="stat"><div class="n sev-crit">1</div><div class="t">Critical</div></div>
+     <div class="stat"><div class="n sev-high">1</div><div class="t">High</div></div>
+     <div class="stat"><div class="n sev-med">2</div><div class="t">Medium</div></div>
+     <div class="stat"><div class="n sev-low">6</div><div class="t">Low / Hardening</div></div>
+   </div>`,
+
+  // 2 — C1
+  `<div class="badge sev-crit"><span class="dot"></span>CRITICAL · C1</div>
+   <h2>Mute joins you to any private/DM channel</h2>
+   <div class="file">packages/api/src/routes/channels.ts:1050–1063</div>
+   <pre><span class="k">channelRoutes</span>.<span class="fn">patch</span>(<span class="s">'/:id/mute'</span>, <span class="k">async</span> (c) => {
+  <span class="k">const</span> channelId = <span class="k">await</span> <span class="fn">resolveChannel</span>(db, c.req.<span class="fn">param</span>(<span class="s">'id'</span>));
+  <span class="k">if</span> (!channelId) <span class="k">return</span> c.<span class="fn">json</span>({ error: <span class="s">'Channel not found'</span> }, <span class="s">404</span>);
+  <span class="k">await</span> db.<span class="fn">insert</span>(channelMembers).<span class="fn">values</span>({ channelId, userId, muted: <span class="k">true</span> })
+    .<span class="fn">onConflictDoNothing</span>();   <span class="hl">// ← inserts a membership row, no gate</span></pre>
+   <div class="row"><div class="label">Impact</div><p>No membership or channel-type check. <code>PATCH /channels/&lt;private-uuid&gt;/mute</code> inserts a <code>channel_members</code> row → caller is now a full member. Messages, replies, reactions, member list, and posting all succeed. Channel UUIDs leak through normal responses, so they're discoverable, not guessed.</p></div>
+   <div class="fix"><div class="row"><div class="label">Fix</div><p>Require existing membership before muting — <code>UPDATE … WHERE</code> only, never <code>INSERT</code>; 403 if no row. Mute is a member-only preference.</p></div></div>`,
+
+  // 3 — H1
+  `<div class="badge sev-high"><span class="dot"></span>HIGH · H1</div>
+   <h2>Joining a huddle joins its private channel</h2>
+   <div class="file">packages/api/src/routes/huddles.ts:147–175 · channel created <code>channelType:"private"</code> (huddles.ts:52)</div>
+   <pre><span class="k">await</span> db.<span class="fn">insert</span>(huddleParticipants).<span class="fn">values</span>({ huddleId, userId, role: <span class="s">"listener"</span> });
+<span class="k">await</span> db.<span class="fn">insert</span>(channelMembers).<span class="fn">values</span>({ channelId: huddle.channelId, userId })
+  .<span class="fn">onConflictDoNothing</span>();   <span class="hl">// ← same bypass shape as mute</span></pre>
+   <div class="row"><div class="label">Impact</div><p><code>GET /huddles</code> (list) is open for discovery, and join has no check on <code>huddle.channelId</code>. Enumerate huddles → join → become a member of a private channel → read it via the channels API. Contradicts the member-gate decision already applied to <code>GET /huddles/:id</code> and <code>/speak</code>.</p></div>
+   <div class="fix"><div class="row"><div class="label">Fix</div><p>Gate join on <code>requireChannelMembership</code> (or restrict auto-add to public channels), consistent with the other huddle endpoints.</p></div></div>`,
+
+  // 4 — M1 + M2
+  `<div class="badge sev-med"><span class="dot"></span>MEDIUM</div>
+   <h2>Two medium issues</h2>
+   <div class="row" style="margin-top:1.3rem"><div class="label">M1</div><div>
+     <p><b>Magic login code uses <code>Math.random()</code></b> &nbsp;<span class="muted">auth.ts:119</span></p>
+     <p class="muted" style="margin-top:.3rem">Non-CSPRNG (V8 xorshift128+ is reconstructable from outputs) over a 10⁶ space. The token path uses <code>randomBytes(32)</code>; the code path doesn't. → <code>crypto.randomInt(100000, 1000000)</code>. One line.</p>
+   </div></div>
+   <div class="row" style="margin-top:1.3rem"><div class="label">M2</div><div>
+     <p><b>WebSocket has no <code>maxPayload</code></b> &nbsp;<span class="muted">ws/manager.ts</span></p>
+     <p class="muted" style="margin-top:.3rem"><code>new WebSocketServer({ noServer:true })</code> → ~100 MiB default. Inbound frames are buffered before <code>JSON.parse</code> (only <code>ping</code> acted on) → cheap per-connection memory DoS. Set <code>maxPayload: 64*1024</code>.</p>
+   </div></div>`,
+
+  // 5 — LOW
+  `<div class="badge sev-low"><span class="dot"></span>LOW · HARDENING</div>
+   <h2>Six low / defense-in-depth items</h2>
+   <table>
+     <tr><th>#</th><th>Issue</th><th>Loc</th></tr>
+     <tr><td class="sev sev-low">L1</td><td><code>?around=</code> anchor message not constrained to the channel — existence/timestamp oracle (no content leak)</td><td>channels.ts:363</td></tr>
+     <tr><td class="sev sev-low">L2</td><td>Magic token &amp; code stored plaintext — DB read exposes in-flight links. Hash + <code>timingSafeEqual</code></td><td>auth.ts:122</td></tr>
+     <tr><td class="sev sev-low">L3</td><td>JWT verify doesn't pin algorithm — not exploitable on jwt 9.0.3, but pin <code>['HS256']</code></td><td>auth.ts:25</td></tr>
+     <tr><td class="sev sev-low">L4</td><td>API keys SHA-256 unsalted — fine for 256-bit random keys. Noted only</td><td>auth.ts:15</td></tr>
+     <tr><td class="sev sev-low">L5</td><td>Channel deletion by a creator who has left — destructive but self-scoped</td><td>channels.ts:1123</td></tr>
+     <tr><td class="sev sev-low">L6</td><td><code>cors({ origin:'*' })</code> — acceptable, auth is header-based (no cookies)</td><td>app.ts:32</td></tr>
+   </table>`,
+
+  // 6 — clean
+  `<div class="badge sev-good"><span class="dot"></span>VERIFIED CLEAN</div>
+   <h2>Solid — and discarded false positives</h2>
+   <ul class="clean">
+     <li><b>WebSocket authZ is sound</b> — upgrade requires JWT/API-key, <code>userId</code> derived from token (not spoofable), fan-out membership-gated for all channel types, read-only for clients.</li>
+     <li><b>Capability-URL file model is consistent</b> — TTS named by message UUID (<code>defaultRandom()</code>); minting requires auth + visibility.</li>
+     <li><b>No SQL injection</b> — all dynamic SQL parameterized via Drizzle.</li>
+     <li><b>Upload handling reasonable</b> — type allowlist, 10 MB cap, path-traversal blocked, <code>nosniff</code>, forced-download for HTML.</li>
+     <li class="x"><b>Email case-sensitivity</b> (agent-flagged) — not real; magic flow lowercases consistently.</li>
+     <li class="x"><b>"Anyone can request a magic link"</b> — inherent to magic-link + allowlist; not a code bug.</li>
+   </ul>`,
+
+  // 7 — close
+  `<div class="kicker">Recommended Next Step</div>
+   <h2>Fix the two bypasses first.</h2>
+   <p class="lead">C1 (mute) is unambiguous and the fix is trivial and self-contained. Bundle with H1, plus the one-liners M1 and L1, and add regression tests alongside the negative-auth suite.</p>
+   <div class="fix"><div class="row"><div class="label">Plan</div><p>Patch C1 + H1 + M1 + L1 → add regression tests → verify against the Docker CI-equivalent → push to main.</p></div></div>
+   <p class="hint">End · ← to review</p>`,
+];
+
+const stage = document.getElementById('stage');
+const dotsEl = document.getElementById('dots');
+let i = 0;
+
+slides.forEach((html, n) => {
+  const d = document.createElement('div');
+  d.className = 'slide' + (n === 0 ? ' active' : '');
+  d.innerHTML = html;
+  stage.appendChild(d);
+  const dot = document.createElement('div');
+  dot.className = 'd' + (n === 0 ? ' on' : '');
+  dot.onclick = () => show(n);
+  dotsEl.appendChild(dot);
+});
+
+const slideEls = [...document.querySelectorAll('.slide')];
+const dotEls = [...document.querySelectorAll('#dots .d')];
+const bar = document.getElementById('bar');
+const counter = document.getElementById('counter');
+
+function show(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slideEls.forEach((el, k) => el.classList.toggle('active', k === i));
+  dotEls.forEach((el, k) => el.classList.toggle('on', k === i));
+  bar.style.width = ((i) / (slides.length - 1) * 100) + '%';
+  counter.textContent = (i + 1) + ' / ' + slides.length;
+}
+function go(d) { show(i + d); }
+
+let grid = false;
+function toggleGrid() {
+  grid = !grid;
+  if (grid) {
+    document.body.style.overflow = 'auto';
+    stage.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;padding:2rem;height:auto;min-height:100vh';
+    slideEls.forEach((el, k) => {
+      el.style.cssText = 'display:flex;transform:scale(1);border:1px solid var(--border);border-radius:12px;cursor:pointer;padding:2rem;max-width:none;justify-content:flex-start';
+      el.onclick = () => { toggleGrid(); show(k); };
+    });
+  } else {
+    document.body.style.overflow = 'hidden';
+    stage.style.cssText = '';
+    slideEls.forEach((el) => { el.style.cssText = ''; el.onclick = null; });
+    show(i);
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (grid && e.key !== 'g' && e.key !== 'G' && e.key !== 'Escape') return;
+  switch (e.key) {
+    case 'ArrowRight': case ' ': case 'PageDown': e.preventDefault(); go(1); break;
+    case 'ArrowLeft': case 'PageUp': e.preventDefault(); go(-1); break;
+    case 'Home': show(0); break;
+    case 'End': show(slides.length - 1); break;
+    case 'f': case 'F':
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+      break;
+    case 'g': case 'G': toggleGrid(); break;
+    case 'Escape': if (grid) toggleGrid(); break;
+  }
+});
+counter.textContent = '1 / ' + slides.length;
+</script>
+</body>
+</html>
