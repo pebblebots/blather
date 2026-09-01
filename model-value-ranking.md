@@ -1,6 +1,6 @@
 # Model value ranking
 
-Last substantive update: **2026-08-29**  
+Last substantive update: **2026-09-01**  
 Metric version: **v1 — input-price value**
 
 This artifact ranks broadly frontier-competitive language models by:
@@ -55,6 +55,14 @@ The inclusion floor is an Artificial Analysis Intelligence Index score of **35**
 
 \* Open weights with licensing or commercial-use caveats; inspect the model license before deployment.
 
+## Unranked promotional / free access
+
+These models clear the quality floor and have measurable token pricing, but their current input price is zero. They are kept outside the ranking rather than assigned infinite value.
+
+| Model | Access | AA score | Current input $/1M | Standard list $/1M | Note |
+|---|:---:|---:|---:|---:|---|
+| [Apodex 1.1](https://artificialanalysis.ai/models/apodex-1-1) | API | 44.0 | $0.00 | $0.300 | Proprietary reasoning model; the provider's free campaign has no published end date. At list price its reference ratio would be 146.67, but it remains unranked until paid billing resumes. |
+
 ## Pending / watchlist
 
 These releases are noteworthy but do not yet have every datum needed for a defensible row.
@@ -65,6 +73,8 @@ These releases are noteworthy but do not yet have every datum needed for a defen
 | [Seed 2.1 Turbo](https://openrouter.ai/bytedance-seed/seed-2-1-turbo) | OpenRouter input price $0.50/M | AA Intelligence Index score |
 | [Thomson](https://www.thomsonreuters.com/en/press-releases/2026/august/thomson-reuters-leverages-its-world-class-data-assets-to-launch-its-own-frontier-model) | Announced 2026-08-24; domain-specialized deployment is initially inside CoCounsel, with a small academic/non-commercial open-weight variant planned | AA Intelligence Index score and public per-token API price |
 | [Hy4 preview](https://www.tencent.com/tencent-releases-and-open-sources-tencent-hy4-preview/) | Released open-weight on 2026-08-28; OpenRouter input price $0.834/M on a non-promotional FP8 route | AA Intelligence Index score |
+| [Endeavor 1.0](https://flower.ai/blog/2026-09-01-introducing-endeavor-1.0) | Frontier-generalist preview released 2026-09-01; managed API and private deployment are available only by request, with no public per-token price | AA Intelligence Index score and public per-token API price |
+| [Mercury 2.5 Preview](https://openrouter.ai/inception/mercury-2.5-preview) | Exclusive OpenRouter preview released 2026-09-01; promotional input price $0.040/M (80% off) | AA Intelligence Index score |
 
 ## Interpretation
 
@@ -82,21 +92,25 @@ The earlier ranking based on the actual full Artificial Analysis evaluation bill
 
 ## Sources and conventions
 
-- Scores: [Artificial Analysis model comparison](https://artificialanalysis.ai/models), Intelligence Index v4.1.1, accessed 2026-08-29. The live leaderboard describes nine constituent evaluations and independently measured model performance.
-- Prices: [OpenRouter public model catalog](https://openrouter.ai/api/v1/models) and live model/provider pages, accessed 2026-08-29. The cheapest listed paid standard endpoint is used as the uncached input price; batch and free variants are excluded. Quantized routes are allowed but flagged when materially relevant because endpoint accuracy can differ.
-- Promotion status: OpenRouter marked the ranked $2.00/M GPT-5.6 Sol route as 50% off and the $0.5415/M Kimi K2.6 route as 43% off on 2026-08-23. GLM-5.3-Flash launched at 50% off ($0.075/M input) through 2026-09-09; its [official pricing page](https://docs.z.ai/guides/overview/pricing) and OpenRouter endpoints agree. The selected DeepSeek V4 Flash, Qwen3.8 Flash, Qwen3.6 27B, Kimi K2.7 Code, Nemotron 3 Ultra, and Hy4 preview routes were not marked promotional when last checked. Promotional prices are retained but flagged rather than treated as durable list prices.
+- Scores: [Artificial Analysis model comparison](https://artificialanalysis.ai/models), Intelligence Index v4.1.1, accessed 2026-09-01. The live leaderboard describes nine constituent evaluations and independently measured model performance.
+- Prices: [OpenRouter public model catalog](https://openrouter.ai/api/v1/models) and live model/provider pages, accessed 2026-09-01. The cheapest listed paid standard endpoint is used as the uncached input price; batch and free variants are excluded. Quantized routes are allowed but flagged when materially relevant because endpoint accuracy can differ.
+- Promotion status: OpenRouter marked the ranked $2.00/M GPT-5.6 Sol route as 50% off and the $0.5415/M Kimi K2.6 route as 43% off on 2026-08-23. GLM-5.3-Flash launched at 50% off ($0.075/M input) through 2026-09-09; its [official pricing page](https://docs.z.ai/guides/overview/pricing) and OpenRouter endpoints agree. Apodex 1.1 is temporarily free against a $0.30/M standard list price, with no published campaign end date; Mercury 2.5 Preview is 80% off at $0.040/M. The selected DeepSeek V4 Flash, Qwen3.8 Flash, Qwen3.6 27B, Kimi K2.7 Code, Nemotron 3 Ultra, and Hy4 preview routes were not marked promotional when last checked. Promotional prices are retained but flagged rather than treated as durable list prices; promotional-free models are unranked.
 - Release verification: official [GLM-5.3 documentation](https://docs.z.ai/guides/llm/glm-5.3) and [Qwen3.8 27B model card](https://huggingface.co/Qwen/Qwen3.8-27B), accessed 2026-08-19.
 - New-release verification: official [GPT-5.6 Cyber model page](https://developers.openai.com/api/docs/models/gpt-5.6-cyber), accessed 2026-08-20. The model requires separate Daybreak approval; its official uncached input price is $12.50/M and is not marked promotional.
 - New-release verification: official [Thomson Reuters announcement](https://www.thomsonreuters.com/en/press-releases/2026/august/thomson-reuters-leverages-its-world-class-data-assets-to-launch-its-own-frontier-model), accessed 2026-08-25. Thomson is initially domain-specialized and product-embedded, with no public token API price or AA score.
 - New-release verification: official [GLM-5.3-Flash announcement](https://z.ai/blog/glm-5.3-flash), [Artificial Analysis score](https://artificialanalysis.ai/models/glm-5-3-flash), and [Z.AI API pricing](https://docs.z.ai/guides/overview/pricing), accessed 2026-08-26. The model is open-weight under MIT; AA scored its reasoning configuration.
 - New-release verification: official [Qwen3.8-Flash-Next announcement](https://qwen.ai/blog?id=qwen3.8-flash-next), [Artificial Analysis score](https://artificialanalysis.ai/models/qwen3-8-flash-next), and [OpenRouter Qwen3.8 Flash pricing](https://openrouter.ai/qwen/qwen3.8-flash), accessed 2026-08-27. Qwen states that the managed `qwen3.8-flash` API is the production version based on the open-weight Flash-Next preview.
 - New-release verification: official [Tencent Hy4 preview announcement](https://www.tencent.com/tencent-releases-and-open-sources-tencent-hy4-preview/), official [model repository](https://github.com/Tencent-Hunyuan/Hy4-preview), and [OpenRouter pricing](https://openrouter.ai/tencent/hy4-preview), accessed 2026-08-28. The 770B/49B-active Apache-2.0 release defaults to high reasoning and remains unranked pending an AA score.
+- New-release verification: provider-supplied [Apodex 1.1 announcement](https://www.prnewswire.com/news-releases/apodex-1-1-moves-ai-beyond-deep-research-to-verifiable-execution-302866271.html), [Artificial Analysis score](https://artificialanalysis.ai/models/apodex-1-1), and official [Apodex API pricing](https://platform.apodex.ai/docs/pricing), accessed 2026-09-01. AA scored the proprietary 397B flagship reasoning model at 44; it is unranked while the provider's token price is promotionally free.
+- New-release verification: official [Endeavor 1.0 announcement](https://flower.ai/blog/2026-09-01-introducing-endeavor-1.0), accessed 2026-09-01. Flower describes a broad frontier generalist in managed/private preview, but has not published an AA score or per-token price.
+- New-release verification: live [Mercury 2.5 Preview model page](https://openrouter.ai/inception/mercury-2.5-preview) and provider endpoint, accessed 2026-09-01. The OpenRouter-exclusive Inception preview is priced at a promotional $0.040/M input (80% off) and remains unranked pending an AA score.
 - OpenAI cross-check: official pages for [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna), [Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra), and [Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol). OpenRouter is intentionally preferred where its live routed price is lower.
 - “Open” means weights are available, not necessarily that the license is OSI-approved or unrestricted for commercial use.
 - Displayed values are rounded; ordering uses unrounded values.
 
 ## Changelog
 
+- **2026-09-01 — Apodex becomes measurable; Endeavor and Mercury watchlist:** Added AA-scored Apodex 1.1 to a new unranked promotional/free section at AA 44 and a temporarily free token price (standard input list price $0.30/M; list-price reference ratio 146.67). Added Flower Labs' Endeavor 1.0 to the watchlist pending an AA score and public per-token price, and Mercury 2.5 Preview pending an AA score at its promotional $0.040/M OpenRouter input price. The paid ranking is unchanged.
 - **2026-08-29 — DeepSeek route repricing:** Updated DeepSeek V4 Flash 0731 from $0.035 to OpenRouter's cheapest listed standard route at $0.030/M input (non-promotional FP4), raising its value from 1,480.00 to 1,726.67 while retaining rank 2. No new noteworthy model release was found; Hy4 preview and the other watchlist entries remain unscored by AA.
 - **2026-08-28 — Hy4 preview watchlist and Nemotron repricing:** Added Tencent's newly released 770B/49B-active open-weight flagship to the watchlist at a non-promotional $0.834/M FP8 input price, pending an AA score. Updated Nemotron 3 Ultra from $0.60 to a non-promotional $0.50/M FP4 route (value 76.60), moving it from rank 22 to rank 21.
 - **2026-08-27 — Qwen3.8-Flash-Next debuts at rank 5:** Added the new open-weight Qwen4-architecture preview at AA 56 and paired it with the managed Qwen3.8 Flash API's non-promotional $0.15/M input price (value 373.33). Refined GLM-5.3-Flash's live AA score from 57.0 to 57.5 (value 766.67; still rank 4). Updated Qwen3.6 27B to a returned non-promotional $0.289/M FP4 route (value 130.45, rank 15 to 13) and Kimi K2.7 Code to $0.66/M INT4 (value 65.15, still rank 21).
