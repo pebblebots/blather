@@ -7,11 +7,14 @@ import { authMiddleware } from '../middleware/auth.js';
 import {
   listTasks,
   createTask,
-  getTask,
-  getTaskByShortId,
+  getTaskForViewer,
+  getTaskByShortIdForViewer,
   updateTask,
   deleteTask,
   getTaskClaimConflict,
+  canAssignTask,
+  canMutateTask,
+  canUseTaskChannel,
   listComments,
   addComment,
   getComment,
@@ -57,6 +60,7 @@ taskRoutes.get('/', async (c) => {
     status: status ? normalizeStatus(status)! : undefined,
     priority: priority ? validatePriority(priority)! : undefined,
     assigneeId: assignee,
+    viewerId: c.get('userId'),
   });
 
   return c.json(result);
@@ -82,6 +86,13 @@ taskRoutes.post('/', async (c) => {
     return c.json({ error: 'Invalid priority: ' + body.priority + '. Valid: ' + VALID_PRIORITIES.join(', ') }, 400);
   }
 
+  if (body.sourceChannelId && !await canUseTaskChannel(db, body.sourceChannelId, userId)) {
+    return c.json({ error: 'Not authorized for source channel' }, 403);
+  }
+  if (!await canAssignTask(db, body.sourceChannelId ?? null, body.assigneeId ?? null)) {
+    return c.json({ error: 'Invalid assignee for task scope' }, 400);
+  }
+
   const task = await createTask(db, {
     title: body.title,
     description: body.description ?? null,
@@ -105,6 +116,7 @@ taskRoutes.post('/', async (c) => {
 // Get single task (by UUID, numeric shortId, or T#N)
 taskRoutes.get('/:id', async (c) => {
   const db = c.get('db');
+  const userId = c.get('userId');
   const raw = c.req.param('id');
   let task = null;
 
@@ -112,11 +124,11 @@ taskRoutes.get('/:id', async (c) => {
   const shortMatch = raw.match(/^T?#?(\d+)$/i);
   if (shortMatch) {
     const n = Number(shortMatch[1]);
-    if (Number.isFinite(n)) task = await getTaskByShortId(db, n);
+    if (Number.isFinite(n)) task = await getTaskByShortIdForViewer(db, n, userId);
   }
 
-  // Fall back to UUID lookup
-  if (!task) task = await getTask(db, raw);
+  // Fall back to UUID lookup, applying the same visibility rule.
+  if (!task) task = await getTaskForViewer(db, raw, userId);
 
   if (!task) return c.json({ error: 'Task not found' }, 404);
   return c.json(task);
@@ -136,8 +148,9 @@ taskRoutes.patch('/:id', async (c) => {
     completionArtifact?: string | null;
   }>();
 
-  // Fetch current task for status comparison
-  const existing = await getTask(db, id);
+  // Fetch current task for status comparison, without exposing tasks outside
+  // the caller's visibility scope.
+  const existing = await getTaskForViewer(db, id, userId);
   if (!existing) return c.json({ error: 'Task not found' }, 404);
 
   const updates: {
@@ -166,7 +179,8 @@ taskRoutes.patch('/:id', async (c) => {
   if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
   if (body.completionArtifact !== undefined) updates.completionArtifact = body.completionArtifact;
 
-  // Check claim conflict before updating — return rich 409 with claimer info
+  // Check claim conflict before authorization so a visible task claimed by
+  // somebody else returns the useful 409 rather than an opaque 403.
   if (updates.status === 'in_progress') {
     const conflict = await getTaskClaimConflict(db, id, userId);
     if (conflict) {
@@ -184,6 +198,14 @@ taskRoutes.patch('/:id', async (c) => {
         ...(claimedByName ? { claimedByName } : {}),
       }, 409);
     }
+  }
+
+  const operation = updates.status === 'in_progress' ? 'claim' : 'update';
+  if (!await canMutateTask(db, id, userId, operation)) {
+    return c.json({ error: 'Not authorized to modify task' }, 403);
+  }
+  if (body.assigneeId !== undefined && !await canAssignTask(db, existing.sourceChannelId, body.assigneeId)) {
+    return c.json({ error: 'Invalid assignee for task scope' }, 400);
   }
 
   let task;
@@ -225,7 +247,13 @@ taskRoutes.patch('/:id', async (c) => {
 // Delete task
 taskRoutes.delete('/:id', async (c) => {
   const db = c.get('db');
+  const userId = c.get('userId');
   const id = c.req.param('id');
+  const existing = await getTaskForViewer(db, id, userId);
+  if (!existing) return c.json({ error: 'Task not found' }, 404);
+  if (!await canMutateTask(db, id, userId, 'delete')) {
+    return c.json({ error: 'Not authorized to delete task' }, 403);
+  }
   const deleted = await deleteTask(db, id);
   if (!deleted) return c.json({ error: 'Task not found' }, 404);
   return c.json({ ok: true });
@@ -237,6 +265,9 @@ taskRoutes.delete('/:id', async (c) => {
 taskRoutes.get('/:taskId/comments', async (c) => {
   const db = c.get('db');
   const taskId = c.req.param('taskId');
+
+  const task = await getTaskForViewer(db, taskId, c.get('userId'));
+  if (!task) return c.json({ error: 'Task not found' }, 404);
 
   const comments = await listComments(db, taskId);
 
@@ -273,7 +304,7 @@ taskRoutes.post('/:taskId/comments', async (c) => {
   }
 
   // Verify task exists
-  const task = await getTask(db, taskId);
+  const task = await getTaskForViewer(db, taskId, c.get('userId'));
   if (!task) return c.json({ error: 'Task not found' }, 404);
 
   const comment = await addComment(db, taskId, userId, body.content.trim());
@@ -289,6 +320,9 @@ taskRoutes.delete('/:taskId/comments/:commentId', async (c) => {
   const comment = await getComment(db, commentId);
   if (!comment) return c.json({ error: 'Comment not found' }, 404);
   if (comment.userId !== userId) return c.json({ error: 'Not authorized' }, 403);
+  if (!await getTaskForViewer(db, comment.taskId, userId)) {
+    return c.json({ error: 'Task not found' }, 404);
+  }
 
   await deleteComment(db, commentId);
   return c.json({ ok: true });

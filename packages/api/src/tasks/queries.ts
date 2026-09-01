@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, getTableColumns, ilike, isNull, ne, or, sql } from 'drizzle-orm';
-import { taskComments, tasks, type Db } from '@blather/db';
+import { channelMembers, taskComments, tasks, users, type Db } from '@blather/db';
 
 export type TaskPriority = 'urgent' | 'normal' | 'low';
 export type TaskStatus = 'queued' | 'in_progress' | 'done';
@@ -39,6 +39,116 @@ export interface TaskWithCommentCount extends Task {
   commentsCount: number;
 }
 
+/**
+ * The API connects as the database owner, so Postgres RLS is not the
+ * authorization boundary for API-key/JWT requests. Keep the same boundary in
+ * the API query layer: task actors can see their tasks, channel members can
+ * see channel tasks. Mutation and claim operations remain actor-scoped.
+ */
+function taskActorCondition(userId: string) {
+  return or(
+    eq(tasks.creatorId, userId),
+    eq(tasks.assigneeId, userId),
+    eq(tasks.claimedById, userId),
+  );
+}
+
+function taskChannelMemberCondition(userId: string) {
+  return sql`EXISTS (SELECT 1 FROM ${channelMembers}
+    WHERE ${channelMembers.channelId} = ${tasks.sourceChannelId}
+      AND ${channelMembers.userId} = ${userId})`;
+}
+
+function taskVisibilityCondition(userId: string) {
+  return or(
+    taskActorCondition(userId),
+    taskChannelMemberCondition(userId),
+    // Unchannelled active tasks are the shared task-board queue. They are
+    // readable so users can discover work; mutation remains actor-scoped.
+    and(
+      isNull(tasks.sourceChannelId),
+      ne(tasks.status, 'done'),
+    ),
+  );
+}
+
+/** A task actor may mutate or claim a task. */
+export async function canMutateTask(
+  db: Db,
+  id: string,
+  userId: string,
+  operation: 'update' | 'claim' | 'delete' = 'update',
+): Promise<boolean> {
+  // Claiming is a distinct queue capability: a user may claim visible queued
+  // work that is not already assigned/claimed. All other edits and deletes
+  // require task-actor authority. The atomic update below preserves the
+  // existing one-claimant race protection.
+  const condition = operation === 'claim'
+    ? or(
+      taskActorCondition(userId),
+      and(
+        eq(tasks.status, 'queued'),
+        isNull(tasks.assigneeId),
+        isNull(tasks.claimedById),
+        or(
+          isNull(tasks.sourceChannelId),
+          taskChannelMemberCondition(userId),
+        ),
+      ),
+    )
+    : taskActorCondition(userId);
+  const [row] = await db.select({ id: tasks.id }).from(tasks).where(and(
+    eq(tasks.id, id),
+    condition,
+  )).limit(1);
+  return Boolean(row);
+}
+
+/** Assignment targets must be active users and, for channel tasks, members. */
+export async function canUseTaskChannel(db: Db, channelId: string, userId: string): Promise<boolean> {
+  const [row] = await db.select({ userId: channelMembers.userId })
+    .from(channelMembers)
+    .where(and(
+      eq(channelMembers.channelId, channelId),
+      eq(channelMembers.userId, userId),
+    ))
+    .limit(1);
+  return Boolean(row);
+}
+
+export async function canAssignTask(
+  db: Db,
+  sourceChannelId: string | null,
+  assigneeId: string | null,
+): Promise<boolean> {
+  if (!assigneeId) return true;
+  if (sourceChannelId) {
+    const [row] = await db.select({ id: users.id })
+      .from(users)
+      .innerJoin(channelMembers, eq(channelMembers.userId, users.id))
+      .where(and(
+        eq(users.id, assigneeId),
+        isNull(users.deactivatedAt),
+        eq(channelMembers.channelId, sourceChannelId),
+      ))
+      .limit(1);
+    return Boolean(row);
+  }
+  const [row] = await db.select({ id: users.id }).from(users).where(and(
+    eq(users.id, assigneeId),
+    isNull(users.deactivatedAt),
+  )).limit(1);
+  return Boolean(row);
+}
+
+export async function canViewTask(db: Db, id: string, userId: string): Promise<boolean> {
+  const [row] = await db.select({ id: tasks.id }).from(tasks).where(and(
+    eq(tasks.id, id),
+    taskVisibilityCondition(userId),
+  )).limit(1);
+  return Boolean(row);
+}
+
 function mapTask(row: typeof tasks.$inferSelect): Task {
   return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
@@ -51,11 +161,13 @@ export async function listTasks(db: Db, filters?: {
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string;
+  viewerId?: string;
 }): Promise<Task[]> {
   const conditions = [];
   if (filters?.status) conditions.push(eq(tasks.status, filters.status));
   if (filters?.priority) conditions.push(eq(tasks.priority, filters.priority));
   if (filters?.assigneeId) conditions.push(eq(tasks.assigneeId, filters.assigneeId));
+  if (filters?.viewerId) conditions.push(taskVisibilityCondition(filters.viewerId));
   const rows = await db.select().from(tasks).where(and(...conditions)).orderBy(desc(tasks.createdAt));
   return rows.map(mapTask);
 }
@@ -79,8 +191,24 @@ export async function getTask(db: Db, id: string): Promise<Task | null> {
   return row ? mapTask(row) : null;
 }
 
+export async function getTaskForViewer(db: Db, id: string, userId: string): Promise<Task | null> {
+  const [row] = await db.select().from(tasks).where(and(
+    eq(tasks.id, id),
+    taskVisibilityCondition(userId),
+  )).limit(1);
+  return row ? mapTask(row) : null;
+}
+
 export async function getTaskByShortId(db: Db, shortId: number): Promise<Task | null> {
   const [row] = await db.select().from(tasks).where(eq(tasks.shortId, shortId)).limit(1);
+  return row ? mapTask(row) : null;
+}
+
+export async function getTaskByShortIdForViewer(db: Db, shortId: number, userId: string): Promise<Task | null> {
+  const [row] = await db.select().from(tasks).where(and(
+    eq(tasks.shortId, shortId),
+    taskVisibilityCondition(userId),
+  )).limit(1);
   return row ? mapTask(row) : null;
 }
 
