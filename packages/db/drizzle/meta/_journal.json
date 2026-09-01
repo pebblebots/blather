@@ -120,6 +120,13 @@
       "when": 1787137200000,
       "tag": "0017_tasks_deals_postgres",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788273600000,
+      "tag": "0018_tasks_rls",
+      "breakpoints": true
     }
   ]
 }
