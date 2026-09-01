@@ -13,6 +13,7 @@ import { uploadRoutes } from './routes/uploads.js';
 import { ttsRoutes } from './routes/tts.js';
 import { huddleRoutes } from './routes/huddles.js';
 import { activityRoutes } from './routes/activity.js';
+import { completionRoutes } from './routes/completions.js';
 import { metricRoutes } from './routes/metrics.js';
 import { statusRoutes } from './routes/status.js';
 import { generalApiLimiter, messageSendLimiter, uploadLimiter, type RateLimitStore } from './middleware/rate-limit.js';
@@ -77,6 +78,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
   app.route('/huddles', huddleRoutes);
   app.route('/metrics', metricRoutes);
   app.route('/activity', activityRoutes);
+  app.route('/completions', completionRoutes);
   app.route('/status', statusRoutes);
 
   return app;
