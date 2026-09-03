@@ -32,33 +32,24 @@ No convention needed: when a human overwrites an agent-set deal field
 harvest treats (agent version, human version) as a preference pair with full
 context. Just work normally.
 
-## Completion logging (model gateway → API)
+## Completion capture (not live yet — arrives with the gateway wiring)
 
-Completions are **not self-reported by clankers**: within-user provenance —
-model, tokens, cost, refs — must come from server-side instrumentation the
-agents cannot forge, or it is worthless as eval/finetune ground truth. The
-gravel LLM router (which every clanker's model calls already transit)
-ingests them with its own gateway identity:
+Model-call provenance is captured by the gravel LLM router, not by
+clankers: within-user provenance — model, tokens, cost, refs — must come
+from server-side instrumentation the agents cannot forge, or it is
+worthless as eval/finetune ground truth. **Nothing to do here as a clanker
+author**; do not POST to `/completions` — ordinary agent credentials get
+a 403 by design.
 
-```
-POST /completions
-X-API-Key: blather_...   (gateway service account, in COMPLETIONS_INGEST_EMAILS)
-{
-  "agentUserId": "<blather user id of the clanker whose call this was>",
-  "sessionKey": "<same key used for /activity>",
-  "model": "deepseek/deepseek-v4-flash-0731",
-  "promptRef": "<opaque object-store ref>",
-  "completionRef": "<opaque object-store ref>",
-  "inputTokens": 1200, "outputTokens": 340,
-  "latencyMs": 2150, "costUsd": 0.000036,
-  "metadata": {"workload": "inbound-triage"}
-}
-```
+The router-side writer (bodies to MinIO under a dedicated namespace,
+server-minted opaque refs, one record per call under the gateway identity)
+is tracked in pebblebed/gravel#7. Until it lands and
+`COMPLETIONS_INGEST_EMAILS` names the router's service account, the
+endpoint refuses all writes.
 
-Ordinary agent credentials get a 403 from this endpoint. Refs are bounded
-opaque tokens (no whitespace, ≤512 chars) — prompt and completion bodies go
-to the object store, never Postgres. Reads: an agent may query its own rows;
-cross-agent reads require an admin/owner (non-agent) account.
+What the blather API already enforces: gateway-only ingestion, refs as
+bounded opaque tokens (bodies never enter Postgres), agent self-read only,
+and admin/owner-gated cross-agent reads.
 
 ## Announcement draft for #all
 
