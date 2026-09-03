@@ -105,7 +105,9 @@ describe('completion routes', () => {
     const res = await logCompletion(agent.id, { agentUserId: victim.id, model: 'm' });
     expect(res.status).toBe(403);
 
-    const victimRows = await queryCompletions(agent.id, { agentId: victim.id });
+    // Nothing was logged under the victim's id (checked as the victim,
+    // since agents cannot read each other's completions).
+    const victimRows = await queryCompletions(victim.id, { agentId: victim.id });
     expect(victimRows.body).toHaveLength(0);
   });
 
@@ -121,6 +123,32 @@ describe('completion routes', () => {
   });
 
   // -- Query completions --
+
+  it('GET /completions rejects an agent reading another agent (403)', async () => {
+    const agent = await createAgent();
+    const other = await harness.factories.createUser({ email: 'other@system.blather', displayName: 'Other', isAgent: true });
+    await logCompletion(other.id, { model: 'm' });
+
+    const res = await queryCompletions(agent.id, { agentId: other.id });
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /completions allows a human to read any agent', async () => {
+    const agent = await createAgent();
+    const human = await harness.factories.createUser({ email: 'kma@example.com', displayName: 'Human' });
+    await logCompletion(agent.id, { model: 'm' });
+
+    const res = await queryCompletions(human.id, { agentId: agent.id });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it('GET /completions returns 400 for an invalid since timestamp', async () => {
+    const agent = await createAgent();
+
+    const res = await queryCompletions(agent.id, { agentId: agent.id, since: 'bogus' });
+    expect(res.status).toBe(400);
+  });
 
   it('GET /completions returns 400 without agentId', async () => {
     const agent = await createAgent();

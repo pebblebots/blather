@@ -58,7 +58,7 @@ export function createApp(db: Db = createDb(), rateLimitStore?: RateLimitStore):
 
   // Per-user general rate limit on authenticated routes (applied before route handlers)
   const generalLimiter = generalApiLimiter(rateLimitStore);
-  for (const prefix of ['/channels', '/members', '/tasks', '/deals', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/status', '/presence']) {
+  for (const prefix of ['/channels', '/members', '/tasks', '/deals', '/incidents', '/messages', '/uploads', '/tts', '/huddles', '/metrics', '/activity', '/completions', '/status', '/presence']) {
     app.use(`${prefix}/*`, generalLimiter);
   }
 

@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { agentCompletions } from "@blather/db";
 import type { Env } from "../app.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { isAgentUser } from "./activity.js";
 
 export const completionRoutes = new Hono<Env>();
 completionRoutes.use("*", authMiddleware);
@@ -102,14 +103,26 @@ completionRoutes.post("/", async (c) => {
   return c.json(row, 201);
 });
 
-// GET /completions — query recent completions for an agent
+// GET /completions — query recent completions for an agent.
+// Agents may read only their own rows; human (non-agent) users may read any
+// agent's — completion refs and metadata are review material for the
+// eval/finetune pipeline, not something one clanker should browse in another.
 completionRoutes.get("/", async (c) => {
   const db = c.get("db");
+  const userId = c.get("userId");
   const agentId = c.req.query("agentId");
   const sessionKey = c.req.query("sessionKey");
   const since = c.req.query("since") || defaultSince();
   const limit = parseCompletionLimit(c.req.query("limit"));
   if (!agentId) return c.json({ error: "agentId required" }, 400);
+
+  if (Number.isNaN(Date.parse(since))) {
+    return c.json({ error: "since must be a valid timestamp" }, 400);
+  }
+
+  if (agentId !== userId && (await isAgentUser(db, userId))) {
+    return c.json({ error: "Agents may only read their own completions" }, 403);
+  }
 
   const sessionFilter = sessionKey !== undefined ? sql` AND session_key = ${sessionKey}` : sql``;
   const rows = await db.execute(sql`
