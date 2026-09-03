@@ -289,3 +289,26 @@ export const agentActivityLog = pgTable('agent_activity_log', {
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Agent Completions ──
+// Model-call provenance: what a clanker's model saw and produced, per call.
+// Prompt/completion bodies live in the object store; rows carry refs only.
+
+export const agentCompletions = pgTable('agent_completions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  agentUserId: uuid('agent_user_id').notNull(),
+  sessionKey: text('session_key').notNull().default(''),
+  model: text('model').notNull(),
+  promptRef: text('prompt_ref'),
+  completionRef: text('completion_ref'),
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  latencyMs: integer('latency_ms'),
+  costUsd: decimal('cost_usd'),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('agent_completions_agent_created_idx').on(t.agentUserId, t.createdAt),
+  index('agent_completions_session_key_idx').on(t.sessionKey),
+  index('agent_completions_model_idx').on(t.model),
+]);

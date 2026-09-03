@@ -27,6 +27,7 @@ type CreateUserInput = {
   displayName?: string;
   avatarUrl?: string | null;
   isAgent?: boolean;
+  role?: 'owner' | 'admin' | 'member';
   voice?: string | null;
   bio?: string | null;
 };
@@ -106,6 +107,7 @@ function createTestFactories(db: Db): TestFactories {
           displayName: input.displayName ?? `Test User ${suffix}`,
           avatarUrl: input.avatarUrl ?? null,
           isAgent: input.isAgent ?? false,
+          role: input.role ?? 'member',
           voice: input.voice ?? null,
           bio: input.bio ?? null,
         })
