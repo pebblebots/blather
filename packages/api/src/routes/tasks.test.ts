@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApiTestHarness } from '../test/apiHarness.js';
+import { channelMembers } from '@blather/db';
 import { createTestDatabase, type TestDatabase } from '../test/testDb.js';
 
 describe('task routes', () => {
@@ -27,6 +28,75 @@ describe('task routes', () => {
   }
 
   // -- List tasks --
+
+  it('enforces task visibility and mutation authorization in the API path', async () => {
+    const { owner, member } = await createFixture();
+    const privateChannel = await harness.factories.createChannel({ createdBy: owner.id });
+    const ownerTask = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Owner-only task', sourceChannelId: privateChannel.id },
+    });
+    const memberRead = await harness.request.get<any[]>('/tasks', {
+      headers: harness.headers.forUser(member.id),
+    });
+    expect(memberRead.status).toBe(200);
+    expect(memberRead.body).toHaveLength(0);
+
+    const hiddenGet = await harness.request.get<any>(`/tasks/${ownerTask.body.id}`, {
+      headers: harness.headers.forUser(member.id),
+    });
+    expect(hiddenGet.status).toBe(404);
+
+    const hiddenPatch = await harness.request.patch<any>(`/tasks/${ownerTask.body.id}`, {
+      headers: harness.headers.forUser(member.id),
+      json: { title: 'Spoofed update' },
+    });
+    expect(hiddenPatch.status).toBe(404);
+
+    const hiddenDelete = await harness.request.delete(`/tasks/${ownerTask.body.id}`, {
+      headers: harness.headers.forUser(member.id),
+    });
+    expect(hiddenDelete.status).toBe(404);
+
+    const ownerPatch = await harness.request.patch<any>(`/tasks/${ownerTask.body.id}`, {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Owner update' },
+    });
+    expect(ownerPatch.status).toBe(200);
+  });
+
+  it('enforces channel membership and assignee scope', async () => {
+    const { owner, member } = await createFixture();
+    const channel = await harness.factories.createChannel({ createdBy: owner.id });
+
+    const outsiderCreate = await harness.request.post('/tasks', {
+      headers: harness.headers.forUser(member.id),
+      json: { title: 'Outsider task', sourceChannelId: channel.id },
+    });
+    expect(outsiderCreate.status).toBe(403);
+
+    const invalidAssignee = await harness.request.post('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Bad assignment', sourceChannelId: channel.id, assigneeId: member.id },
+    });
+    expect(invalidAssignee.status).toBe(400);
+
+    await harness.db.insert(channelMembers).values({
+      channelId: channel.id,
+      userId: member.id,
+    });
+    const valid = await harness.request.post<any>('/tasks', {
+      headers: harness.headers.forUser(owner.id),
+      json: { title: 'Scoped assignment', sourceChannelId: channel.id, assigneeId: member.id },
+    });
+    expect(valid.status).toBe(201);
+
+    const memberUpdate = await harness.request.patch<any>(`/tasks/${valid.body.id}`, {
+      headers: harness.headers.forUser(member.id),
+      json: { title: 'Member update' },
+    });
+    expect(memberUpdate.status).toBe(200);
+  });
 
   it('GET /tasks lists tasks', async () => {
     const { owner } = await createFixture();
@@ -519,6 +589,16 @@ describe('task routes', () => {
     const { owner } = await createFixture();
 
     const res = await harness.request.get<any>('/tasks/00000000-0000-0000-0000-000000000000', {
+      headers: harness.headers.forUser(owner.id),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it.each(['999999', 'T#999999'])('GET /tasks/:id returns 404 for unknown short ID %s', async (id) => {
+    const { owner } = await createFixture();
+
+    const res = await harness.request.get(`/tasks/${encodeURIComponent(id)}`, {
       headers: harness.headers.forUser(owner.id),
     });
 
