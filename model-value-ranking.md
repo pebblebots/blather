@@ -1,6 +1,6 @@
 # Model value ranking
 
-Last substantive update: **2026-09-05**
+Last substantive update: **2026-09-07**
 Metric version: **v1 — input-price value**
 
 This artifact ranks broadly frontier-competitive language models by:
@@ -15,41 +15,41 @@ The inclusion floor is an Artificial Analysis Intelligence Index v4.2 score of *
 
 | Rank | Model | Access | AA score | Input $/1M | Score / $ | Note |
 |---:|---|:---:|---:|---:|---:|---|
-| 1 | [Solar Pro 4](https://openrouter.ai/upstage/solar-pro4) | API | 33.0 | $0.030 | **1,100.00** | Very low input price; API-only in the current catalog. |
+| 1 | [Solar Pro 4](https://openrouter.ai/upstage/solar-pro4) | API | 33.0 | $0.030 | **1,100.00** | Promotional route (90% off); exceptional ratio while the discount lasts. |
 | 2 | [DeepSeek V4 Flash 0731](https://openrouter.ai/deepseek/deepseek-v4-flash-0731) | Open | 42.0 | $0.050 | **840.00** | AA configuration: Reasoning, Max Effort. Cheapest standard route is non-promotional FP8; validate endpoint accuracy for critical workloads. |
-| 3 | [GLM-5.3-Flash](https://openrouter.ai/z-ai/glm-5.3-flash) | Open | 46.0 | $0.075 | **613.33** | Reasoning model; launch price is 50% off through 2026-09-09 and AA finds it unusually verbose. |
-| 4 | [Qwen3.8-Flash-Next](https://artificialanalysis.ai/models/qwen3-8-flash-next) | Open* | 46.0 | $0.150 | **306.67** | AA scored the reasoning open-weight preview; price is the non-promotional managed Qwen3.8 Flash API based on it. |
-| 5 | [GPT-5.6 Luna](https://openrouter.ai/openai/gpt-5.6-luna) | API | 43.0 | $0.200 | **215.00** | OpenRouter price is materially below the provider-direct price. |
-| 6 | [MiMo-V2.5](https://openrouter.ai/xiaomi/mimo-v2.5) | Open | 30.0 | $0.140 | **214.29** | Strong low-cost worker; below the 50+ driver tier. |
-| 7 | [GPT-5.4 Nano](https://openrouter.ai/openai/gpt-5.4-nano) | API | 40.0 | $0.200 | **200.00** | Cheap closed-model baseline. |
-| 8 | [Qwen3.8 27B](https://openrouter.ai/qwen/qwen3.8-27b) | Open | 41.0 | $0.220 | **186.36** | AA configuration: xhigh. Cheapest standard route is non-promotional FP4; validate endpoint accuracy for critical workloads. |
-| 9 | [Hy3 Preview](https://openrouter.ai/tencent/hy3-preview) | Open | 33.0 | $0.180 | **183.33** | Preview endpoint; recheck pricing at GA. |
-| 10 | [Gemini 3.8 Flash](https://openrouter.ai/google/gemini-3.8-flash) | API | 47.0 | $0.375 | **125.33** | AA configuration: high reasoning. Promotional Flex route is 50% off; exceptionally fast but very verbose in AA's evaluation. |
-| 11 | [MiniMax M3](https://openrouter.ai/minimax/minimax-m3) | Open* | 36.0 | $0.300 | **120.00** | Weights available; confirm commercial-license terms. |
-| 11 | [Gemini 3.7 Flash](https://openrouter.ai/google/gemini-3.7-flash) | API | 45.0 | $0.375 | **120.00** | Tied with MiniMax M3 on this metric. |
-| 13 | [GLM-5.2](https://openrouter.ai/z-ai/glm-5.2) | Open | 43.0 | $0.4144 | **103.76** | Promotional FP8 route (70.4% off); strong value from the prior GLM generation. |
-| 14 | [Qwen3.7 Plus](https://openrouter.ai/qwen/qwen3.7-plus) | API | 31.0 | $0.320 | **96.88** | Hosted/API configuration. |
-| 15 | [Qwen3.6 27B](https://openrouter.ai/qwen/qwen3.6-27b) | Open | 29.0 | $0.300 | **96.67** | Older 27B Qwen; cheapest standard route is non-promotional FP8. |
-| 16 | [Gemini 3.5 Flash Lite](https://openrouter.ai/google/gemini-3.5-flash-lite) | API | 28.0 | $0.300 | **93.33** | Older but still cost-competitive; sits exactly at the recalibrated floor. |
-| 17 | [MiMo-V2.5 Pro](https://openrouter.ai/xiaomi/mimo-v2.5-pro) | Open | 33.0 | $0.435 | **75.86** | More capable than base MiMo, but worse by this metric. |
-| 18 | [DeepSeek V4 Pro 0813](https://openrouter.ai/deepseek/deepseek-v4-pro-0813) | Open | 42.0 | $0.57948 | **72.48** | Promotional routed price (56.1% off); slightly stronger than Flash, but still far worse on input-price value. |
-| 19 | [Inkling Small](https://openrouter.ai/thinkingmachines/inkling-small) | Open | 32.0 | $0.450 | **71.11** | Open-weight multimodal option. |
-| 20 | [Kimi K2.6](https://openrouter.ai/moonshotai/kimi-k2.6) | Open | 36.0 | $0.5415 | **66.48** | Promotional routed price (43% off); superseded on quality by Kimi K3. |
-| 21 | [Nemotron 3 Ultra](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b) | Open | 30.0 | $0.500 | **60.00** | Non-Chinese open-weight option; cheapest standard route is non-promotional FP4. |
-| 22 | [Kimi K2.7 Code](https://openrouter.ai/moonshotai/kimi-k2.7-code) | Open | 34.0 | $0.660 | **51.52** | Coding-specialized rather than general-purpose; cheapest standard route is non-promotional INT4. |
-| 23 | [GPT-5.4 Mini](https://openrouter.ai/openai/gpt-5.4-mini) | API | 32.0 | $0.750 | **42.67** | AA's current v4.2 score is estimated; closed-model mid-tier baseline. |
-| 24 | [Muse Spark 1.3](https://openrouter.ai/meta/muse-spark-1.3) | API | 52.0 | $1.250 | **41.60** | AA configuration: xhigh, the strongest generally available setting; max scores 53 but remains in limited preview. |
-| 25 | [Grok Build 0.1](https://openrouter.ai/x-ai/grok-build-0.1) | API | 41.0 | $1.000 | **41.00** | Coding-agent specialist. |
-| 26 | [Muse Spark 1.2](https://openrouter.ai/meta/muse-spark-1.2) | API | 47.0 | $1.250 | **37.60** | Strong capability but middling input-price value. |
-| 27 | [GLM-5.3](https://openrouter.ai/z-ai/glm-5.3) | Open | 49.0 | $1.400 | **35.00** | Full model weights are now available; much lower value than GLM-5.3-Flash. |
-| 28 | [Inkling](https://openrouter.ai/thinkingmachines/inkling) | Open | 32.0 | $0.950 | **33.68** | Full model trails Inkling Small on input-price value. |
-| 29 | [Gemini 3.5 Flash](https://openrouter.ai/google/gemini-3.5-flash) | API | 42.0 | $1.500 | **28.00** | Superseded on value by Gemini 3.7 Flash. |
-| 30 | [Grok 4.6](https://openrouter.ai/x-ai/grok-4.6) | API | 51.0 | $2.000 | **25.50** | Tied with GPT-5.6 Sol on the input-price metric. |
-| 30 | [GPT-5.6 Sol](https://openrouter.ai/openai/gpt-5.6-sol) | API | 51.0 | $2.000 | **25.50** | Promotional routed price (50% off); tied with Grok 4.6. |
-| 32 | [Qwen3.8 2.4T A95B](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b) | Open | 47.0 | $2.000 | **23.50** | Highest-scoring open-weight Qwen. |
-| 32 | [GPT-5.6 Terra](https://openrouter.ai/openai/gpt-5.6-terra) | API | 47.0 | $2.000 | **23.50** | Tied with Qwen3.8 2.4T A95B on this metric. |
+| 3 | [GLM-5.3-Flash](https://openrouter.ai/z-ai/glm-5.3-flash) | Open | 46.0 | $0.07125 | **645.61** | Reasoning model; cheapest route is non-promotional FP4 and AA finds it unusually verbose. |
+| 4 | [GPT-5.6 Luna](https://openrouter.ai/openai/gpt-5.6-luna) | API | 43.0 | $0.100 | **430.00** | Non-promotional Flex route; standard input is $0.20/M. |
+| 5 | [GPT-5.4 Nano](https://openrouter.ai/openai/gpt-5.4-nano) | API | 40.0 | $0.100 | **400.00** | Non-promotional Flex route; standard input is $0.20/M. |
+| 6 | [Qwen3.8-Flash-Next](https://artificialanalysis.ai/models/qwen3-8-flash-next) | Open* | 46.0 | $0.150 | **306.67** | AA scored the reasoning open-weight preview; price is the non-promotional managed Qwen3.8 Flash API based on it. |
+| 7 | [Qwen3.8 27B](https://openrouter.ai/qwen/qwen3.8-27b) | Open | 41.0 | $0.150 | **273.33** | AA configuration: xhigh. Cheapest standard route is non-promotional FP4; validate endpoint accuracy for critical workloads. |
+| 8 | [MiMo-V2.5](https://openrouter.ai/xiaomi/mimo-v2.5) | Open | 30.0 | $0.119 | **252.10** | Promotional FP8 route (15% off); strong low-cost worker below the 50+ driver tier. |
+| 9 | [Gemini 3.5 Flash Lite](https://openrouter.ai/google/gemini-3.5-flash-lite) | API | 28.0 | $0.150 | **186.67** | Non-promotional Flex route; sits exactly at the recalibrated quality floor. |
+| 10 | [Hy3 Preview](https://openrouter.ai/tencent/hy3-preview) | Open | 33.0 | $0.180 | **183.33** | Preview endpoint; recheck pricing at GA. |
+| 11 | [Gemini 3.8 Flash](https://openrouter.ai/google/gemini-3.8-flash) | API | 47.0 | $0.375 | **125.33** | AA configuration: high reasoning. Promotional Flex route is 50% off; exceptionally fast but very verbose in AA's evaluation. |
+| 12 | [MiniMax M3](https://openrouter.ai/minimax/minimax-m3) | Open* | 36.0 | $0.300 | **120.00** | Weights available; confirm commercial-license terms. |
+| 12 | [Gemini 3.7 Flash](https://openrouter.ai/google/gemini-3.7-flash) | API | 45.0 | $0.375 | **120.00** | Tied with MiniMax M3 on this metric. |
+| 14 | [MiMo-V2.5 Pro](https://openrouter.ai/xiaomi/mimo-v2.5-pro) | Open | 33.0 | $0.3045 | **108.37** | Promotional BF16 route (30% off); more capable than base MiMo, but worse by this metric. |
+| 15 | [GLM-5.2](https://openrouter.ai/z-ai/glm-5.2) | Open | 43.0 | $0.420 | **102.38** | Promotional FP8 route (70% off); strong value from the prior GLM generation. |
+| 16 | [Qwen3.7 Plus](https://openrouter.ai/qwen/qwen3.7-plus) | API | 31.0 | $0.320 | **96.88** | Hosted/API configuration. |
+| 17 | [Qwen3.6 27B](https://openrouter.ai/qwen/qwen3.6-27b) | Open | 29.0 | $0.300 | **96.67** | Older 27B Qwen; cheapest standard route is non-promotional FP8. |
+| 18 | [GPT-5.4 Mini](https://openrouter.ai/openai/gpt-5.4-mini) | API | 32.0 | $0.375 | **85.33** | AA's current v4.2 score is estimated; non-promotional Flex route. |
+| 19 | [DeepSeek V4 Pro 0813](https://openrouter.ai/deepseek/deepseek-v4-pro-0813) | Open | 42.0 | $0.5808 | **72.31** | Cheapest route is now non-promotional; slightly stronger than Flash, but still far worse on input-price value. |
+| 20 | [Inkling Small](https://openrouter.ai/thinkingmachines/inkling-small) | Open | 32.0 | $0.450 | **71.11** | Open-weight multimodal option. |
+| 21 | [Kimi K2.6](https://openrouter.ai/moonshotai/kimi-k2.6) | Open | 36.0 | $0.560 | **64.29** | Cheapest route is now non-promotional INT4; superseded on quality by Kimi K3. |
+| 22 | [Nemotron 3 Ultra](https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b) | Open | 30.0 | $0.500 | **60.00** | Non-Chinese open-weight option; cheapest standard route is non-promotional FP4. |
+| 23 | [Gemini 3.5 Flash](https://openrouter.ai/google/gemini-3.5-flash) | API | 42.0 | $0.750 | **56.00** | Non-promotional Flex route; superseded on value by newer Flash models. |
+| 24 | [Kimi K2.7 Code](https://openrouter.ai/moonshotai/kimi-k2.7-code) | Open | 34.0 | $0.660 | **51.52** | Coding-specialized rather than general-purpose; cheapest standard route is non-promotional INT4. |
+| 25 | [GPT-5.6 Sol](https://openrouter.ai/openai/gpt-5.6-sol) | API | 51.0 | $1.000 | **51.00** | Promotional Flex route (50% off the $2/M routed standard price). |
+| 26 | [GPT-5.6 Terra](https://openrouter.ai/openai/gpt-5.6-terra) | API | 47.0 | $1.000 | **47.00** | Non-promotional Flex route; standard input is $2/M. |
+| 27 | [GLM-5.3](https://openrouter.ai/z-ai/glm-5.3) | Open | 49.0 | $1.120 | **43.75** | Promotional FP8 route (20% off); full model weights are available. |
+| 28 | [Muse Spark 1.3](https://openrouter.ai/meta/muse-spark-1.3) | API | 52.0 | $1.250 | **41.60** | AA configuration: xhigh, the strongest generally available setting; max scores 53 but remains in limited preview. |
+| 29 | [Grok Build 0.1](https://openrouter.ai/x-ai/grok-build-0.1) | API | 41.0 | $1.000 | **41.00** | Coding-agent specialist. |
+| 30 | [Muse Spark 1.2](https://openrouter.ai/meta/muse-spark-1.2) | API | 47.0 | $1.250 | **37.60** | Strong capability but middling input-price value. |
+| 31 | [Inkling](https://openrouter.ai/thinkingmachines/inkling) | Open | 32.0 | $0.950 | **33.68** | Full model trails Inkling Small on input-price value. |
+| 32 | [Grok 4.6](https://openrouter.ai/x-ai/grok-4.6) | API | 51.0 | $2.000 | **25.50** | Strong closed-model baseline. |
+| 33 | [Qwen3.8 2.4T A95B](https://openrouter.ai/qwen/qwen3.8-2.4t-a95b) | Open | 47.0 | $2.000 | **23.50** | Highest-scoring open-weight Qwen. |
 | 34 | [Claude Sonnet 5](https://openrouter.ai/anthropic/claude-sonnet-5) | API | 45.0 | $2.000 | **22.50** | Anthropic's best input-price value in this table. |
-| 35 | [Kimi K3](https://openrouter.ai/moonshotai/kimi-k3) | Open | 50.0 | $3.000 | **16.67** | Highest-quality established open-weight model, but not cheap. |
+| 35 | [Kimi K3](https://openrouter.ai/moonshotai/kimi-k3) | Open | 50.0 | $2.550 | **19.61** | Highest-quality established open-weight model, but not cheap. |
 | 36 | [GPT-6 Astra](https://openrouter.ai/openai/gpt-6-astra) | API | 55.0 | $5.000 | **11.00** | AA configuration: max reasoning. Cheapest route is non-promotional Flex; standard input is $10/M, and requests above 272K input tokens cost $10/M even on Flex. |
 | 37 | [Claude Opus 5](https://openrouter.ai/anthropic/claude-opus-5) | API | 54.0 | $5.000 | **10.80** | Still high quality, but no longer the table's quality leader. |
 | 38 | [Claude Fable 5.1](https://openrouter.ai/anthropic/claude-fable-5.1) | API | 57.0 | $10.000 | **5.70** | AA configuration: Adaptive Reasoning, Max Effort, Default Fallback. Highest quality in the table, but expensive and very verbose. |
@@ -88,7 +88,7 @@ This metric answers a narrow question: **how much benchmark score is purchased p
 Useful operational slices:
 
 - Raw ratio leaders: Solar Pro 4, DeepSeek V4 Flash 0731, and GLM-5.3-Flash.
-- Best 50+ score value: Muse Spark 1.3 at its generally available xhigh setting.
+- Best 50+ score value: GPT-5.6 Sol on its promotional Flex route.
 - Best 55+ score value: GPT-6 Astra on its non-promotional Flex route.
 - Highest-quality open-weight model: Kimi K3, while Qwen3.8 2.4T A95B is close and slightly cheaper.
 
@@ -97,8 +97,8 @@ The earlier ranking based on the actual full Artificial Analysis evaluation bill
 ## Sources and conventions
 
 - Scores: [Artificial Analysis model comparison](https://artificialanalysis.ai/models), Intelligence Index v4.2, accessed 2026-09-05. AA's [v4.2 announcement](https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-2) documents the addition of AA-Briefcase and GDP.pdf, removal of GPQA Diamond, reweighting toward held-out tests, and grading upgrades. The scale moved materially, so every ranked score was refreshed and the quality floor was recalibrated from 35 to 28.
-- Prices: [OpenRouter public model catalog](https://openrouter.ai/api/v1/models) and live model/provider pages, accessed 2026-09-05. The cheapest listed paid standard endpoint is used as the uncached input price; batch, free, and specially named contributor variants are excluded. Quantized and Flex routes are allowed but flagged when materially relevant because endpoint accuracy or service priority can differ.
-- Promotion status: OpenRouter marked the ranked $2.00/M GPT-5.6 Sol route as 50% off and the $0.5415/M Kimi K2.6 route as 43% off on 2026-08-23. GLM-5.3-Flash launched at 50% off ($0.075/M input) through 2026-09-09; its [official pricing page](https://docs.z.ai/guides/overview/pricing) and OpenRouter endpoints agree. GLM-5.2's selected $0.4144/M FP8 route was 70.4% off on 2026-09-02. DeepSeek V4 Pro 0813's selected $0.57948/M route was 56.1% off on 2026-09-04. Apodex 1.1 is temporarily free against a $0.30/M standard list price, with no published campaign end date; Mercury 2.5 Preview is 80% off at $0.040/M. Gemini 3.8 Flash's cheapest Flex route is 50% off at $0.375/M. GPT-6 Astra's $5/M Flex route is not marked promotional; it is half the $10/M standard rate, but requests above 272K input tokens are billed at $10/M input. The selected DeepSeek V4 Flash, Qwen3.8 Flash, Qwen3.8 27B, Qwen3.6 27B, Kimi K2.7 Code, Nemotron 3 Ultra, Muse Spark 1.3, Hy4 preview, and Qwen3.8-Max-0902 routes were not marked promotional when last checked. Promotional prices are retained but flagged rather than treated as durable list prices; promotional-free models are unranked.
+- Prices: [OpenRouter public model catalog](https://openrouter.ai/api/v1/models) and live model/provider pages, accessed 2026-09-07. The cheapest listed paid standard endpoint is used as the uncached input price; batch, free, and specially named contributor variants are excluded. Quantized and Flex routes are allowed but flagged when materially relevant because endpoint accuracy or service priority can differ.
+- Promotion status: OpenRouter marked Solar Pro 4's selected $0.03/M route as 90% off, MiMo-V2.5's $0.119/M FP8 route as 15% off, MiMo-V2.5 Pro's $0.3045/M BF16 route as 30% off, GLM-5.2's $0.42/M FP8 route as 70% off, GLM-5.3's $1.12/M FP8 route as 20% off, and GPT-5.6 Sol's $1/M Flex route as 50% off on 2026-09-07. Gemini 3.8 and 3.7 Flash remain 50% off at $0.375/M; Apodex 1.1 remains temporarily free against a $0.30/M list price; Mercury 2.5 Preview remains 80% off at $0.040/M. The selected OpenAI Luna, Nano, Mini, Terra, and Astra Flex routes and Google Gemini 3.5 Flash/Lite Flex routes are not marked promotional. The selected GLM-5.3-Flash, DeepSeek V4 Flash and Pro, Qwen3.8 Flash and 27B, Qwen3.6 27B, Kimi K2.6, Kimi K2.7 Code, Kimi K3, Nemotron 3 Ultra, Muse Spark 1.3, Hy4 preview, and Qwen3.8-Max-0902 routes are also not marked promotional. Promotional prices are retained but flagged rather than treated as durable list prices; promotional-free models are unranked.
 - Release verification: official [GLM-5.3 documentation](https://docs.z.ai/guides/llm/glm-5.3), current [GLM-5.3 model card](https://huggingface.co/zai-org/GLM-5.3), and [Qwen3.8 27B model card](https://huggingface.co/Qwen/Qwen3.8-27B), refreshed 2026-09-05. GLM-5.3 weights are now publicly available.
 - New-release verification: official [GPT-5.6 Cyber model page](https://developers.openai.com/api/docs/models/gpt-5.6-cyber), accessed 2026-08-20. The model requires separate Daybreak approval; its official uncached input price is $12.50/M and is not marked promotional.
 - New-release verification: official [Thomson Reuters announcement](https://www.thomsonreuters.com/en/press-releases/2026/august/thomson-reuters-leverages-its-world-class-data-assets-to-launch-its-own-frontier-model), accessed 2026-08-25. Thomson is initially domain-specialized and product-embedded, with no public token API price or AA score.
@@ -121,6 +121,7 @@ The earlier ranking based on the actual full Artificial Analysis evaluation bill
 
 ## Changelog
 
+- **2026-09-07 — broad routed-price refresh:** Recomputed the full ranking after a live OpenRouter provider-route audit found several material price changes. Newly available non-promotional Flex routes halve input prices for GPT-5.6 Luna, GPT-5.4 Nano and Mini, GPT-5.6 Terra, Gemini 3.5 Flash, and Gemini 3.5 Flash Lite; Qwen3.8 27B falls to a non-promotional $0.15/M FP4 route. GPT-5.6 Sol's promotional Flex route is now $1/M. Additional route changes update GLM-5.3-Flash, both MiMo-V2.5 variants, GLM-5.2/5.3, DeepSeek V4 Pro 0813, Kimi K2.6, and Kimi K3. Luna rises to rank 4 and becomes the best 40+ value; Sol becomes the best 50+ value. No noteworthy general-purpose model release after September 4 was found, and no watchlist model gained the missing score or public token price.
 - **2026-09-05 — AA v4.2 rerank and Astra Flex route:** Artificial Analysis materially revised the Intelligence Index, adding AA-Briefcase and GDP.pdf, removing GPQA Diamond, and reweighting held-out tests. Refreshed every score and recalibrated the quality floor from 35 to 28 to preserve the prior boundary; Ling 3.0 Flash now scores 27 and fell below it. Solar Pro 4 becomes rank 1 at 1,100.00 value. GPT-6 Astra gained a non-promotional $5/M Flex route and ranks 36 at AA 55/value 11.00. OpenRouter replaced the generic Qwen3.8 Max route with Qwen3.8-Max-0902 at $2/M; the prior generic row was removed and the snapshot remains on the watchlist pending a distinct AA score. GLM-5.3 is now marked open-weight after its official model card became available. No noteworthy model release after September 3 was found.
 - **2026-09-04 — GPT-6 Astra debuts; K2 Horizon and Gemini Cyber watched; routed prices move:** Added GPT-6 Astra at AA 61 (max reasoning) and OpenAI's non-promotional $10/M standard input price (value 6.10, rank 41). Added open-weight K2 Horizon 375B A23B to the watchlist at AA 47 pending public per-token API pricing, and added restricted Gemini 3.8 Flash Cyber pending both an AA score and public token pricing. Qwen3.8 27B gained a non-promotional $0.22/M FP4 route (value 236.36, rank 13 to 8); DeepSeek V4 Pro 0813 gained a promotional $0.57948/M route (56.1% off; value 91.81, rank 21 to 19); Qwen3.6 27B's cheapest route rose to a non-promotional $0.30/M (value 125.67, rank 14 to 15).
 - **2026-09-03 — Gemini 3.8 and Muse Spark 1.3 become measurable:** Moved Gemini 3.8 Flash from the watchlist into rank 10 at AA 59 (high reasoning) and a promotional $0.375/M Flex input price (value 157.33). Added newly released Muse Spark 1.3 at rank 25 using its generally available xhigh configuration (AA 61, $1.25/M input, value 48.80); max scores 62 but remains in limited preview. Qwen3.8-Max-0902 and the other watchlist entries still lack AA scores, and no other material ranked-model repricing was found.
