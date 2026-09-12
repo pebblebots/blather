@@ -5,10 +5,11 @@ import { emitEvent } from '../ws/events.js';
 import {
   createTask,
   updateTask,
-  resolveTask,
-  findTaskByTitle,
+  resolveTaskInChannel,
+  findTaskByTitleInChannel,
   listOpenTasksWithCommentCount,
   addComment,
+  canMutateTask,
   getTaskClaimConflict,
   TaskClaimConflictError,
 } from '../tasks/queries.js';
@@ -97,7 +98,7 @@ export async function handleTasksCommand(db: Db, channelId: string, content: str
     if (cmd === 'list' || cmd === 'ls') {
       await cmdList(db, channelId, threadId);
     } else if (cmd === 'add' || cmd === 'new' || cmd === 'create') {
-      await cmdAdd(db, channelId, parts.slice(1), threadId);
+      await cmdAdd(db, channelId, parts.slice(1), threadId, userId);
     } else if (cmd === 'done' || cmd === 'complete') {
       await cmdDone(db, channelId, parts.slice(1).join(' '), threadId, userId);
     } else if (cmd === 'start' || cmd === 'claim') {
@@ -114,7 +115,7 @@ export async function handleTasksCommand(db: Db, channelId: string, content: str
 }
 
 async function cmdList(db: Db, channelId: string, threadId?: string | null) {
-  const rows = await listOpenTasksWithCommentCount(db);
+  const rows = await listOpenTasksWithCommentCount(db, channelId);
 
   if (rows.length === 0) {
     await postBotMessage(db, channelId, '✅ No open tasks! All clear.', threadId);
@@ -133,7 +134,13 @@ async function cmdList(db: Db, channelId: string, threadId?: string | null) {
   await postBotMessage(db, channelId, `📋 **Open Tasks** (${rows.length})\n\n${lines.join('\n')}`, threadId);
 }
 
-async function cmdAdd(db: Db, channelId: string, args: string[], threadId?: string | null) {
+async function cmdAdd(
+  db: Db,
+  channelId: string,
+  args: string[],
+  threadId?: string | null,
+  userId?: string,
+) {
   let priority: 'urgent' | 'normal' | 'low' = 'normal';
   let titleParts = args;
 
@@ -151,11 +158,14 @@ async function cmdAdd(db: Db, channelId: string, args: string[], threadId?: stri
     return;
   }
 
-  const uid = await ensureBotUser(db);
+  if (!userId) {
+    await postBotMessage(db, channelId, '❌ Could not identify the task creator', threadId);
+    return;
+  }
   const task = await createTask(db, {
     title,
     priority,
-    creatorId: uid,
+    creatorId: userId,
     sourceChannelId: channelId,
   });
 
@@ -194,13 +204,18 @@ async function cmdDone(db: Db, channelId: string, query: string, threadId?: stri
     }
   }
 
-  let task = await resolveTask(db, taskQuery);
+  let task = await resolveTaskInChannel(db, taskQuery, channelId);
   if (!task) {
-    task = await findTaskByTitle(db, taskQuery, { excludeStatus: 'done' });
+    task = await findTaskByTitleInChannel(db, taskQuery, channelId, { excludeStatus: 'done' });
   }
 
   if (!task) {
     await postBotMessage(db, channelId, `❌ No task found matching "${taskQuery}"`, threadId);
+    return;
+  }
+
+  if (!userId || !await canMutateTask(db, task.id, userId, 'update')) {
+    await postBotMessage(db, channelId, '❌ Not authorized to complete this task', threadId);
     return;
   }
 
@@ -229,13 +244,18 @@ async function cmdStart(db: Db, channelId: string, query: string, threadId?: str
     return;
   }
 
-  let task = await resolveTask(db, query.trim());
+  let task = await resolveTaskInChannel(db, query.trim(), channelId);
   if (!task) {
-    task = await findTaskByTitle(db, query, { requiredStatus: 'queued' });
+    task = await findTaskByTitleInChannel(db, query, channelId, { requiredStatus: 'queued' });
   }
 
   if (!task) {
     await postBotMessage(db, channelId, `❌ No task found matching "${query}"`, threadId);
+    return;
+  }
+
+  if (!userId || !await canMutateTask(db, task.id, userId, 'claim')) {
+    await postBotMessage(db, channelId, '❌ Not authorized to start this task', threadId);
     return;
   }
 
@@ -279,7 +299,7 @@ async function cmdComment(db: Db, channelId: string, args: string[], threadId?: 
     return;
   }
 
-  const task = await resolveTask(db, args[0]);
+  const task = await resolveTaskInChannel(db, args[0], channelId);
   if (!task) {
     await postBotMessage(db, channelId, `❌ No task found matching "${args[0]}"`, threadId);
     return;

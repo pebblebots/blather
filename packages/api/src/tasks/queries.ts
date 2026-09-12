@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, getTableColumns, ilike, isNull, ne, or, sql } from 'drizzle-orm';
-import { taskComments, tasks, type Db } from '@blather/db';
+import { channelMembers, taskComments, tasks, users, type Db } from '@blather/db';
 
 export type TaskPriority = 'urgent' | 'normal' | 'low';
 export type TaskStatus = 'queued' | 'in_progress' | 'done';
@@ -39,6 +39,116 @@ export interface TaskWithCommentCount extends Task {
   commentsCount: number;
 }
 
+/**
+ * The API connects as the database owner, so Postgres RLS is not the
+ * authorization boundary for API-key/JWT requests. Keep the same boundary in
+ * the API query layer: task actors can see their tasks, channel members can
+ * see channel tasks. Mutation and claim operations remain actor-scoped.
+ */
+function taskActorCondition(userId: string) {
+  return or(
+    eq(tasks.creatorId, userId),
+    eq(tasks.assigneeId, userId),
+    eq(tasks.claimedById, userId),
+  );
+}
+
+function taskChannelMemberCondition(userId: string) {
+  return sql`EXISTS (SELECT 1 FROM ${channelMembers}
+    WHERE ${channelMembers.channelId} = ${tasks.sourceChannelId}
+      AND ${channelMembers.userId} = ${userId})`;
+}
+
+function taskVisibilityCondition(userId: string) {
+  return or(
+    taskActorCondition(userId),
+    taskChannelMemberCondition(userId),
+    // Unchannelled active tasks are the shared task-board queue. They are
+    // readable so users can discover work; mutation remains actor-scoped.
+    and(
+      isNull(tasks.sourceChannelId),
+      ne(tasks.status, 'done'),
+    ),
+  );
+}
+
+/** A task actor may mutate or claim a task. */
+export async function canMutateTask(
+  db: Db,
+  id: string,
+  userId: string,
+  operation: 'update' | 'claim' | 'delete' = 'update',
+): Promise<boolean> {
+  // Claiming is a distinct queue capability: a user may claim visible queued
+  // work that is not already assigned/claimed. All other edits and deletes
+  // require task-actor authority. The atomic update below preserves the
+  // existing one-claimant race protection.
+  const condition = operation === 'claim'
+    ? or(
+      taskActorCondition(userId),
+      and(
+        eq(tasks.status, 'queued'),
+        isNull(tasks.assigneeId),
+        isNull(tasks.claimedById),
+        or(
+          isNull(tasks.sourceChannelId),
+          taskChannelMemberCondition(userId),
+        ),
+      ),
+    )
+    : taskActorCondition(userId);
+  const [row] = await db.select({ id: tasks.id }).from(tasks).where(and(
+    eq(tasks.id, id),
+    condition,
+  )).limit(1);
+  return Boolean(row);
+}
+
+/** Assignment targets must be active users and, for channel tasks, members. */
+export async function canUseTaskChannel(db: Db, channelId: string, userId: string): Promise<boolean> {
+  const [row] = await db.select({ userId: channelMembers.userId })
+    .from(channelMembers)
+    .where(and(
+      eq(channelMembers.channelId, channelId),
+      eq(channelMembers.userId, userId),
+    ))
+    .limit(1);
+  return Boolean(row);
+}
+
+export async function canAssignTask(
+  db: Db,
+  sourceChannelId: string | null,
+  assigneeId: string | null,
+): Promise<boolean> {
+  if (!assigneeId) return true;
+  if (sourceChannelId) {
+    const [row] = await db.select({ id: users.id })
+      .from(users)
+      .innerJoin(channelMembers, eq(channelMembers.userId, users.id))
+      .where(and(
+        eq(users.id, assigneeId),
+        isNull(users.deactivatedAt),
+        eq(channelMembers.channelId, sourceChannelId),
+      ))
+      .limit(1);
+    return Boolean(row);
+  }
+  const [row] = await db.select({ id: users.id }).from(users).where(and(
+    eq(users.id, assigneeId),
+    isNull(users.deactivatedAt),
+  )).limit(1);
+  return Boolean(row);
+}
+
+export async function canViewTask(db: Db, id: string, userId: string): Promise<boolean> {
+  const [row] = await db.select({ id: tasks.id }).from(tasks).where(and(
+    eq(tasks.id, id),
+    taskVisibilityCondition(userId),
+  )).limit(1);
+  return Boolean(row);
+}
+
 function mapTask(row: typeof tasks.$inferSelect): Task {
   return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
@@ -51,23 +161,32 @@ export async function listTasks(db: Db, filters?: {
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string;
+  viewerId?: string;
 }): Promise<Task[]> {
   const conditions = [];
   if (filters?.status) conditions.push(eq(tasks.status, filters.status));
   if (filters?.priority) conditions.push(eq(tasks.priority, filters.priority));
   if (filters?.assigneeId) conditions.push(eq(tasks.assigneeId, filters.assigneeId));
+  if (filters?.viewerId) conditions.push(taskVisibilityCondition(filters.viewerId));
   const rows = await db.select().from(tasks).where(and(...conditions)).orderBy(desc(tasks.createdAt));
   return rows.map(mapTask);
 }
 
-export async function listOpenTasksWithCommentCount(db: Db): Promise<TaskWithCommentCount[]> {
+/** Lists open tasks belonging to one channel for TaskBot's channel-local board. */
+export async function listOpenTasksWithCommentCount(
+  db: Db,
+  sourceChannelId?: string,
+): Promise<TaskWithCommentCount[]> {
   const rows = await db.select({
     ...getTableColumns(tasks),
     commentsCount: sql<number>`(
       SELECT count(*)::int FROM ${taskComments}
       WHERE ${taskComments.taskId} = ${tasks.id}
     )`.mapWith(Number),
-  }).from(tasks).where(ne(tasks.status, 'done')).orderBy(
+  }).from(tasks).where(and(
+    ne(tasks.status, 'done'),
+    ...(sourceChannelId === undefined ? [] : [eq(tasks.sourceChannelId, sourceChannelId)]),
+  )).orderBy(
     sql`CASE ${tasks.priority} WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END`,
     desc(tasks.createdAt),
   );
@@ -79,8 +198,24 @@ export async function getTask(db: Db, id: string): Promise<Task | null> {
   return row ? mapTask(row) : null;
 }
 
+export async function getTaskForViewer(db: Db, id: string, userId: string): Promise<Task | null> {
+  const [row] = await db.select().from(tasks).where(and(
+    eq(tasks.id, id),
+    taskVisibilityCondition(userId),
+  )).limit(1);
+  return row ? mapTask(row) : null;
+}
+
 export async function getTaskByShortId(db: Db, shortId: number): Promise<Task | null> {
   const [row] = await db.select().from(tasks).where(eq(tasks.shortId, shortId)).limit(1);
+  return row ? mapTask(row) : null;
+}
+
+export async function getTaskByShortIdForViewer(db: Db, shortId: number, userId: string): Promise<Task | null> {
+  const [row] = await db.select().from(tasks).where(and(
+    eq(tasks.shortId, shortId),
+    taskVisibilityCondition(userId),
+  )).limit(1);
   return row ? mapTask(row) : null;
 }
 
@@ -169,12 +304,50 @@ export async function resolveTask(db: Db, token: string): Promise<Task | null> {
   return row ? mapTask(row) : null;
 }
 
+/** Resolves a TaskBot token only within the channel where the command arrived. */
+export async function resolveTaskInChannel(
+  db: Db,
+  token: string,
+  sourceChannelId: string,
+): Promise<Task | null> {
+  const shortMatch = token.match(/^T#?(\d+)$/i) ?? token.match(/^(\d+)$/);
+  if (shortMatch) {
+    const [row] = await db.select().from(tasks).where(and(
+      eq(tasks.shortId, Number.parseInt(shortMatch[1], 10)),
+      eq(tasks.sourceChannelId, sourceChannelId),
+    )).limit(1);
+    return row ? mapTask(row) : null;
+  }
+  const [row] = await db.select().from(tasks).where(and(
+    sql`${tasks.id}::text LIKE ${`${token}%`}`,
+    eq(tasks.sourceChannelId, sourceChannelId),
+  )).orderBy(asc(tasks.createdAt)).limit(1);
+  return row ? mapTask(row) : null;
+}
+
 export async function findTaskByTitle(
   db: Db,
   query: string,
   opts?: { excludeStatus?: TaskStatus; requiredStatus?: TaskStatus },
 ): Promise<Task | null> {
   const conditions = [ilike(tasks.title, `%${query}%`)];
+  if (opts?.requiredStatus) conditions.push(eq(tasks.status, opts.requiredStatus));
+  if (opts?.excludeStatus) conditions.push(ne(tasks.status, opts.excludeStatus));
+  const [row] = await db.select().from(tasks).where(and(...conditions)).orderBy(desc(tasks.createdAt)).limit(1);
+  return row ? mapTask(row) : null;
+}
+
+/** Finds a TaskBot title match only within the channel where it was requested. */
+export async function findTaskByTitleInChannel(
+  db: Db,
+  query: string,
+  sourceChannelId: string,
+  opts?: { excludeStatus?: TaskStatus; requiredStatus?: TaskStatus },
+): Promise<Task | null> {
+  const conditions = [
+    ilike(tasks.title, `%${query}%`),
+    eq(tasks.sourceChannelId, sourceChannelId),
+  ];
   if (opts?.requiredStatus) conditions.push(eq(tasks.status, opts.requiredStatus));
   if (opts?.excludeStatus) conditions.push(ne(tasks.status, opts.excludeStatus));
   const [row] = await db.select().from(tasks).where(and(...conditions)).orderBy(desc(tasks.createdAt)).limit(1);
