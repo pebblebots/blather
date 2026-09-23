@@ -3,6 +3,7 @@ import { eq, isNull, and } from 'drizzle-orm';
 import { users } from '@blather/db';
 import type { Env } from '../app.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { disconnectUser } from '../ws/manager.js';
 
 export const memberRoutes = new Hono<Env>();
 memberRoutes.use('*', authMiddleware);
@@ -72,6 +73,8 @@ memberRoutes.patch('/:id/deactivate', async (c) => {
     .set({ deactivatedAt: new Date() })
     .where(eq(users.id, targetId))
     .returning({ id: users.id, deactivatedAt: users.deactivatedAt });
+
+  disconnectUser(targetId);
 
   return c.json(updated);
 });

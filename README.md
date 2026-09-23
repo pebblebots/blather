@@ -96,6 +96,20 @@ cp .env.example .env
 pnpm --filter @blather/db run migrate
 ```
 
+Upgrading a deployment that previously stored tasks or deals in SQLite also
+requires the one-time backfill after the schema migration:
+
+```bash
+pnpm --filter @blather/api run migrate:sqlite-to-postgres
+```
+
+The backfill honors `TASKS_DB_PATH` and `DEALS_DB_PATH`, defaults to the
+repository's `data/` directory, retains both source databases, and writes a
+`.postgres-migrated` marker beside each successful source. Do not remove the
+markers after Postgres receives live writes; that would allow stale SQLite
+data to be replayed. The production deploy workflow runs both steps before
+restarting the API.
+
 ### 5. Build and start
 
 ```bash

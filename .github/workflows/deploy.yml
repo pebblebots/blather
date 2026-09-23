@@ -34,4 +34,12 @@ jobs:
             git pull origin main
             pnpm install --frozen-lockfile
             pnpm build
+            if [ -f .env ]; then
+              set -a
+              . ./.env
+              set +a
+            fi
+            pm2 stop blather-api || true
+            pnpm --filter @blather/db run migrate
+            pnpm --filter @blather/api run migrate:sqlite-to-postgres
             pm2 restart blather-api || pm2 start packages/api/dist/index.js --name blather-api
