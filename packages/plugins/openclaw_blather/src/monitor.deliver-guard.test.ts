@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   shouldDeliverReplyPayload,
   createPerTurnDeliveryGuard,
+  extractRecoverableText,
   type DeliverReplyInfo,
 } from "./deliver-guard.js";
 
@@ -322,5 +323,119 @@ describe("per-turn delivery guard T#178 (cascade break)", () => {
     expect(g2.suppressedFinalCount()).toBe(0);
     const fresh = g2.check({ text: "turn 2 final" }, { kind: "final" });
     expect(fresh).toMatchObject({ deliver: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T#178 — drop-case recovery (extractRecoverableText).
+//
+// Recovers text from a getReplyFromConfig result when the dispatcher
+// returns queuedFinal=false despite non-empty assistant output (the qwen
+// + no-tool-call scenario). Returns null for legitimate silent cases.
+// ---------------------------------------------------------------------------
+describe("extractRecoverableText T#178 drop-recovery", () => {
+  it("returns text from a single reply payload", () => {
+    expect(extractRecoverableText({ text: "hello" })).toBe("hello");
+  });
+
+  it("trims whitespace", () => {
+    expect(extractRecoverableText({ text: "  hello world  " })).toBe(
+      "hello world",
+    );
+  });
+
+  it("returns null for null / undefined / empty", () => {
+    expect(extractRecoverableText(null)).toBeNull();
+    expect(extractRecoverableText(undefined)).toBeNull();
+    expect(extractRecoverableText([])).toBeNull();
+    expect(extractRecoverableText({ text: "" })).toBeNull();
+    expect(extractRecoverableText({ text: "   " })).toBeNull();
+    expect(extractRecoverableText({})).toBeNull();
+  });
+
+  it("skips isReasoning payloads and returns last non-reasoning", () => {
+    expect(
+      extractRecoverableText([
+        { text: "internal thought", isReasoning: true },
+        { text: "real reply" },
+      ]),
+    ).toBe("real reply");
+  });
+
+  it("skips isCompactionNotice payloads", () => {
+    expect(
+      extractRecoverableText([
+        { text: "compacting...", isCompactionNotice: true },
+        { text: "real reply" },
+      ]),
+    ).toBe("real reply");
+  });
+
+  it("returns null when all payloads are reasoning", () => {
+    expect(
+      extractRecoverableText([
+        { text: "thought 1", isReasoning: true },
+        { text: "thought 2", isReasoning: true },
+      ]),
+    ).toBeNull();
+  });
+
+  it("returns null for exact NO_REPLY", () => {
+    expect(extractRecoverableText({ text: "NO_REPLY" })).toBeNull();
+    expect(extractRecoverableText({ text: "  NO_REPLY  " })).toBeNull();
+    expect(extractRecoverableText([{ text: "NO_REPLY" }])).toBeNull();
+  });
+
+  it("returns null for exact HEARTBEAT_OK", () => {
+    expect(extractRecoverableText({ text: "HEARTBEAT_OK" })).toBeNull();
+  });
+
+  it("does NOT treat NO_REPLY as silent when it's part of a longer message", () => {
+    // A message containing the string "NO_REPLY" but not BEING the
+    // silent token should still deliver — the agent is discussing the
+    // token, not invoking it.
+    expect(
+      extractRecoverableText({ text: "We used NO_REPLY as the silent token" }),
+    ).toBe("We used NO_REPLY as the silent token");
+  });
+
+  it("uses the LAST non-reasoning payload (matches dispatcher last-wins for finals)", () => {
+    expect(
+      extractRecoverableText([
+        { text: "first" },
+        { text: "second" },
+        { text: "third" },
+      ]),
+    ).toBe("third");
+  });
+
+  it("reproduces Aura-in-huddle qwen drop case", () => {
+    // qwen produced text, no tool calls, dispatcher emitted 0 finals.
+    // extractRecoverableText pulls the text from the captured resolver
+    // result so the plugin can manually deliver it.
+    const result = [
+      {
+        text: "👋 I'm aura — still figuring out my name, but the vibe is sharp but not trying too hard.",
+      },
+    ];
+    expect(extractRecoverableText(result)).toBe(
+      "👋 I'm aura — still figuring out my name, but the vibe is sharp but not trying too hard.",
+    );
+  });
+
+  it("handles mixed reasoning-then-text sequence", () => {
+    expect(
+      extractRecoverableText([
+        { text: "let me think...", isReasoning: true },
+        { text: "what do you think?" },
+      ]),
+    ).toBe("what do you think?");
+  });
+
+  it("handles malformed inputs gracefully", () => {
+    // Not crashing on strings / numbers / booleans as payloads.
+    expect(extractRecoverableText([null as any, undefined as any])).toBeNull();
+    expect(extractRecoverableText(["not a payload" as any])).toBeNull();
+    expect(extractRecoverableText([42 as any])).toBeNull();
   });
 });
