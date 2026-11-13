@@ -6,6 +6,11 @@ to record a `[t190-boundary]` warning only when a turn suppresses a duplicate
 final or a transport send fails. It is off by default. Do not deploy or enable
 it merely to make a counter look better.
 
+The monitor now marks the reply dispatcher complete and awaits its queued
+deliveries (including HTTP sends) before reading the trace and guard counts.
+`markDispatchIdle()` alone only updates typing state; it is **not** a delivery
+drain. The settle step also runs when reply resolution throws.
+
 Each warning records the inbound message UUID, a generated dispatch UUID,
 channel/thread IDs, callback ordinal and kind, optional core-provided
 `assistantMessageIndex`, byte length, a 16-hex-character

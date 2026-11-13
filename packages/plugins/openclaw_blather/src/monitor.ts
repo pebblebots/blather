@@ -21,6 +21,7 @@ import {
   observedModeEToolCalls,
 } from "./mode-e-audit.js";
 import { createDeliveryBoundaryTrace } from "./delivery-boundary-trace.js";
+import { runWithSettledDelivery } from "./delivery-settlement.js";
 export { shouldDeliverReplyPayload, createPerTurnDeliveryGuard, auditModeEClaim, extractRecoverableText };
 export type { DeliverReplyInfo, RecoverableReplyPayload };
 
@@ -411,16 +412,23 @@ export async function startMonitor(params: MonitorParams) {
       return result;
     };
 
-    const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
-      ctx,
-      cfg,
-      dispatcher,
-      replyOptions,
-      replyResolver: replyResolver as any,
-    });
-    markDispatchIdle();
-    clearInterval(typingInterval);
-    endModeEAudit(ctx.SessionKey);
+    let result: Awaited<ReturnType<typeof core.channel.reply.dispatchReplyFromConfig>>;
+    try {
+      result = await runWithSettledDelivery(dispatcher, () =>
+        core.channel.reply.dispatchReplyFromConfig({
+          ctx,
+          cfg,
+          dispatcher,
+          replyOptions,
+          replyResolver: replyResolver as any,
+        }),
+      );
+    } finally {
+      markDispatchIdle();
+      clearInterval(typingInterval);
+      endModeEAudit(ctx.SessionKey);
+    }
+    const { queuedFinal, counts } = result;
     if (boundaryTrace?.shouldLog()) {
       log?.warn?.(`[t190-boundary] ${JSON.stringify({
         ...boundaryTrace.summary(),
