@@ -7,7 +7,8 @@ final or a transport send fails. It is off by default. Do not deploy or enable
 it merely to make a counter look better.
 
 Each warning records the inbound message UUID, a generated dispatch UUID,
-channel/thread IDs, callback ordinal and kind, byte length, a 16-hex-character
+channel/thread IDs, callback ordinal and kind, optional core-provided
+`assistantMessageIndex`, byte length, a 16-hex-character
 process-keyed HMAC of each callback text, guard decision, and (only on success)
 the server message UUID. At most 32 callbacks are retained per dispatch; the
 omitted count is included. The per-process HMAC key is never written to disk,

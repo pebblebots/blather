@@ -14,6 +14,7 @@ const MAX_EVENTS = 32;
 type BoundaryEvent = {
   ordinal: number;
   kind: string;
+  assistantMessageIndex?: number;
   length: number;
   digest: string;
   decision: string;
@@ -28,10 +29,15 @@ export function createDeliveryBoundaryTrace(inboundMessageId: string) {
   let suppressed = 0;
   let failures = 0;
 
-  function callback(payload: unknown, info: DeliverReplyInfo | undefined, decision: PerTurnDecision) {
+  function callback(
+    payload: unknown,
+    info: (DeliverReplyInfo & { assistantMessageIndex?: number }) | undefined,
+    decision: PerTurnDecision,
+  ) {
     const ordinal = ++callbackCount;
     if ("reason" in decision && decision.reason === "duplicate_final") suppressed++;
     if (events.length < MAX_EVENTS) {
+      const assistantMessageIndex = info?.assistantMessageIndex;
       const text = typeof payload === "string"
         ? payload
         : typeof payload === "object" && payload !== null && "text" in payload &&
@@ -39,6 +45,10 @@ export function createDeliveryBoundaryTrace(inboundMessageId: string) {
       events.push({
         ordinal,
         kind: info?.kind ?? "unknown",
+        ...(typeof assistantMessageIndex === "number" &&
+          Number.isSafeInteger(assistantMessageIndex) && assistantMessageIndex >= 0
+          ? { assistantMessageIndex }
+          : {}),
         length: Buffer.byteLength(text, "utf8"),
         digest: createHmac("sha256", digestKey).update(text).digest("hex").slice(0, 16),
         decision: "reason" in decision ? decision.reason : "approved",
