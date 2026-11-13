@@ -53,6 +53,50 @@ describe("T#190 delivery lifecycle", () => {
     expect(guard.approvedFinalCount()).toBe(1);
   });
 
+  it("includes a callback queued behind a delayed first send in the completed record", async () => {
+    const send = deferred<void>();
+    const trace = createDeliveryBoundaryTrace("inbound-delayed-callback");
+    const guard = createPerTurnDeliveryGuard();
+    let deliveryChain = Promise.resolve();
+    let completed = false;
+    const dispatcher = {
+      markComplete: vi.fn(() => { completed = true; }),
+      waitForIdle: vi.fn(() => deliveryChain),
+    };
+
+    const result = runWithSettledDelivery(dispatcher, async () => {
+      // Mirror the installed dispatcher's serialized sendChain: resolution
+      // returns once finals are queued, before either callback has settled.
+      deliveryChain = deliveryChain.then(async () => {
+        const first = { text: "intermediate" };
+        const decision = guard.check(first, { kind: "final" });
+        const ordinal = trace.callback(first, { kind: "final", assistantMessageIndex: 2 }, decision);
+        await send.promise;
+        trace.sendResult(ordinal, "succeeded", "123e4567-e89b-12d3-a456-426614174000");
+      }).then(() => {
+        const second = { text: "actual answer" };
+        const decision = guard.check(second, { kind: "final" });
+        trace.callback(second, { kind: "final", assistantMessageIndex: 3 }, decision);
+      });
+      return { queuedFinal: true, counts: { final: 2 } };
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(completed).toBe(true);
+    expect(trace.summary().callbackCount).toBe(1);
+    expect(trace.shouldLog()).toBe(false);
+    send.resolve();
+    await expect(result).resolves.toMatchObject({ counts: { final: 2 } });
+    expect(trace.summary().callbackCount).toBe(2);
+    expect(trace.summary().events).toMatchObject([
+      { ordinal: 1, assistantMessageIndex: 2, decision: "approved", send: "succeeded" },
+      { ordinal: 2, assistantMessageIndex: 3, decision: "duplicate_final" },
+    ]);
+    expect(trace.shouldLog()).toBe(true);
+    expect(guard.suppressedFinalCount()).toBe(1);
+  });
+
   it("marks complete and drains even when resolution rejects", async () => {
     const dispatcher = { markComplete: vi.fn(), waitForIdle: vi.fn(async () => {}) };
     await expect(runWithSettledDelivery(dispatcher, async () => {
