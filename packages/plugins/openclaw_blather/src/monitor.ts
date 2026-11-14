@@ -20,9 +20,10 @@ import {
   endModeEAudit,
   observedModeEToolCalls,
 } from "./mode-e-audit.js";
+import { createDeliveryBoundaryTrace } from "./delivery-boundary-trace.js";
+import { runWithSettledDelivery } from "./delivery-settlement.js";
 export { shouldDeliverReplyPayload, createPerTurnDeliveryGuard, auditModeEClaim, extractRecoverableText };
 export type { DeliverReplyInfo, RecoverableReplyPayload };
-
 
 const RECONNECT_BASE_MS = 3_000;
 const RECONNECT_MAX_MS = 60_000;
@@ -305,6 +306,11 @@ export async function startMonitor(params: MonitorParams) {
     // T#178: fresh per-turn idempotency guard. Any finals beyond the first
     // are logged and suppressed here, breaking the cascade at source.
     const perTurnGuard = createPerTurnDeliveryGuard();
+    // Opt in for a bounded, body-free trace of *affected* callback/send paths.
+    // The default has no payload hashing or additional journal entries.
+    const boundaryTrace = process.env.BLATHER_T190_TRACE === "1"
+      ? createDeliveryBoundaryTrace(data.id)
+      : undefined;
     // T#192: start an audit ledger for this channel turn. The plugin-level
     // before_tool_call hook records host-authoritative tool events into it;
     // final delivery only tags suspicious claims and never blocks a reply.
@@ -330,6 +336,7 @@ export async function startMonitor(params: MonitorParams) {
           // cascade. The per-turn guard approves the first final and
           // logs-and-suppresses any extras.
           const decision = perTurnGuard.check(payload, info);
+          const callbackOrdinal = boundaryTrace?.callback(payload, info, decision);
           if (!decision.deliver) {
             if (decision.reason === "duplicate_final") {
               log?.warn?.(
@@ -357,11 +364,21 @@ export async function startMonitor(params: MonitorParams) {
             typeof payload === "object" && payload !== null
               ? (payload as { replyToId?: string }).replyToId
               : undefined;
-          await client.sendMessage(data.channelId, decision.text, {
-            // Preserve an existing inbound thread, or an explicit
-            // [[reply_to_current]] target on a top-level message.
-            threadId: data.threadId ?? payloadReplyToId ?? undefined,
-          });
+          try {
+            const sent = await client.sendMessage(data.channelId, decision.text, {
+              // Preserve an existing inbound thread, or an explicit
+              // [[reply_to_current]] target on a top-level message.
+              threadId: data.threadId ?? payloadReplyToId ?? undefined,
+            });
+            if (callbackOrdinal !== undefined) {
+              boundaryTrace?.sendResult(callbackOrdinal, "succeeded", sent.id);
+            }
+          } catch (error) {
+            if (callbackOrdinal !== undefined) {
+              boundaryTrace?.sendResult(callbackOrdinal, "failed");
+            }
+            throw error;
+          }
         },
         onError: (err, info) => log?.error(`${info.kind} reply failed: ${err}`),
       });
@@ -395,16 +412,32 @@ export async function startMonitor(params: MonitorParams) {
       return result;
     };
 
-    const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
-      ctx,
-      cfg,
-      dispatcher,
-      replyOptions,
-      replyResolver: replyResolver as any,
-    });
-    markDispatchIdle();
-    clearInterval(typingInterval);
-    endModeEAudit(ctx.SessionKey);
+    let result: Awaited<ReturnType<typeof core.channel.reply.dispatchReplyFromConfig>>;
+    try {
+      result = await runWithSettledDelivery(dispatcher, () =>
+        core.channel.reply.dispatchReplyFromConfig({
+          ctx,
+          cfg,
+          dispatcher,
+          replyOptions,
+          replyResolver: replyResolver as any,
+        }),
+      );
+    } finally {
+      markDispatchIdle();
+      clearInterval(typingInterval);
+      endModeEAudit(ctx.SessionKey);
+    }
+    const { queuedFinal, counts } = result;
+    if (boundaryTrace?.shouldLog()) {
+      log?.warn?.(`[t190-boundary] ${JSON.stringify({
+        ...boundaryTrace.summary(),
+        channelId: data.channelId,
+        threadId: data.threadId ?? null,
+        queuedFinal,
+        dispatcherFinalCount: counts.final,
+      })}`);
+    }
 
     // T#178 observability + drop-recovery.
     const approved = perTurnGuard.approvedFinalCount();
